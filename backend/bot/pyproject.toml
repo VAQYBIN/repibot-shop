@@ -1,0 +1,12 @@
+[project]
+name = "repibot-bot"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["repibot-core", "aiogram>=3.30", "redis>=5.2"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/repibot_bot"]
