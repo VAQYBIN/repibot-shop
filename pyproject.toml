@@ -3,7 +3,7 @@ name = "repibot"
 version = "0.1.0"
 description = "Re:Pibot Shop — магазин VPN-подписок поверх Remnawave"
 requires-python = ">=3.13"
-dependencies = ["repibot-core", "repibot-api", "repibot-bot"]
+dependencies = ["repibot-core", "repibot-api", "repibot-bot", "repibot-worker"]
 
 [project.scripts]
 check = "tools.check:main"
@@ -22,6 +22,7 @@ members = ["backend/core", "backend/api", "backend/bot", "backend/worker"]
 repibot-core = { workspace = true }
 repibot-api = { workspace = true }
 repibot-bot = { workspace = true }
+repibot-worker = { workspace = true }
 
 [dependency-groups]
 dev = [
