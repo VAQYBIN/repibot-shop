@@ -20,8 +20,14 @@ result_backend: RedisAsyncResultBackend[object] = RedisAsyncResultBackend(
     prefix_str="repibot_results",
 )
 
-broker = ListQueueBroker(url=_settings.valkey_url, queue_name="repibot_tasks").with_result_backend(
-    result_backend
-)
+# socket_timeout=None обязателен. Воркер ждёт задачу блокирующим brpop без
+# таймаута, а redis-py 8 по умолчанию ставит таймаут чтения в пять секунд.
+# Через пять секунд простоя чтение падает с TimeoutError, который taskiq-redis
+# не ловит (он ждёт ConnectionError), и воркер уходит в цикл перезапусков.
+broker = ListQueueBroker(
+    url=_settings.valkey_url,
+    queue_name="repibot_tasks",
+    socket_timeout=None,
+).with_result_backend(result_backend)
 
 scheduler = TaskiqScheduler(broker=broker, sources=[LabelScheduleSource(broker)])

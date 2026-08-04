@@ -1,0 +1,102 @@
+name: repibot
+
+x-backend: &backend
+  build:
+    context: .
+    dockerfile: docker/backend.Dockerfile
+  env_file: [.env]
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Начиная с 18 образ хранит данные в подкаталоге с номером версии и требует
+    # монтировать /var/lib/postgresql целиком. Старый путь .../data образ
+    # отвергает при старте.
+    volumes: [postgres-data:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes: [valkey-data:/data]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Одноразовый сервис. Отрабатывает до старта остальных, чтобы три
+  # процесса не боролись за блокировку миграций.
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    command: ["uvicorn", "repibot_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+
+  bot:
+    <<: *backend
+    command: ["python", "-m", "repibot_bot.main"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+
+  worker:
+    <<: *backend
+    command: ["taskiq", "worker", "repibot_worker.broker:broker", "repibot_worker.tasks"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+
+  scheduler:
+    <<: *backend
+    command: ["taskiq", "scheduler", "repibot_worker.broker:scheduler", "repibot_worker.tasks"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    restart: unless-stopped
+    depends_on: [api]
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx.Dockerfile
+    ports: ["80:80"]
+    restart: unless-stopped
+    depends_on: [api, web, bot]
+
+volumes:
+  postgres-data:
+  valkey-data:

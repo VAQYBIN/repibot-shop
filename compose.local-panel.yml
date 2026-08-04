@@ -1,0 +1,19 @@
+# Оверлей для случая, когда панель Remnawave развёрнута на этом же сервере.
+#
+# Запуск:
+#   docker compose -f compose.yml -f compose.local-panel.yml up -d
+#
+# В .env при этом указывается внутренний адрес:
+#   REMNAWAVE_BASE_URL=http://remnawave:3000
+
+services:
+  api:
+    networks: [default, remnawave-network]
+  worker:
+    networks: [default, remnawave-network]
+  scheduler:
+    networks: [default, remnawave-network]
+
+networks:
+  remnawave-network:
+    external: true

@@ -58,3 +58,12 @@ def test_heartbeat_has_schedule_label() -> None:
 def test_broker_queue_name_is_namespaced() -> None:
     """Один Valkey может обслуживать и панель, и магазин — очереди не должны пересекаться."""
     assert broker.queue_name == "repibot_tasks"
+
+
+def test_broker_disables_socket_read_timeout() -> None:
+    """С таймаутом чтения воркер умирает через пять секунд простоя.
+
+    Он ждёт задачу блокирующим brpop, а таймаут превращает ожидание в ошибку,
+    которую taskiq-redis не обрабатывает.
+    """
+    assert broker.connection_pool.connection_kwargs["socket_timeout"] is None
