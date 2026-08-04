@@ -33,6 +33,7 @@ dev = [
     "testcontainers[postgres]>=4.9",
     "psycopg[binary]>=3.2",
     "httpx>=0.28",
+    "datamodel-code-generator>=0.26",
 ]
 
 [tool.ruff]
@@ -40,7 +41,7 @@ line-length = 100
 target-version = "py313"
 # Ruff 0.16 форматирует Python-блоки внутри Markdown. Спеки и планы — не исходники,
 # примеры в них живут по правилам изложения, а не по правилам линтера.
-extend-exclude = ["docs"]
+extend-exclude = ["docs", "**/integrations/remnawave/models.py"]
 src = ["backend/core/src", "backend/api/src", "backend/bot/src", "backend/worker/src", "tools"]
 
 [tool.ruff.lint]
@@ -57,7 +58,7 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003"]
 python_version = "3.13"
 strict = true
 files = ["backend", "tools", "conftest.py"]
-exclude = "migrations"
+exclude = "(migrations|integrations/remnawave/models\\.py)"
 
 [tool.pytest.ini_options]
 testpaths = ["backend", "tools"]
