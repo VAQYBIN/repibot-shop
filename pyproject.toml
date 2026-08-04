@@ -8,6 +8,7 @@ dependencies = ["repibot-core", "repibot-api", "repibot-bot", "repibot-worker"]
 [project.scripts]
 check = "tools.check:main"
 export-openapi = "tools.export_openapi:main"
+verify-generated = "tools.verify_generated:main"
 
 [build-system]
 requires = ["hatchling"]

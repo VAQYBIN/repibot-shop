@@ -30,7 +30,10 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["ok", "degraded"],
+            "enum": [
+              "ok",
+              "degraded"
+            ],
             "title": "Status"
           },
           "database": {
@@ -43,7 +46,11 @@
           }
         },
         "type": "object",
-        "required": ["status", "database", "valkey"],
+        "required": [
+          "status",
+          "database",
+          "valkey"
+        ],
         "title": "HealthResponse"
       }
     }

@@ -33,6 +33,7 @@ CHECKS: list[Check] = [
     Check(name="biome", command=["pnpm", "lint"], cwd=FRONTEND),
     Check(name="typecheck", command=["pnpm", "typecheck"], cwd=FRONTEND),
     Check(name="vitest", command=["pnpm", "test"], cwd=FRONTEND),
+    Check(name="generated", command=["uv", "run", "verify-generated"], cwd=ROOT),
 ]
 
 
