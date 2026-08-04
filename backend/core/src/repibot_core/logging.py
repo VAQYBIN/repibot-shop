@@ -60,7 +60,9 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": mask(record.getMessage()),
         }
-        request_id = request_id_var.get()
+        # Явно переданный в extra идентификатор важнее контекстного: обработчик
+        # ошибки 500 работает вне контекста запроса и передаёт его сам.
+        request_id = getattr(record, "request_id", None) or request_id_var.get()
         if request_id is not None:
             payload["request_id"] = request_id
         if record.exc_info:

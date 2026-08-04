@@ -48,12 +48,15 @@ GENERATED: list[Generated] = [
 ]
 
 
+def _normalise(text: str) -> str:
+    return text.replace("\r\n", "\n")
+
+
 def compare(path: Path, expected: str) -> bool:
     """Сравнивает содержимое файла, не придираясь к переводам строк."""
     if not path.exists():
         return False
-    actual = path.read_text(encoding="utf-8").replace("\r\n", "\n")
-    return actual == expected.replace("\r\n", "\n")
+    return _normalise(path.read_text(encoding="utf-8")) == _normalise(expected)
 
 
 def _resolve(command: list[str]) -> list[str]:
@@ -76,15 +79,29 @@ def verify_generated(entries: list[Generated] | None = None, root: Path = ROOT) 
         existed = target.exists()
         before = target.read_bytes() if existed else b""
 
-        subprocess.run(_resolve(entry.command), cwd=entry.cwd, check=True)  # noqa: S603
-
-        if not compare(target, before.decode("utf-8")):
+        generated: bytes | None = None
+        try:
+            subprocess.run(_resolve(entry.command), cwd=entry.cwd, check=True)  # noqa: S603
+        except FileNotFoundError:
+            # Нет pnpm или uv — это сообщение, а не трассировка.
+            print(f"команда не найдена: {entry.command[0]}", flush=True)  # noqa: T201
             stale.append(str(entry.path))
+            continue
+        finally:
+            # Снимок и восстановление именно в finally: упавший генератор мог
+            # успеть записать половину файла, и без восстановления проверка
+            # испортила бы ровно то, что должна была защитить.
+            if target.exists():
+                generated = target.read_bytes()
+            if existed:
+                target.write_bytes(before)
+            else:
+                target.unlink(missing_ok=True)
 
-        if existed:
-            target.write_bytes(before)
-        else:
-            target.unlink(missing_ok=True)
+        if generated is None or _normalise(generated.decode("utf-8")) != _normalise(
+            before.decode("utf-8")
+        ):
+            stale.append(str(entry.path))
     return stale
 
 

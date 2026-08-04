@@ -7,12 +7,17 @@
 import httpx
 import pytest
 
-from repibot_core.integrations.remnawave.client import RemnawaveClient, RemnawaveUnavailable
+from repibot_core.integrations.remnawave.client import (
+    RemnawaveClient,
+    RemnawaveUnavailable,
+    create_remnawave_client,
+)
+from repibot_core.settings import get_settings
 
 
 def _client(transport: httpx.MockTransport) -> RemnawaveClient:
     client = RemnawaveClient(
-        base_url="https://panel.example.org", token="panel-token", timeout=1.0, max_retries=3
+        base_url="https://panel.example.org", token="panel-token", timeout=1.0, max_attempts=3
     )
     client._http = httpx.AsyncClient(
         transport=transport,
@@ -77,6 +82,47 @@ async def test_client_errors_are_not_retried() -> None:
 
     assert calls["count"] == 1
     assert response.status_code == 404
+
+
+async def test_number_of_attempts_matches_the_setting() -> None:
+    """Параметр называется «попытки», а не «повторы»: три означает три запроса,
+    а не один плюс три. Разница в треть нагрузки на падающую панель."""
+    calls = {"count": 0}
+
+    def handle(_request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        return httpx.Response(503)
+
+    client = RemnawaveClient(
+        base_url="https://panel.example.org", token="panel-token", timeout=1.0, max_attempts=2
+    )
+    client._http = httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="https://panel.example.org"
+    )
+
+    with pytest.raises(RemnawaveUnavailable):
+        await client.request("GET", "/api/system/health")
+    await client.aclose()
+
+    assert calls["count"] == 2
+
+
+async def test_factory_takes_everything_from_settings() -> None:
+    """Настройки таймаута и числа попыток иначе остаются мёртвыми: клиент
+    создаётся вручную, и значения из конфигурации до него не доходят."""
+    settings = get_settings()
+    client = create_remnawave_client()
+
+    try:
+        assert client.max_attempts == settings.remnawave_max_attempts
+        assert client._http.timeout.connect == settings.remnawave_timeout_seconds
+        assert str(client._http.base_url) == settings.remnawave_base_url.rstrip("/")
+        assert (
+            client._http.headers["authorization"]
+            == f"Bearer {settings.remnawave_token.get_secret_value()}"
+        )
+    finally:
+        await client.aclose()
 
 
 async def test_connection_error_is_wrapped() -> None:

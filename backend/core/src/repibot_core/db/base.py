@@ -13,7 +13,16 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    """Отметки создания и изменения. Проставляются базой, а не приложением."""
+    """Отметки создания и изменения.
+
+    created_at проставляет база: server_default выполняется в самом INSERT,
+    и значение появится даже при вставке в обход ORM.
+
+    updated_at ставит SQLAlchemy — onupdate добавляет столбец в UPDATE, который
+    она собирает сама. Обновление напрямую (SQL из миграции, ручной UPDATE
+    в psql) отметку не тронет. Понадобится строгая гарантия — понадобится
+    триггер на стороне базы.
+    """
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

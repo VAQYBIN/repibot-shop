@@ -4,8 +4,11 @@
 а не в сборке.
 """
 
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from tools.verify_generated import GENERATED, Generated, compare, verify_generated
 
@@ -77,6 +80,36 @@ def test_up_to_date_file_is_reported_as_current(tmp_path: Path) -> None:
     )
 
     assert verify_generated([entry], root=tmp_path) == []
+
+
+def test_failed_generator_does_not_leave_the_file_damaged(tmp_path: Path) -> None:
+    """Генератор мог успеть записать половину файла и упасть.
+
+    Восстановление вне finally оставило бы закоммиченный файл затёртым —
+    проверка испортила бы ровно то, что должна была защитить.
+    """
+    target = tmp_path / "generated.txt"
+    target.write_text("закоммиченное", encoding="utf-8")
+
+    code = (
+        f"import pathlib; pathlib.Path({str(target)!r}).write_text('половина', encoding='utf-8');"
+        " raise SystemExit(1)"
+    )
+    entry = Generated(
+        path=Path("generated.txt"), command=[sys.executable, "-c", code], cwd=tmp_path
+    )
+
+    with pytest.raises(subprocess.CalledProcessError):
+        verify_generated([entry], root=tmp_path)
+
+    assert target.read_text(encoding="utf-8") == "закоммиченное"
+
+
+def test_missing_generator_is_reported_without_a_traceback(tmp_path: Path) -> None:
+    """Нет pnpm — это сообщение, а не трассировка: в tools/check.py уже так."""
+    entry = Generated(path=Path("generated.txt"), command=["repibot-no-such-tool"], cwd=tmp_path)
+
+    assert verify_generated([entry], root=tmp_path) == ["generated.txt"]
 
 
 def test_absent_file_is_not_left_behind(tmp_path: Path) -> None:

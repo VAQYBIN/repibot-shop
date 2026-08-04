@@ -38,7 +38,8 @@ class Settings(BaseSettings):
     remnawave_base_url: str
     remnawave_token: SecretStr
     remnawave_timeout_seconds: float = 10.0
-    remnawave_max_retries: int = 3
+    # Именно попытки: три означает три запроса, а не один плюс три повтора.
+    remnawave_max_attempts: int = 3
 
     jwt_secret: SecretStr
     encryption_key: SecretStr

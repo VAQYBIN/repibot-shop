@@ -10,11 +10,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from repibot_core.logging import request_id_var
+from repibot_api.middleware import HEADER, request_id_of
 
 logger = logging.getLogger(__name__)
-
-HEADER = "X-Request-ID"
 
 # Коды для ответов, которые порождает не наш код, а фреймворк.
 _STATUS_CODES = {
@@ -38,6 +36,7 @@ class ApiError(Exception):
 
 
 def _error_response(
+    request: Request,
     status_code: int,
     code: str,
     message: str,
@@ -54,7 +53,7 @@ def _error_response(
         body["details"] = details
 
     headers = {}
-    request_id = request_id_var.get()
+    request_id = request_id_of(request)
     if request_id is not None:
         headers[HEADER] = request_id
 
@@ -63,17 +62,17 @@ def _error_response(
 
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
-    async def _handle_api_error(_request: Request, exc: ApiError) -> JSONResponse:
-        return _error_response(exc.status_code, exc.code, exc.message)
+    async def _handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
+        return _error_response(request, exc.status_code, exc.code, exc.message)
 
     @app.exception_handler(StarletteHTTPException)
-    async def _handle_http_error(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    async def _handle_http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = _STATUS_CODES.get(exc.status_code, "http_error")
-        return _error_response(exc.status_code, code, str(exc.detail))
+        return _error_response(request, exc.status_code, code, str(exc.detail))
 
     @app.exception_handler(RequestValidationError)
     async def _handle_validation_error(
-        _request: Request, exc: RequestValidationError
+        request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         # Сведения по полям сохраняются: без них форма не покажет, что неверно.
         # Поле input выброшено — в нём лежит то, что прислал клиент, вплоть
@@ -82,9 +81,15 @@ def register_error_handlers(app: FastAPI) -> None:
             {"loc": [str(part) for part in error["loc"]], "msg": error["msg"]}
             for error in exc.errors()
         ]
-        return _error_response(422, "validation_error", "Проверьте введённые данные", details)
+        return _error_response(
+            request, 422, "validation_error", "Проверьте введённые данные", details
+        )
 
     @app.exception_handler(Exception)
-    async def _handle_unexpected(_request: Request, exc: Exception) -> JSONResponse:
-        logger.exception("необработанная ошибка", exc_info=exc)
-        return _error_response(500, "internal_error", "Внутренняя ошибка")
+    async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
+        # Идентификатор передаётся явно: контекстная переменная к этому моменту
+        # уже сброшена, обработчик вызывается снаружи middleware.
+        logger.exception(
+            "необработанная ошибка", exc_info=exc, extra={"request_id": request_id_of(request)}
+        )
+        return _error_response(request, 500, "internal_error", "Внутренняя ошибка")

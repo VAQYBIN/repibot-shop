@@ -73,6 +73,18 @@ def test_only_nginx_publishes_ports(compose: dict[str, Any]) -> None:
     assert with_ports == {"nginx"}
 
 
+def test_frontend_service_does_not_receive_backend_secrets(compose: dict[str, Any]) -> None:
+    """Веб-приложению нужна разметка, а не токен бота и ключ подписи.
+
+    Подключение общего .env выглядит безобидно и кладёт все секреты в процесс,
+    который их не использует, — лишняя поверхность на ровном месте.
+    """
+    web = compose["services"]["web"]
+
+    assert "env_file" not in web
+    assert "environment" not in web
+
+
 def test_no_literal_secrets_in_compose() -> None:
     text = (ROOT / "compose.yml").read_text(encoding="utf-8")
 

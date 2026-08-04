@@ -41,6 +41,16 @@ def test_request_id_is_attached_when_set() -> None:
     request_id_var.set(None)
 
 
+def test_explicit_request_id_wins_over_the_context() -> None:
+    """Обработчик ошибки 500 работает вне контекста запроса и передаёт
+    идентификатор явно — иначе именно эта запись остаётся без него."""
+    logger, stream = _capture("test.explicit")
+
+    logger.info("сбой", extra={"request_id": "явный"})
+
+    assert json.loads(stream.getvalue())["request_id"] == "явный"
+
+
 def test_bot_token_is_masked() -> None:
     logger, stream = _capture("test.secret")
 

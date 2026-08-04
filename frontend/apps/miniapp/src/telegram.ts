@@ -8,6 +8,7 @@
 
 interface TelegramWebApp {
   initData?: string
+  initDataUnsafe?: { user?: { language_code?: string } }
   colorScheme?: 'light' | 'dark'
   ready?: () => void
   expand?: () => void
@@ -30,6 +31,17 @@ export function readInitData(): string | null {
 
 export function isInsideTelegram(): boolean {
   return readInitData() !== null
+}
+
+/**
+ * Порядок предпочтений языка: сначала выставленный Telegram, затем настройки
+ * браузера. Значение берётся из initDataUnsafe и используется только для
+ * выбора языка — оно не подписано, и доверять ему что-то важнее нельзя.
+ */
+export function preferredLanguages(): readonly string[] {
+  const fromTelegram = webApp()?.initDataUnsafe?.user?.language_code
+  const fromBrowser = navigator.languages ?? [navigator.language]
+  return fromTelegram ? [fromTelegram, ...fromBrowser] : fromBrowser
 }
 
 export function applyTelegramTheme(): void {

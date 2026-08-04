@@ -18,6 +18,8 @@ from tenacity import (
     wait_exponential,
 )
 
+from repibot_core.settings import get_settings
+
 logger = logging.getLogger(__name__)
 
 _RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
@@ -45,6 +47,9 @@ class RemnawaveClient:
     Повторяются только сетевые ошибки и коды 429 и 5xx. Ответы 4xx
     возвращаются как есть: повторять запрос, на который панель ответила
     осмысленным отказом, бессмысленно и вредно.
+
+    max_attempts — именно попытки, а не повторы: три означает три запроса,
+    а не один плюс три.
     """
 
     def __init__(
@@ -52,9 +57,9 @@ class RemnawaveClient:
         base_url: str,
         token: str,
         timeout: float = 10.0,
-        max_retries: int = 3,
+        max_attempts: int = 3,
     ) -> None:
-        self.max_retries = max_retries
+        self.max_attempts = max_attempts
         self._http = httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
             timeout=timeout,
@@ -64,7 +69,7 @@ class RemnawaveClient:
     async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         try:
             async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(self.max_retries),
+                stop=stop_after_attempt(self.max_attempts),
                 wait=wait_exponential(multiplier=0.5, max=5),
                 retry=retry_if_exception_type((httpx.TransportError, _RetryableResponse)),
             ):
@@ -80,3 +85,18 @@ class RemnawaveClient:
 
     async def aclose(self) -> None:
         await self._http.aclose()
+
+
+def create_remnawave_client() -> RemnawaveClient:
+    """Клиент по настройкам развёртывания.
+
+    Единственная точка сборки: собранный вручную клиент не получает ни таймаут,
+    ни число попыток из конфигурации, и обе настройки остаются мёртвыми.
+    """
+    settings = get_settings()
+    return RemnawaveClient(
+        base_url=settings.remnawave_base_url,
+        token=settings.remnawave_token.get_secret_value(),
+        timeout=settings.remnawave_timeout_seconds,
+        max_attempts=settings.remnawave_max_attempts,
+    )
