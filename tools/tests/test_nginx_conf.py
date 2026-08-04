@@ -1,5 +1,6 @@
 """Маршрутизация и заголовки безопасности."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -14,14 +15,22 @@ def conf() -> str:
 
 @pytest.mark.parametrize(
     ("location", "upstream"),
-    [("/api", "api"), ("/app", None), ("/tg/webhook", "bot"), ("/", "web")],
+    [("/api", "api"), ("/app", None), ("/webhook/telegram", "bot"), ("/", "web")],
 )
 def test_routes_are_declared(conf: str, location: str, upstream: str | None) -> None:
-    assert f"location {location}" in conf
+    # Точное совпадение (location = /путь) объявляется наравне с префиксным.
+    assert re.search(rf"location\s+=?\s*{re.escape(location)}\s", conf)
     if upstream:
         # Маршрут ведёт в именованный upstream, а тот — в нужный сервис compose.
         assert f"proxy_pass http://{upstream}_upstream" in conf
         assert f"upstream {upstream}_upstream {{ server {upstream}:" in conf
+
+
+def test_webhook_route_matches_the_path_bot_registers(conf: str) -> None:
+    """Разъехавшиеся пути дают молчаливый 404 на каждый апдейт от Telegram."""
+    from repibot_bot.main import WEBHOOK_PATH
+
+    assert f"location = {WEBHOOK_PATH}" in conf
 
 
 def test_health_is_routed_to_api(conf: str) -> None:
