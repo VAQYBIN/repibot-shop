@@ -2,7 +2,10 @@
 name = "repibot-core"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+]
 
 [build-system]
 requires = ["hatchling"]
