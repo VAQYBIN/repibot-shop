@@ -2,19 +2,28 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Coroutine
+from functools import lru_cache
 from typing import Literal
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from repibot_core.db.engine import check_database, create_engine
 from repibot_core.settings import get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Верхняя граница ожидания каждой зависимости. При потере пакетов подключение
+# не отвергается, а висит минутами: наблюдатель вместо «база недоступна»
+# получает таймаут собственного запроса и не знает, что именно сломалось.
+PROBE_TIMEOUT_SECONDS = 3.0
 
 
 class HealthResponse(BaseModel):
@@ -23,8 +32,25 @@ class HealthResponse(BaseModel):
     valkey: bool
 
 
+@lru_cache(maxsize=1)
+def get_engine() -> AsyncEngine:
+    """Один движок на процесс.
+
+    Создавать движок на каждый запрос значит поднимать новый пул соединений
+    на каждый опрос наблюдателя — так исчерпывается лимит подключений базы.
+    """
+    return create_engine(get_settings().database_url, connect_timeout=PROBE_TIMEOUT_SECONDS)
+
+
 async def check_valkey(url: str) -> bool:
-    client: Redis = Redis.from_url(url)
+    # Клиент создаётся на каждый вызов сознательно: проверка живости должна
+    # устанавливать соединение заново, иначе она подтверждает работоспособность
+    # пула, а не самого Valkey. Соединение здесь одно и оно закрывается.
+    client: Redis = Redis.from_url(
+        url,
+        socket_connect_timeout=PROBE_TIMEOUT_SECONDS,
+        socket_timeout=PROBE_TIMEOUT_SECONDS,
+    )
     try:
         await client.ping()
     # RedisError, а не встроенный ConnectionError: redis.exceptions.ConnectionError
@@ -39,17 +65,26 @@ async def check_valkey(url: str) -> bool:
     return True
 
 
-@router.get("/health", response_model=HealthResponse)
+async def _probe(check: Coroutine[object, object, bool], name: str) -> bool:
+    """Ждёт проверку не дольше PROBE_TIMEOUT_SECONDS; зависшая считается упавшей."""
+    try:
+        async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
+            return await check
+    except TimeoutError:
+        logger.warning("%s не ответил за %s с", name, PROBE_TIMEOUT_SECONDS)
+        return False
+
+
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    responses={503: {"model": HealthResponse, "description": "Отказала хотя бы одна зависимость"}},
+)
 async def health(response: Response) -> HealthResponse:
     settings = get_settings()
 
-    engine = create_engine(settings.database_url)
-    try:
-        database_ok = await check_database(engine)
-    finally:
-        await engine.dispose()
-
-    valkey_ok = await check_valkey(settings.valkey_url)
+    database_ok = await _probe(check_database(get_engine()), "база данных")
+    valkey_ok = await _probe(check_valkey(settings.valkey_url), "valkey")
 
     healthy = database_ok and valkey_ok
     if not healthy:

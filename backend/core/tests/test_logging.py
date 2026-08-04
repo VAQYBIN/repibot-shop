@@ -61,6 +61,37 @@ def test_authorization_header_value_is_masked() -> None:
     assert "***" in output
 
 
+def test_secrets_are_masked_in_exception_text() -> None:
+    """Фильтр правит только текст сообщения, а трассировка идёт отдельным полем.
+
+    Секрет попадает в неё каждый раз, когда он есть в тексте исключения:
+    адрес запроса, тело ответа, разобранный токен.
+    """
+    logger, stream = _capture("test.exc.secret")
+
+    try:
+        raise RuntimeError(
+            "сбой запроса https://api.telegram.org/bot123456:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw/getMe"
+        )
+    except RuntimeError:
+        logger.exception("не удалось обратиться к Telegram")
+
+    output = stream.getvalue()
+    assert "AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw" not in output
+    assert "***" in json.loads(output)["exception"]
+
+
+def test_credentials_in_connection_string_are_masked() -> None:
+    """Пароль в адресе подключения — Valkey, SMTP и прочее, что не прячет драйвер."""
+    logger, stream = _capture("test.dsn")
+
+    logger.warning("не удалось подключиться: redis://default:ОЧЕНЬ-СЕКРЕТНО@valkey:6379/0")
+
+    output = stream.getvalue()
+    assert "ОЧЕНЬ-СЕКРЕТНО" not in output
+    assert "redis://default:***@valkey:6379/0" in output
+
+
 def test_exception_info_is_included() -> None:
     logger, stream = _capture("test.exc")
 

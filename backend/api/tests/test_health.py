@@ -3,6 +3,8 @@
 Ответ «что-то не работает» бесполезен в три часа ночи — нужно знать, что именно.
 """
 
+import asyncio
+import time
 from collections.abc import AsyncIterator, Callable, Coroutine
 from typing import Any
 
@@ -10,7 +12,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from repibot_api.health import check_valkey
+from repibot_api.health import check_valkey, get_engine
 from repibot_api.main import create_app
 from repibot_core.settings import get_settings
 
@@ -86,6 +88,45 @@ async def test_health_reports_degraded_when_valkey_is_really_down(
 
     assert response.status_code == 503
     assert response.json() == {"status": "degraded", "database": True, "valkey": False}
+
+
+def test_engine_is_created_once_and_reused() -> None:
+    """Новый движок на каждый запрос — это новый пул соединений на каждый опрос
+    наблюдателя, то есть верный способ исчерпать лимит подключений базы."""
+    assert get_engine() is get_engine()
+
+
+async def test_health_gives_up_on_a_hanging_dependency(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Без ограничения по времени проверка живости зависает вместе с зависимостью.
+
+    При потере пакетов подключение не падает, а ждёт минутами, и наблюдатель
+    вместо «база недоступна» получает таймаут своего запроса.
+    """
+
+    async def _hang(*_args: object, **_kwargs: object) -> bool:
+        await asyncio.sleep(60)
+        return True
+
+    monkeypatch.setattr("repibot_api.health.check_database", _hang)
+    monkeypatch.setattr("repibot_api.health.check_valkey", _always(True))
+    monkeypatch.setattr("repibot_api.health.PROBE_TIMEOUT_SECONDS", 0.1)
+
+    started = time.perf_counter()
+    response = await client.get("/health")
+    elapsed = time.perf_counter() - started
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "degraded", "database": False, "valkey": True}
+    assert elapsed < 5
+
+
+async def test_openapi_documents_the_degraded_response(client: AsyncClient) -> None:
+    """Клиент генерирует типы из схемы: неописанный 503 для него не существует."""
+    schema = (await client.get("/openapi.json")).json()
+
+    assert "503" in schema["paths"]["/health"]["get"]["responses"]
 
 
 async def test_openapi_schema_is_served(client: AsyncClient) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,6 +15,22 @@ from repibot_core.settings import get_settings
 
 client_router = APIRouter(prefix="/api", tags=["client"])
 admin_router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+def allowed_origins(*urls: str) -> list[str]:
+    """Приводит адреса к origin и убирает повторы, сохраняя порядок.
+
+    В настройках хранятся адреса страниц (`PUBLIC_APP_URL` — с путём `/app`),
+    а браузер присылает в Origin только схему, хост и порт. Запись с путём
+    не совпадёт ни с одним запросом.
+    """
+    origins: list[str] = []
+    for url in urls:
+        parts = urlsplit(url)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        if origin not in origins:
+            origins.append(origin)
+    return origins
 
 
 def create_app() -> FastAPI:
@@ -27,7 +45,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.public_web_url, settings.public_app_url],
+        allow_origins=allowed_origins(settings.public_web_url, settings.public_app_url),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

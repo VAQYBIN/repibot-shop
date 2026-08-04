@@ -16,12 +16,22 @@ _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"bot\d+:[A-Za-z0-9_-]{30,}"),
     re.compile(r"(?i)(authorization:\s*bearer\s+)\S+"),
     re.compile(r"(?i)(\"?(?:token|secret|password|api_key)\"?\s*[:=]\s*\"?)[^\s\",}]+"),
+    # Пароль в адресе подключения: SQLAlchemy своё имя пользователя и пароль
+    # прячет сама, но redis, SMTP и произвольные строки в логах — нет.
+    re.compile(r"(?i)([a-z][a-z0-9+.-]*://[^:/?#\s@]+:)[^@/\s]+(?=@)"),
 )
 
 
 def set_request_id(value: str) -> None:
     """Устанавливает идентификатор запроса для текущего контекста выполнения."""
     request_id_var.set(value)
+
+
+def mask(text: str) -> str:
+    """Вырезает известные виды секретов из произвольного текста."""
+    for pattern in _SECRET_PATTERNS:
+        text = pattern.sub(lambda m: (m.group(1) if m.groups() else "") + "***", text)
+    return text
 
 
 class SecretFilter(logging.Filter):
@@ -33,9 +43,7 @@ class SecretFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
-        masked = message
-        for pattern in _SECRET_PATTERNS:
-            masked = pattern.sub(lambda m: (m.group(1) if m.groups() else "") + "***", masked)
+        masked = mask(message)
         if masked != message:
             record.msg = masked
             record.args = ()
@@ -50,13 +58,15 @@ class JsonFormatter(logging.Formatter):
             "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": mask(record.getMessage()),
         }
         request_id = request_id_var.get()
         if request_id is not None:
             payload["request_id"] = request_id
         if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+            # Трассировка собирается здесь, а не в фильтре: SecretFilter правит
+            # только текст сообщения и до неё не дотягивается.
+            payload["exception"] = mask(self.formatException(record.exc_info))
         return json.dumps(payload, ensure_ascii=False)
 
 

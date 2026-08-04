@@ -16,13 +16,24 @@ from sqlalchemy.ext.asyncio import (
 logger = logging.getLogger(__name__)
 
 
-def create_engine(url: str, *, echo: bool = False) -> AsyncEngine:
+def create_engine(url: str, *, echo: bool = False, connect_timeout: float = 5.0) -> AsyncEngine:
     """Создаёт асинхронный движок.
 
     pool_pre_ping спасает от накопленных мёртвых соединений после перезапуска
     базы — без него первый запрос после рестарта Postgres падает.
+
+    connect_timeout ограничивает только установку соединения. Ограничивать здесь
+    же время выполнения запроса (command_timeout) нельзя: под него попали бы и
+    долгие выборки отчётов, которые появятся в админке.
     """
-    return create_async_engine(url, echo=echo, pool_pre_ping=True, pool_size=5, max_overflow=5)
+    return create_async_engine(
+        url,
+        echo=echo,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=5,
+        connect_args={"timeout": connect_timeout},
+    )
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

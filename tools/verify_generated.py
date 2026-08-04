@@ -1,7 +1,12 @@
 """Проверка синхронности сгенерированных файлов.
 
-Перегенерирует их во временную копию и сравнивает с закоммиченным. Расхождение
-означает, что кто-то поменял источник и забыл перегенерировать результат.
+Генераторы умеют писать только по своим путям, поэтому проверка запускает их
+как есть, сравнивает результат с закоммиченным и возвращает файлу прежнее
+содержимое. Рабочее дерево после проверки остаётся таким же, каким было:
+устаревший файл чинит разработчик запуском генератора, а не проверка молча.
+
+Расхождение означает, что кто-то поменял источник и забыл перегенерировать
+результат.
 """
 
 from __future__ import annotations
@@ -59,15 +64,27 @@ def _resolve(command: list[str]) -> list[str]:
     return [executable, *command[1:]]
 
 
-def verify_generated() -> list[str]:
-    """Перегенерирует файлы и возвращает пути тех, что разошлись."""
+def verify_generated(entries: list[Generated] | None = None, root: Path = ROOT) -> list[str]:
+    """Перегенерирует файлы и возвращает пути тех, что разошлись.
+
+    Исходное содержимое восстанавливается в любом случае: проверка сообщает
+    о расхождении, но не правит рабочее дерево за разработчика.
+    """
     stale: list[str] = []
-    for entry in GENERATED:
-        target = ROOT / entry.path
-        before = target.read_text(encoding="utf-8") if target.exists() else ""
+    for entry in entries if entries is not None else GENERATED:
+        target = root / entry.path
+        existed = target.exists()
+        before = target.read_bytes() if existed else b""
+
         subprocess.run(_resolve(entry.command), cwd=entry.cwd, check=True)  # noqa: S603
-        if not compare(target, before):
+
+        if not compare(target, before.decode("utf-8")):
             stale.append(str(entry.path))
+
+        if existed:
+            target.write_bytes(before)
+        else:
+            target.unlink(missing_ok=True)
     return stale
 
 

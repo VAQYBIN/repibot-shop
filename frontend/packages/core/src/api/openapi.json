@@ -19,6 +19,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Отказала хотя бы одна зависимость",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
           }
         }
       }
