@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/* Шрифты пакетами, а не с CDN: у проекта аудитория, для которой обращение
+   к стороннему домену на каждой загрузке нежелательно. Обе гарнитуры под
+   SIL OFL 1.1. Inter — переменный файл: одна загрузка на все начертания. */
+@import "@fontsource-variable/inter";
+@import "@fontsource/jetbrains-mono/400.css";
+
+/* Тёмная тема переключается атрибутом на корневом элементе: в MiniApp тему
+   задаёт Telegram, и завязываться на класс там неудобно. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --rp-ink: #1a1a18;
+  --rp-paper: #faf9f7;
+  --rp-jade: #17a67c;
+  --rp-jade-deep: #0e6b50;
+  --rp-jade-mist: #e4f5ee;
+
+  --rp-bg: #faf9f7;
+  --rp-surface: #ffffff;
+  --rp-surface-sunken: #f1f0ec;
+  --rp-border: #e2e1dc;
+  --rp-border-strong: #c9c7c0;
+
+  --rp-text: #1a1a18;
+  --rp-text-secondary: #575651;
+  --rp-text-muted: #7a7873;
+  --rp-text-accent: #0e6b50;
+
+  --rp-accent: #17a67c;
+  --rp-accent-hover: #128a67;
+  --rp-on-accent: #ffffff;
+
+  --rp-success: #2f9e44;
+  --rp-warning: #b87a0b;
+  --rp-danger: #c0392f;
+  --rp-info: #2b72c4;
+
+  --rp-radius-sm: 6px;
+  --rp-radius: 10px;
+  --rp-radius-lg: 16px;
+  --rp-radius-full: 999px;
+
+  --rp-shadow-sm: 0 1px 2px rgb(26 26 24 / 0.06);
+  --rp-shadow: 0 4px 12px rgb(26 26 24 / 0.08);
+  --rp-shadow-lg: 0 12px 32px rgb(26 26 24 / 0.12);
+}
+
+[data-theme="dark"] {
+  --rp-ink: #f2f1ed;
+  --rp-paper: #121311;
+
+  --rp-bg: #121311;
+  --rp-surface: #1c1d1b;
+  --rp-surface-sunken: #0d0e0c;
+  --rp-border: #2e2f2c;
+  --rp-border-strong: #43443f;
+
+  --rp-text: #f2f1ed;
+  --rp-text-secondary: #a3a19a;
+  --rp-text-muted: #7a7873;
+  --rp-text-accent: #2cc694;
+
+  --rp-accent: #2cc694;
+  --rp-accent-hover: #45d6a8;
+  --rp-on-accent: #08150f;
+
+  --rp-jade-mist: #10322a;
+
+  --rp-success: #51cf66;
+  --rp-warning: #e8a32c;
+  --rp-danger: #e8615a;
+  --rp-info: #5aa3e8;
+
+  /* В тёмной теме иерархию держат поверхность и граница, а не тень.
+     Усиливать тень для компенсации не нужно — так задумано. */
+  --rp-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --rp-shadow: 0 4px 12px rgb(0 0 0 / 0.5);
+  --rp-shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6);
+}
+
+/* inline обязателен: без него значения подставятся на этапе сборки
+   и перестанут реагировать на смену темы. */
+@theme inline {
+  --color-bg: var(--rp-bg);
+  --color-surface: var(--rp-surface);
+  --color-surface-sunken: var(--rp-surface-sunken);
+  --color-border-subtle: var(--rp-border);
+  --color-border-strong: var(--rp-border-strong);
+
+  --color-text: var(--rp-text);
+  --color-text-secondary: var(--rp-text-secondary);
+  --color-text-muted: var(--rp-text-muted);
+  --color-text-accent: var(--rp-text-accent);
+
+  --color-accent: var(--rp-accent);
+  --color-accent-hover: var(--rp-accent-hover);
+  --color-on-accent: var(--rp-on-accent);
+  --color-jade-mist: var(--rp-jade-mist);
+
+  --color-success: var(--rp-success);
+  --color-warning: var(--rp-warning);
+  --color-danger: var(--rp-danger);
+  --color-info: var(--rp-info);
+
+  --radius-sm: var(--rp-radius-sm);
+  --radius-md: var(--rp-radius);
+  --radius-lg: var(--rp-radius-lg);
+  --radius-full: var(--rp-radius-full);
+
+  /* «Inter Variable» — имя семейства из @fontsource-variable/inter;
+     «Inter» следом на случай, если гарнитура установлена в системе. */
+  --font-sans: "Inter Variable", "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body {
+  background-color: var(--rp-bg);
+  color: var(--rp-text);
+  font-family: var(--font-sans);
+}
+
+/* Фокус всегда виден и всегда акцентного цвета — раздел 6 бренд-бука. */
+:focus-visible {
+  outline: 2px solid var(--rp-accent);
+  outline-offset: 2px;
+}

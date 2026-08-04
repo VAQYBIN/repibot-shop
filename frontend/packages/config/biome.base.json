@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.7/schema.json",
   "files": {
     "includes": ["**", "!**/dist", "!**/.next", "!**/node_modules", "!**/schema.d.ts"]
   },
@@ -20,5 +20,8 @@
   },
   "javascript": {
     "formatter": { "quoteStyle": "single", "semicolons": "asNeeded" }
+  },
+  "css": {
+    "parser": { "tailwindDirectives": true }
   }
 }

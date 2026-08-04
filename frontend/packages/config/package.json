@@ -2,5 +2,8 @@
   "name": "@repibot/config",
   "version": "0.1.0",
   "private": true,
-  "files": ["tsconfig.base.json", "biome.json"]
+  "files": [
+    "tsconfig.base.json",
+    "biome.base.json"
+  ]
 }
