@@ -10,7 +10,9 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from repibot_api.health import check_valkey
 from repibot_api.main import create_app
+from repibot_core.settings import get_settings
 
 
 def _always(value: bool) -> Callable[..., Coroutine[Any, Any, bool]]:
@@ -61,6 +63,29 @@ async def test_health_reports_degraded_when_valkey_is_down(
 
     assert response.status_code == 503
     assert response.json()["valkey"] is False
+
+
+async def test_check_valkey_returns_false_when_unreachable() -> None:
+    """Без мока: redis поднимает собственный ConnectionError, не наследник встроенного.
+
+    Остальные тесты подменяют check_valkey целиком и ветку отказа не исполняют —
+    ошибка в списке перехватываемых исключений видна только здесь.
+    """
+    assert await check_valkey("redis://127.0.0.1:1/0") is False
+
+
+async def test_health_reports_degraded_when_valkey_is_really_down(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Сквозная проверка: недоступная зависимость даёт 503, а не 500."""
+    settings = get_settings().model_copy(update={"valkey_url": "redis://127.0.0.1:1/0"})
+    monkeypatch.setattr("repibot_api.health.check_database", _always(True))
+    monkeypatch.setattr("repibot_api.health.get_settings", lambda: settings)
+
+    response = await client.get("/health")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "degraded", "database": True, "valkey": False}
 
 
 async def test_openapi_schema_is_served(client: AsyncClient) -> None:

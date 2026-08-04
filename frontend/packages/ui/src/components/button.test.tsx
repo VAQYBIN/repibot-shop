@@ -24,6 +24,24 @@ describe('Button', () => {
     expect(button.className).toContain('border')
   })
 
+  it('второстепенный вариант сохраняет цвет текста темы', () => {
+    /* Цвет текста задаётся только в variant: если его задать ещё и в size,
+       twMerge оставит последнюю утилиту группы и подпись станет невидимой. */
+    render(<Button variant="secondary">Отмена</Button>)
+
+    const classes = screen.getByRole('button').className.split(' ')
+    expect(classes).toContain('text-text')
+    expect(classes).not.toContain('text-on-accent')
+  })
+
+  it('призрачный вариант красит текст акцентом', () => {
+    render(<Button variant="ghost">Ещё</Button>)
+
+    const classes = screen.getByRole('button').className.split(' ')
+    expect(classes).toContain('text-text-accent')
+    expect(classes).not.toContain('text-on-accent')
+  })
+
   it('мелкий размер использует тёмный текст на зелёном', () => {
     /* Белый на Jade даёт 3.4:1 и проходит только от 18-19 px.
        Для мелкой кнопки бренд-бук требует #08150F. */

@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi import APIRouter, Response
 from pydantic import BaseModel
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 from repibot_core.db.engine import check_database, create_engine
 from repibot_core.settings import get_settings
@@ -26,7 +27,11 @@ async def check_valkey(url: str) -> bool:
     client: Redis = Redis.from_url(url)
     try:
         await client.ping()
-    except (OSError, ConnectionError):
+    # RedisError, а не встроенный ConnectionError: redis.exceptions.ConnectionError
+    # наследуется от RedisError → Exception и мимо OSError проходит насквозь.
+    # Непойманное исключение здесь превращает штатный 503 в 500 без указания
+    # отказавшей зависимости — ровно то, ради чего эндпоинт и написан.
+    except (OSError, RedisError):
         logger.warning("valkey недоступен", exc_info=True)
         return False
     finally:
