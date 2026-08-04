@@ -36,3 +36,24 @@ def test_missing_executable_is_reported_as_failure() -> None:
     checks = [Check(name="нет-такой-команды", command=["repibot-no-such-tool"], cwd=ROOT)]
 
     assert run_checks(checks) == ["нет-такой-команды"]
+
+
+def test_checks_cover_backend_and_frontend() -> None:
+    """Проверка, которой нет в списке, не выполняется ни локально, ни в CI."""
+    from tools.check import CHECKS
+
+    names = {check.name for check in CHECKS}
+
+    assert {"ruff-lint", "ruff-format", "mypy", "pytest"} <= names
+    assert {"biome", "typecheck", "vitest"} <= names
+
+
+def test_frontend_checks_run_in_frontend_directory() -> None:
+    from tools.check import CHECKS
+    from tools.check import ROOT as CHECK_ROOT
+
+    frontend_checks = [c for c in CHECKS if c.name in {"biome", "typecheck", "vitest"}]
+
+    assert frontend_checks
+    for check in frontend_checks:
+        assert check.cwd == CHECK_ROOT / "frontend"

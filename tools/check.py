@@ -6,12 +6,14 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+FRONTEND = ROOT / "frontend"
 
 
 @dataclass(frozen=True)
@@ -28,7 +30,18 @@ CHECKS: list[Check] = [
     Check(name="ruff-format", command=["uv", "run", "ruff", "format", "--check", "."], cwd=ROOT),
     Check(name="mypy", command=["uv", "run", "mypy"], cwd=ROOT),
     Check(name="pytest", command=["uv", "run", "pytest", "-q"], cwd=ROOT),
+    Check(name="biome", command=["pnpm", "lint"], cwd=FRONTEND),
+    Check(name="typecheck", command=["pnpm", "typecheck"], cwd=FRONTEND),
+    Check(name="vitest", command=["pnpm", "test"], cwd=FRONTEND),
 ]
+
+
+def _resolve(command: list[str]) -> list[str]:
+    """Windows не запускает pnpm без расширения — ищем реальный исполняемый файл."""
+    executable = shutil.which(command[0])
+    if executable is None:
+        return command
+    return [executable, *command[1:]]
 
 
 def run_checks(checks: list[Check]) -> list[str]:
@@ -41,7 +54,7 @@ def run_checks(checks: list[Check]) -> list[str]:
     for check in checks:
         print(f"\n=== {check.name} ===", flush=True)  # noqa: T201
         try:
-            result = subprocess.run(check.command, cwd=check.cwd, check=False)  # noqa: S603
+            result = subprocess.run(_resolve(check.command), cwd=check.cwd, check=False)  # noqa: S603
         except FileNotFoundError:
             print(f"команда не найдена: {check.command[0]}", flush=True)  # noqa: T201
             failed.append(check.name)
