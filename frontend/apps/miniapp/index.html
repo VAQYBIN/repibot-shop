@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Re:Pibot</title>
+    <!--
+      Единственное внешнее подключение во всём проекте, и оно вынужденное:
+      SDK обязан загружаться с домена Telegram, своя копия ломает работу
+      внутри клиента. Атрибут integrity не ставится осознанно — Telegram
+      обновляет файл по тому же адресу без версионирования, и любой их выпуск
+      немедленно уронил бы загрузку MiniApp. Компенсация — жёсткий script-src
+      в CSP, разрешающий ровно telegram.org и ничего больше.
+    -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
