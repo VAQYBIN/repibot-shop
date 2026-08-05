@@ -5,6 +5,7 @@
 что бренд-бук прямо называет оптическим.
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -186,3 +187,21 @@ def test_component_draws_the_same_spiral_as_the_files() -> None:
     assert SMALL.path in component
     assert f"strokeWidth: {FULL.stroke:g}" in component
     assert f"strokeWidth: {SMALL.stroke:g}" in component
+
+
+def test_no_raster_logos_remain_in_the_applications() -> None:
+    """Растровый логотип вернётся первым же копипастом, если его не запретить."""
+    for application in ("web", "miniapp"):
+        public = ROOT / "frontend/apps" / application / "public"
+        assert not (public / "brand").exists()
+        assert not (public / "favicon.png").exists()
+
+
+def test_manifest_points_at_existing_icons() -> None:
+    manifest = json.loads(
+        (ROOT / "frontend/apps/web/public/manifest.webmanifest").read_text(encoding="utf-8")
+    )
+
+    assert manifest["theme_color"] == JADE
+    for icon in manifest["icons"]:
+        assert (ROOT / "frontend/apps/web/public" / icon["src"].lstrip("/")).is_file()

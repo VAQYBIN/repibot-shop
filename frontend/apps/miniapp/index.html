@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Re:Pibot</title>
     <!--
+      Внутри Telegram иконка вкладки не видна, но MiniApp открывается
+      и в обычном браузере. Путь абсолютный: приложение живёт под /app/.
+    -->
+    <link rel="icon" href="/app/favicon.svg" type="image/svg+xml" />
+    <!--
       Единственное внешнее подключение во всём проекте, и оно вынужденное:
       SDK обязан загружаться с домена Telegram, своя копия ломает работу
       внутри клиента. Атрибут integrity не ставится осознанно — Telegram
