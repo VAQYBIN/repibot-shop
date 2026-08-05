@@ -15,7 +15,8 @@ REQUIRED_ENV = {
     "BOT_WEBHOOK_BASE_URL": "https://example.org",
     "REMNAWAVE_BASE_URL": "https://panel.example.org",
     "REMNAWAVE_TOKEN": "panel-token",
-    "JWT_SECRET": "jwt-secret",
+    # Длина не случайна: короткий ключ подписи настройки отвергают.
+    "JWT_SECRET": "0123456789abcdef0123456789abcdef",
     "ENCRYPTION_KEY": "encryption-key",
     "PUBLIC_WEB_URL": "https://example.org",
     "PUBLIC_APP_URL": "https://example.org/app",
@@ -69,6 +70,18 @@ def test_missing_required_variable_fails_with_its_name(
 def test_unsupported_default_language_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(ValidationError):
         _build(monkeypatch, DEFAULT_LANGUAGE="de")
+
+
+def test_short_jwt_secret_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Слабый ключ подписи позволяет собрать токен с любым sub.
+
+    Проверка на старте, а не строчка в документации: развёртывание с секретом
+    вида «changeme» не должно доехать до приёма запросов.
+    """
+    with pytest.raises(ValidationError) as exc:
+        _build(monkeypatch, JWT_SECRET="слишком короткий")
+
+    assert "openssl rand -hex 32" in str(exc.value)
 
 
 def test_admin_ids_parse_from_comma_separated_string(monkeypatch: pytest.MonkeyPatch) -> None:

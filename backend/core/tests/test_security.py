@@ -16,7 +16,9 @@ from repibot_core.security.tokens import (
     hash_opaque_token,
 )
 
-SECRET = "test-secret"
+# Не короче 32 символов: PyJWT предупреждает о слабом ключе для HS256, и это
+# предупреждение не должно быть шумом, который перестают замечать.
+SECRET = "0123456789abcdef0123456789abcdef"
 
 
 def test_password_round_trip() -> None:
@@ -60,7 +62,9 @@ def test_expired_access_token_is_rejected() -> None:
 
 
 def test_token_signed_with_another_secret_is_rejected() -> None:
-    token = create_access_token(42, uuid4(), secret="чужой секрет", ttl_minutes=15)
+    token = create_access_token(
+        42, uuid4(), secret="fedcba9876543210fedcba9876543210", ttl_minutes=15
+    )
 
     with pytest.raises(TokenInvalidError):
         decode_access_token(token, secret=SECRET)

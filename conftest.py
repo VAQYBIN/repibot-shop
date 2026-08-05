@@ -25,7 +25,9 @@ _TEST_ENV = {
     "BOT_WEBHOOK_BASE_URL": "https://example.org",
     "REMNAWAVE_BASE_URL": "https://panel.example.org",
     "REMNAWAVE_TOKEN": "panel-token",
-    "JWT_SECRET": "jwt-secret",
+    # Не короче 32 символов: настройки отвергают слабый ключ подписи, и PyJWT
+    # предупреждает о нём отдельно.
+    "JWT_SECRET": "0123456789abcdef0123456789abcdef",
     "ENCRYPTION_KEY": "encryption-key",
     "PUBLIC_WEB_URL": "https://example.org",
     "PUBLIC_APP_URL": "https://example.org/app",

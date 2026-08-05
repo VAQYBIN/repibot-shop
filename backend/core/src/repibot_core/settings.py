@@ -10,6 +10,9 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Language = Literal["ru", "en"]
 
+# Минимум для HMAC-SHA256 по RFC 7518 — 32 байта.
+MIN_JWT_SECRET_LENGTH = 32
+
 
 class Settings(BaseSettings):
     """Конфигурация развёртывания.
@@ -75,6 +78,25 @@ class Settings(BaseSettings):
     def _default_language_is_supported(cls, value: Language) -> Language:
         if value not in ("ru", "en"):
             msg = f"язык {value} не поддерживается"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def _jwt_secret_is_long_enough(cls, value: SecretStr) -> SecretStr:
+        """HS256 подписывает ключом любой длины, но стойкость даёт только длинный.
+
+        RFC 7518 требует для HMAC-SHA256 ключ не короче размера выхода хеша, то
+        есть 32 байт. Короткий секрет подбирается перебором, и тогда подделать
+        access-токен с любым `sub` — вопрос машинного времени. Проверка стоит
+        здесь, а не в напоминании в документации: процесс со слабым ключом не
+        должен стартовать вовсе.
+        """
+        if len(value.get_secret_value()) < MIN_JWT_SECRET_LENGTH:
+            msg = (
+                f"JWT_SECRET короче {MIN_JWT_SECRET_LENGTH} символов; "
+                "сгенерируйте: openssl rand -hex 32"
+            )
             raise ValueError(msg)
         return value
 
