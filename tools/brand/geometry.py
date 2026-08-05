@@ -92,7 +92,17 @@ SMALL = Mark(
     inner_radius=30.0,
 )
 
-_HEADER = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:g} {height:g}">'
+_HEADER = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:g} {height:g}"'
+
+
+def open_svg(width: float, height: float, title: str) -> str:
+    """Открывающий тег и название.
+
+    Название обязательно: без него файл, вставленный на страницу, остаётся
+    для скринридера безымянной картинкой. Оно же снимает претензию Biome.
+    """
+    header = _HEADER.format(width=width, height=height)
+    return f'{header} role="img"><title>{title}</title>'
 
 
 def mark_markup(mark: Mark, stroke: str, core: str) -> str:
@@ -105,10 +115,10 @@ def mark_markup(mark: Mark, stroke: str, core: str) -> str:
     )
 
 
-def mark_svg(mark: Mark, stroke: str, core: str) -> str:
+def mark_svg(mark: Mark, stroke: str, core: str, title: str = "Re:Pibot") -> str:
     """Знак отдельным файлом, габарит по обводке."""
-    header = _HEADER.format(width=mark.width, height=mark.height)
-    return f"{header}{mark_markup(mark, stroke, core)}</svg>"
+    opening = open_svg(mark.width, mark.height, title)
+    return f"{opening}{mark_markup(mark, stroke, core)}</svg>"
 
 
 def badge_svg(
@@ -118,6 +128,7 @@ def badge_svg(
     stroke: str,
     core: str,
     *,
+    title: str = "Re:Pibot",
     scale: float = BADGE_SCALE,
     bleed: bool = False,
 ) -> str:
@@ -142,5 +153,4 @@ def badge_svg(
             f' rx="{radius:g}"/></clipPath>'
         )
         body = f'{clip}<g clip-path="url(#tile)">{body}</g>'
-    header = _HEADER.format(width=side, height=side)
-    return f"{header}{tile}{body}</svg>"
+    return f"{open_svg(side, side, title)}{tile}{body}</svg>"

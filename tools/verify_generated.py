@@ -49,6 +49,30 @@ GENERATED: list[Generated] = [
         command=["uv", "run", "python", "tools/gen_remnawave_models.py"],
         cwd=ROOT,
     ),
+    Generated(
+        paths=(Path("tools/brand/wordmark_paths.py"),),
+        command=["uv", "run", "python", "tools/brand/wordmark_source.py"],
+        cwd=ROOT,
+    ),
+    Generated(
+        paths=(
+            Path("docs/design/logo/logo-mark.svg"),
+            Path("docs/design/logo/logo-mark-mono.svg"),
+            Path("docs/design/logo/logo-mark-small.svg"),
+            Path("docs/design/logo/wordmark.svg"),
+            Path("docs/design/logo/logo-lockup-h.svg"),
+            Path("docs/design/logo/logo-lockup-v.svg"),
+            Path("docs/design/logo/badge.svg"),
+            Path("docs/design/logo/badge-inverse.svg"),
+            Path("docs/design/logo/favicon.svg"),
+            Path("docs/design/logo/avatar.svg"),
+            Path("docs/design/logo/og-image.svg"),
+            Path("frontend/apps/web/public/favicon.svg"),
+            Path("frontend/apps/miniapp/public/favicon.svg"),
+        ),
+        command=["uv", "run", "build-brand"],
+        cwd=ROOT,
+    ),
 ]
 
 

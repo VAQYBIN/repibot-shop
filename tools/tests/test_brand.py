@@ -6,9 +6,11 @@
 """
 
 import re
+from pathlib import Path
 
 import pytest
 
+from tools.brand.build import FILES, LOGO_DIR
 from tools.brand.geometry import (
     CURRENT,
     FULL,
@@ -86,3 +88,53 @@ def test_palette_holds_only_brandbook_colors() -> None:
     }
 
     assert set(PALETTE) == canonical
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+BRANDBOOK_FILES = (
+    "logo-mark.svg",
+    "logo-mark-mono.svg",
+    "logo-mark-small.svg",
+    "logo-lockup-h.svg",
+    "logo-lockup-v.svg",
+    "favicon.svg",
+)
+
+
+@pytest.mark.parametrize("name", BRANDBOOK_FILES)
+def test_brandbook_files_exist(name: str) -> None:
+    """Раздел 8 бренд-бука перечисляет их поимённо."""
+    assert (LOGO_DIR / name).is_file()
+
+
+@pytest.mark.parametrize("name", sorted(FILES))
+def test_every_file_uses_only_brandbook_colors(name: str) -> None:
+    content = (LOGO_DIR / name).read_text(encoding="utf-8")
+
+    for colour in re.findall(r"#[0-9A-Fa-f]{6}", content):
+        assert colour.upper() in PALETTE, f"{name}: посторонний цвет {colour}"
+
+
+def test_mono_version_has_no_colors_at_all() -> None:
+    """Одноцветная версия красится текстом вокруг: тиснение, гравировка, факс."""
+    content = (LOGO_DIR / "logo-mark-mono.svg").read_text(encoding="utf-8")
+
+    assert re.search(r"#[0-9A-Fa-f]{6}", content) is None
+    assert content.count("currentColor") == 2
+
+
+def test_spiral_path_is_identical_everywhere() -> None:
+    """Расхождение геометрии между файлами — то, о чём предупреждает раздел 8."""
+    for name in ("logo-mark.svg", "logo-mark-mono.svg", "logo-lockup-h.svg", "badge.svg"):
+        assert FULL.path in (LOGO_DIR / name).read_text(encoding="utf-8")
+
+    for name in ("logo-mark-small.svg", "favicon.svg"):
+        assert SMALL.path in (LOGO_DIR / name).read_text(encoding="utf-8")
+
+
+def test_favicon_is_copied_to_both_applications() -> None:
+    original = (LOGO_DIR / "favicon.svg").read_bytes()
+
+    assert (ROOT / "frontend/apps/web/public/favicon.svg").read_bytes() == original
+    assert (ROOT / "frontend/apps/miniapp/public/favicon.svg").read_bytes() == original

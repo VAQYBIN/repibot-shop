@@ -6,6 +6,7 @@ requires-python = ">=3.13"
 dependencies = ["repibot-core", "repibot-api", "repibot-bot", "repibot-worker"]
 
 [project.scripts]
+build-brand = "tools.brand.build:main"
 check = "tools.check:main"
 export-openapi = "tools.export_openapi:main"
 verify-generated = "tools.verify_generated:main"
