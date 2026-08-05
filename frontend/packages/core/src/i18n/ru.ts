@@ -18,6 +18,7 @@ export const ru = {
   'auth.error.weak_password': 'Пароль слишком простой: нужно не меньше десяти символов',
   'auth.error.token_invalid': 'Ссылка недействительна или устарела',
   'auth.error.rate_limited': 'Слишком много попыток. Попробуйте через минуту',
+  'auth.error.validation_error': 'Проверьте введённые данные: адрес или пароль не подходят',
   'auth.error.unknown': 'Не удалось выполнить запрос',
   'auth.error.form': 'Проверьте заполнение полей',
   'auth.error.email_invalid': 'Похоже, это не адрес почты',

@@ -20,6 +20,7 @@ export const en: Record<TranslationKey, string> = {
   'auth.error.weak_password': 'Password is too simple: use at least ten characters',
   'auth.error.token_invalid': 'The link is invalid or has expired',
   'auth.error.rate_limited': 'Too many attempts. Try again in a minute',
+  'auth.error.validation_error': 'Check what you entered: the address or password is not accepted',
   'auth.error.unknown': 'The request could not be completed',
   'auth.error.form': 'Check the fields you filled in',
   'auth.error.email_invalid': 'This does not look like an email address',

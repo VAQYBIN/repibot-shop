@@ -50,6 +50,10 @@ export function errorMessageKey(code: string | undefined): TranslationKey {
     weak_password: 'auth.error.weak_password',
     token_invalid: 'auth.error.token_invalid',
     rate_limited: 'auth.error.rate_limited',
+    // Проверка данных на бэкенде строже клиентской: скажем, зарезервированные
+    // домены вроде example.test он отвергает. Без этой строки человек видел бы
+    // «не удалось выполнить запрос» и не понимал, что не так с адресом.
+    validation_error: 'auth.error.validation_error',
   }
   return (code && known[code]) || 'auth.error.unknown'
 }
