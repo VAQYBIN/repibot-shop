@@ -37,6 +37,8 @@ dev = [
     "datamodel-code-generator>=0.26",
     "pyyaml>=6.0",
     "types-pyyaml>=6.0",
+    "fonttools[woff]>=4.55",
+    "uharfbuzz>=0.45",
 ]
 
 [tool.ruff]
@@ -44,7 +46,7 @@ line-length = 100
 target-version = "py313"
 # Ruff 0.16 форматирует Python-блоки внутри Markdown. Спеки и планы — не исходники,
 # примеры в них живут по правилам изложения, а не по правилам линтера.
-extend-exclude = ["docs", "**/integrations/remnawave/models.py"]
+extend-exclude = ["docs", "**/integrations/remnawave/models.py", "tools/brand/wordmark_paths.py"]
 src = ["backend/core/src", "backend/api/src", "backend/bot/src", "backend/worker/src", "tools"]
 
 [tool.ruff.lint]
@@ -62,6 +64,11 @@ python_version = "3.13"
 strict = true
 files = ["backend", "tools", "conftest.py"]
 exclude = "(migrations|integrations/remnawave/models\\.py)"
+
+# Ни fontTools, ни uharfbuzz не поставляют разметку типов.
+[[tool.mypy.overrides]]
+module = ["fontTools.*", "uharfbuzz"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["backend", "tools"]
