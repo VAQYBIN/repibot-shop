@@ -1,9 +1,14 @@
 import type { ReactNode } from 'react'
 
+import { AdminShell } from '@/components/admin-shell'
+
 /**
- * Отдельный сегмент админки. Проверка роли появится в подпроекте 1 —
- * сейчас это только каркас, и снаружи он не опубликован.
+ * Раздел зависит от роли текущего пользователя, кэшировать разметку нельзя.
+ * Настройка стоит в серверном сегменте: страницы раздела клиентские, и Next
+ * читает конфигурацию сегмента отсюда.
  */
+export const dynamic = 'force-dynamic'
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return <div className="min-h-dvh bg-surface-sunken">{children}</div>
+  return <AdminShell>{children}</AdminShell>
 }

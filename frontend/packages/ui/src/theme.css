@@ -45,6 +45,10 @@
   --rp-shadow-sm: 0 1px 2px rgb(26 26 24 / 0.06);
   --rp-shadow: 0 4px 12px rgb(26 26 24 / 0.08);
   --rp-shadow-lg: 0 12px 32px rgb(26 26 24 / 0.12);
+
+  /* Подложка модального окна берёт тот же Ink, что и тени: отдельного серого
+     в палитре нет, а собственный цвет здесь был бы значением «на глаз». */
+  --rp-overlay: rgb(26 26 24 / 0.55);
 }
 
 [data-theme="dark"] {
@@ -78,6 +82,8 @@
   --rp-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
   --rp-shadow: 0 4px 12px rgb(0 0 0 / 0.5);
   --rp-shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6);
+
+  --rp-overlay: rgb(0 0 0 / 0.65);
 }
 
 /* inline обязателен: без него значения подставятся на этапе сборки
@@ -98,6 +104,7 @@
   --color-accent-hover: var(--rp-accent-hover);
   --color-on-accent: var(--rp-on-accent);
   --color-jade-mist: var(--rp-jade-mist);
+  --color-overlay: var(--rp-overlay);
 
   --color-success: var(--rp-success);
   --color-warning: var(--rp-warning);
