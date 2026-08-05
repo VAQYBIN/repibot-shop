@@ -17,7 +17,9 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
+from repibot_bot.handlers.language import build_language_router
 from repibot_bot.handlers.start import build_start_router
+from repibot_bot.middleware import UserMiddleware
 from repibot_core.logging import configure_logging
 from repibot_core.settings import get_settings
 
@@ -33,7 +35,11 @@ WEBHOOK_PATH = "/webhook/telegram"
 
 def build_dispatcher(storage: BaseStorage) -> Dispatcher:
     dispatcher = Dispatcher(storage=storage)
+    middleware = UserMiddleware()
+    dispatcher.message.middleware(middleware)
+    dispatcher.callback_query.middleware(middleware)
     dispatcher.include_router(build_start_router())
+    dispatcher.include_router(build_language_router())
     return dispatcher
 
 
