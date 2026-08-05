@@ -1,0 +1,88 @@
+"""Инварианты знака. Проверяются арифметикой по параметрам, а не глазами.
+
+Бренд-бук задаёт зазор, толщину обводки и минимальные размеры числами —
+значит, их можно и нужно проверять машинно. Глазами проверяется только то,
+что бренд-бук прямо называет оптическим.
+"""
+
+import re
+
+import pytest
+
+from tools.brand.geometry import (
+    CURRENT,
+    FULL,
+    JADE,
+    PALETTE,
+    SMALL,
+    Mark,
+    badge_svg,
+    mark_svg,
+)
+
+
+@pytest.mark.parametrize("mark", [FULL, SMALL], ids=["full", "small"])
+def test_gap_between_core_and_coil_meets_the_brandbook(mark: Mark) -> None:
+    """Зазор — несущий элемент знака, раздел 1. Минимум 0.5x, раздел 4."""
+    assert mark.gap >= 0.5 * mark.unit
+
+
+def test_small_mark_is_one_turn_with_a_bigger_core() -> None:
+    """Раздел 4: один виток вместо полутора, ядро 1.3x, обводка толще."""
+    assert FULL.arcs == 3
+    assert SMALL.arcs == 2
+    assert SMALL.core[2] == pytest.approx(1.3 * FULL.core[2], abs=0.15)
+    assert SMALL.stroke > FULL.stroke
+
+
+def test_small_mark_survives_sixteen_pixels() -> None:
+    """Ради этого упрощённая версия и существует: полный знак здесь слипается."""
+    scale = 16 / SMALL.height
+
+    assert SMALL.stroke * scale >= 2.0
+    assert SMALL.gap * scale >= 1.5
+
+
+@pytest.mark.parametrize("mark", [FULL, SMALL], ids=["full", "small"])
+def test_break_stays_on_the_left(mark: Mark) -> None:
+    """Направление разрыва — часть узнаваемости, раздел 4."""
+    assert mark.terminus < mark.core[0]
+
+
+@pytest.mark.parametrize("mark", [FULL, SMALL], ids=["full", "small"])
+def test_declared_arc_count_matches_the_path(mark: Mark) -> None:
+    assert mark.path.count("A") == mark.arcs
+
+
+def test_mark_svg_uses_only_the_given_colors() -> None:
+    svg = mark_svg(FULL, CURRENT, CURRENT)
+
+    assert re.search(r"#[0-9A-Fa-f]{6}", svg) is None
+
+
+def test_badge_shifts_the_mark_optically() -> None:
+    """Раздел 4: при врезке в квадрат знак смещается вправо и вверх."""
+    svg = badge_svg(FULL, 96, JADE, "#FFFFFF", "#FFFFFF")
+    match = re.search(r"translate\(([\d.-]+) ([\d.-]+)\)", svg)
+    assert match is not None
+    x, y = float(match.group(1)), float(match.group(2))
+
+    # Куда попал бы знак, если бы его просто центрировали по габариту.
+    factor = 96 * 0.7 / max(FULL.width, FULL.height)
+    assert x > (96 - FULL.width * factor) / 2
+    assert y < (96 - FULL.height * factor) / 2
+
+
+def test_palette_holds_only_brandbook_colors() -> None:
+    """Раздел 2. Посторонний цвет в палитре разошёлся бы по всем файлам сразу."""
+    canonical = {
+        "#1A1A18",
+        "#FAF9F7",
+        "#17A67C",
+        "#2CC694",
+        "#E4F5EE",
+        "#F2F1ED",
+        "#FFFFFF",
+    }
+
+    assert set(PALETTE) == canonical
