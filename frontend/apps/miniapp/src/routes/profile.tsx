@@ -1,8 +1,8 @@
-import { type Language, translate } from '@repibot/core'
+import { type Language, translate, useMe, useUpdateProfile } from '@repibot/core'
 import { Button, Card } from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
 
-import { useLanguage, useProfile, useSaveProfile } from '../api'
+import { useLanguage } from '../api'
 import { Loading, Retry } from './index'
 import { rootRoute } from './root'
 
@@ -12,8 +12,8 @@ const LANGUAGES: readonly Language[] = ['ru', 'en']
 
 export function Profile() {
   const language = useLanguage()
-  const profile = useProfile()
-  const save = useSaveProfile()
+  const profile = useMe()
+  const save = useUpdateProfile(language)
 
   if (profile.isPending) return <Loading language={language} />
   if (profile.data === undefined) {

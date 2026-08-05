@@ -77,6 +77,14 @@ export const ru = {
   'account.telegram_absent': 'Аккаунт не привязан — привязка появится позже',
   'account.confirm_email.title': 'Подтверждение нового адреса',
   'account.confirm_email.done': 'Новый адрес подтверждён',
+  'account.confirm_email.login_link': 'Войти с новым адресом',
+  'account.confirm_email.account_link': 'Перейти в кабинет',
+  'account.email_change': 'Смена почты',
+  'account.email_add': 'Добавление почты',
+  'account.email_new': 'Новая почта',
+  'account.email_change_hint': 'Адрес сменится после перехода по ссылке из письма',
+  'account.email_change_submit': 'Отправить письмо',
+  'account.email_change_sent': 'Письмо отправлено на новый адрес',
 } as const
 
 export type TranslationKey = keyof typeof ru

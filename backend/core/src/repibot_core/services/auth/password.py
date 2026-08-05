@@ -38,7 +38,9 @@ logger = logging.getLogger(__name__)
 _LINK_PATHS = {
     TokenType.email_verify: "/verify-email",
     TokenType.password_reset: "/reset-password",
-    TokenType.email_change: "/account/confirm-email",
+    # Страница подтверждения нового адреса лежит вне кабинета: письмо открывают
+    # там, где заведена почта, и под гейтом кабинета ссылка увела бы на вход.
+    TokenType.email_change: "/confirm-email",
 }
 _TOPICS = {
     TokenType.email_verify: TOPIC_EMAIL_VERIFY,

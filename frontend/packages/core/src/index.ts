@@ -9,6 +9,7 @@ export {
   useLogout,
   useMe,
   useRegister,
+  useRequestEmailChange,
   useRevokeSession,
   useSessions,
   useUpdateProfile,

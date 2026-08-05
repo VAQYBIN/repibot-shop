@@ -79,4 +79,12 @@ export const en: Record<TranslationKey, string> = {
   'account.telegram_absent': 'Account not linked — linking comes later',
   'account.confirm_email.title': 'Confirming the new address',
   'account.confirm_email.done': 'The new address is confirmed',
+  'account.confirm_email.login_link': 'Sign in with the new address',
+  'account.confirm_email.account_link': 'Go to the account',
+  'account.email_change': 'Change email',
+  'account.email_add': 'Add email',
+  'account.email_new': 'New email',
+  'account.email_change_hint': 'The address changes once you follow the link from the email',
+  'account.email_change_submit': 'Send the email',
+  'account.email_change_sent': 'The email has been sent to the new address',
 }

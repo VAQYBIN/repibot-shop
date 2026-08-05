@@ -3449,7 +3449,9 @@ logger = logging.getLogger(__name__)
 _LINK_PATHS = {
     TokenType.email_verify: "/verify-email",
     TokenType.password_reset: "/reset-password",
-    TokenType.email_change: "/account/confirm-email",
+    # Публичный путь, а не раздел кабинета: письмо открывают в том браузере,
+    # где почта, и гейт кабинета увёл бы человека на вход, потеряв токен.
+    TokenType.email_change: "/confirm-email",
 }
 _TOPICS = {
     TokenType.email_verify: TOPIC_EMAIL_VERIFY,
@@ -6782,7 +6784,7 @@ git commit -m "feat: клиентская аутентификация с обн
 
 **Файлы:**
 - Создать: `frontend/apps/web/src/app/(auth)/login/page.tsx`, `register/page.tsx`, `verify-email/page.tsx`, `forgot-password/page.tsx`, `reset-password/page.tsx`, `(auth)/layout.tsx`
-- Создать: `frontend/apps/web/src/app/account/page.tsx`, `account/layout.tsx`, `account/security/page.tsx`, `account/confirm-email/page.tsx`
+- Создать: `frontend/apps/web/src/app/account/page.tsx`, `account/layout.tsx`, `account/security/page.tsx`, `(auth)/confirm-email/page.tsx`
 - Создать: `frontend/apps/web/src/components/auth-provider.tsx`, `auth-guard.tsx`
 - Создать в `frontend/packages/ui/src/components/`: `form-field.tsx`, `password-input.tsx`, `dialog.tsx`, `empty-state.tsx`, `switch.tsx`
 - Тест: `frontend/apps/web/src/app/(auth)/login/page.test.tsx`, `frontend/apps/web/src/components/auth-guard.test.tsx`, тесты новых компонентов `ui`
@@ -7012,7 +7014,7 @@ export default function LoginPage() {
 | `/reset-password` | Токен из строки запроса плюс новый пароль |
 | `/account` | Имя, язык, реферальный код, адрес почты |
 | `/account/security` | Смена пароля, список сессий с отзывом, состояние привязки Telegram (управление — в 1b) |
-| `/account/confirm-email` | Подтверждение нового адреса по токену из письма |
+| `/confirm-email` | Подтверждение нового адреса по токену из письма. Публичный: письмо открывают там, где почта, а не там, где открыт кабинет |
 
 Страницы кабинета помечаются `export const dynamic = 'force-dynamic'`: их содержимое зависит от текущего пользователя, и кэшировать разметку нельзя.
 

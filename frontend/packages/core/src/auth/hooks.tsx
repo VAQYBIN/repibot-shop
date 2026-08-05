@@ -3,7 +3,7 @@ import { createContext, type ReactNode, useContext, useMemo } from 'react'
 
 import { type Language, type TranslationKey, translate } from '../i18n/index'
 import { createAuthClient } from './client'
-import { createTokenStore } from './store'
+import { createTokenStore, type TokenStore } from './store'
 
 type AuthClient = ReturnType<typeof createAuthClient>
 
@@ -12,7 +12,8 @@ const AuthContext = createContext<AuthClient | null>(null)
 export interface AuthProviderProps {
   children: ReactNode
   baseUrl?: string
-  onSignedOut?: () => void
+  onSignedOut?: (() => void) | undefined
+  store?: TokenStore
 }
 
 /**
@@ -20,11 +21,16 @@ export interface AuthProviderProps {
  *
  * Базовый URL по умолчанию пустой: веб, MiniApp и API стоят за одним nginx, и
  * абсолютный адрес в сборке потребовал бы пересборки под каждое развёртывание.
+ *
+ * Хранилище токена можно передать снаружи: MiniApp обменивает initData ещё до
+ * отрисовки и кладёт токен сам. Без этого ему пришлось бы держать собственный
+ * клиент и копии хуков, а смысл общего пакета — в том, что веб и MiniApp
+ * ведут себя одинаково по построению, а не по дисциплине.
  */
-export function AuthProvider({ children, baseUrl = '', onSignedOut }: AuthProviderProps) {
+export function AuthProvider({ children, baseUrl = '', onSignedOut, store }: AuthProviderProps) {
   const client = useMemo(
-    () => createAuthClient({ baseUrl, store: createTokenStore(), onSignedOut }),
-    [baseUrl, onSignedOut],
+    () => createAuthClient({ baseUrl, store: store ?? createTokenStore(), onSignedOut }),
+    [baseUrl, onSignedOut, store],
   )
   return <AuthContext.Provider value={client}>{children}</AuthContext.Provider>
 }
@@ -59,7 +65,9 @@ export function useMe() {
     queryKey: ['me'],
     queryFn: async () => {
       const { data, error } = await api.GET('/api/me')
-      if (error) throw error
+      // Пустой ответ тоже ошибка: openapi-fetch отдаёт undefined и там, где
+      // тела просто нет, а экран без данных показать нечем.
+      if (error || !data) throw error ?? new Error('пустой ответ /api/me')
       return data
     },
   })
@@ -106,10 +114,27 @@ export function useUpdateProfile(language: Language) {
   return useMutation({
     mutationFn: async (input: { name: string | null; language: Language }) => {
       const { data, error } = await api.PATCH('/api/me', { body: input })
-      if (error) throw new Error(messageFrom(error, language))
+      if (error || !data) throw new Error(messageFrom(error, language))
       return data
     },
     onSuccess: (data) => queries.setQueryData(['me'], data),
+  })
+}
+
+/**
+ * Запрос смены адреса почты. Для аккаунта без почты — её добавление.
+ *
+ * Профиль намеренно не сбрасывается: адрес меняется только после перехода по
+ * ссылке из письма, и обновлённый ответ показал бы новый адрес раньше времени.
+ */
+export function useRequestEmailChange(language: Language) {
+  const { api } = useAuthClient()
+  return useMutation({
+    mutationFn: async (email: string) => {
+      const { data, error } = await api.POST('/api/me/email/change-request', { body: { email } })
+      if (error) throw new Error(messageFrom(error, language))
+      return data
+    },
   })
 }
 

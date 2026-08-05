@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 import pytest
 from fakeredis.aioredis import FakeRedis
@@ -111,6 +112,24 @@ async def test_email_change_needs_confirmation(db_session: AsyncSession) -> None
     user = await UserRepository(db_session).get(user_id)
     assert user is not None
     assert user.email == "new@example.org"
+
+
+async def test_email_change_link_leads_to_public_page(db_session: AsyncSession) -> None:
+    """Ссылка из письма не должна вести под гейт кабинета.
+
+    Письмо открывают там, где заведена почта, а не там, где открыт кабинет.
+    Страница под /account увела бы неавторизованного на вход и потеряла токен
+    из адреса, поэтому подтверждение живёт в публичном разделе.
+    """
+    user_id = await _verified_user(db_session)
+    _, profile = _services(db_session)
+
+    await profile.request_email_change(user_id, "new@example.org")
+
+    messages = await OutboxRepository(db_session).take_batch(limit=10, now=datetime.now(UTC))
+    letter = next(item for item in messages if item.topic == "email.change")
+    path = urlsplit(str(letter.payload["link"])).path
+    assert path == "/confirm-email"
 
 
 async def test_email_change_to_taken_address_is_refused(db_session: AsyncSession) -> None:

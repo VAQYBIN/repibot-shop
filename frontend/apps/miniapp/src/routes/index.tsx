@@ -1,8 +1,8 @@
-import { detectLanguage, type Language, translate } from '@repibot/core'
+import { detectLanguage, type Language, translate, useMe } from '@repibot/core'
 import { Button, Card } from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
 
-import { useLanguage, useProfile } from '../api'
+import { useLanguage } from '../api'
 import { telegramAuthOptions, useAuthState } from '../auth'
 import { preferredLanguages } from '../telegram'
 import { rootRoute } from './root'
@@ -40,7 +40,7 @@ export function Retry({
 
 function Welcome() {
   const language = useLanguage()
-  const profile = useProfile()
+  const profile = useMe()
 
   if (profile.isPending) return <Loading language={language} />
   if (profile.data === undefined) {

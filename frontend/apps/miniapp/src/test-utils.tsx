@@ -1,9 +1,10 @@
+import { AuthProvider } from '@repibot/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type RenderResult, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { type Mock, vi } from 'vitest'
 
-import { ApiProvider } from './api'
+import { tokenStore } from './api'
 
 /** Ответ `/api/me` для тестов. Поля совпадают со схемой `MeResponse`. */
 export const PROFILE = {
@@ -35,7 +36,11 @@ export function renderWithProviders(ui: ReactNode): RenderResult {
   const queries = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queries}>
-      <ApiProvider baseUrl="https://miniapp.test">{ui}</ApiProvider>
+      {/* Адрес абсолютный: jsdom берёт Request из Node, а тот относительный
+          путь разобрать не умеет — в браузере он разрешается сам. */}
+      <AuthProvider baseUrl="https://miniapp.test" store={tokenStore}>
+        {ui}
+      </AuthProvider>
     </QueryClientProvider>,
   )
 }

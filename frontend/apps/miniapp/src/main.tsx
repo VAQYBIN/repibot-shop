@@ -1,10 +1,10 @@
-import { createQueryClient } from '@repibot/core'
+import { AuthProvider, createQueryClient } from '@repibot/core'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import { ApiProvider } from './api'
+import { API_BASE_URL, tokenStore } from './api'
 import { telegramAuthOptions, useAuthState } from './auth'
 import { router } from './router'
 import './styles.css'
@@ -22,9 +22,11 @@ if (!container) throw new Error('в разметке нет элемента #ro
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={createQueryClient()}>
-      <ApiProvider>
+      {/* Хранилище передаётся готовым: токен в нём уже лежит после обмена
+          initData, который прошёл до отрисовки. */}
+      <AuthProvider baseUrl={API_BASE_URL} store={tokenStore}>
         <RouterProvider router={router} />
-      </ApiProvider>
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

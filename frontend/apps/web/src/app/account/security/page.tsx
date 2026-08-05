@@ -1,7 +1,15 @@
 'use client'
 
-import { passwordSchema, useAuthClient, useMe, useRevokeSession, useSessions } from '@repibot/core'
-import { Button, Card, Dialog, EmptyState, FormField, PasswordInput } from '@repibot/ui'
+import {
+  emailSchema,
+  passwordSchema,
+  useAuthClient,
+  useMe,
+  useRequestEmailChange,
+  useRevokeSession,
+  useSessions,
+} from '@repibot/core'
+import { Button, Card, Dialog, EmptyState, FormField, Input, PasswordInput } from '@repibot/ui'
 import { useMutation } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
@@ -15,9 +23,12 @@ export default function SecurityPage() {
   const { api } = useAuthClient()
   const sessions = useSessions()
   const revoke = useRevokeSession(language)
+  const requestEmail = useRequestEmailChange(language)
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState<string | null>(null)
   const [pendingRevoke, setPendingRevoke] = useState<string | null>(null)
 
   const changePassword = useMutation({
@@ -34,6 +45,9 @@ export default function SecurityPage() {
   // Пароля может не быть вовсе: аккаунт мог появиться из Telegram. Тогда
   // текущий пароль спрашивать не у чего.
   const hasPassword = me.data?.has_password ?? true
+  // Почты тоже может не быть — у пришедшего из Telegram. Форма та же, меняются
+  // только подписи: там, где адреса нет, речь идёт о его добавлении.
+  const hasEmail = me.data?.email != null
 
   function submitPassword(event: FormEvent) {
     event.preventDefault()
@@ -47,6 +61,19 @@ export default function SecurityPage() {
       current_password: hasPassword ? current : null,
       new_password: parsed.data.password,
     })
+  }
+
+  function submitEmail(event: FormEvent) {
+    event.preventDefault()
+    const parsed = emailSchema.safeParse({ email })
+    if (!parsed.success) {
+      setEmailError(t('auth.error.email_invalid'))
+      return
+    }
+    setEmailError(null)
+    // Поле очищается после отправки: адрес уже уехал в письмо, а оставленное
+    // значение выглядело бы как несохранённая правка.
+    requestEmail.mutate(parsed.data.email, { onSuccess: () => setEmail('') })
   }
 
   function confirmRevoke() {
@@ -106,6 +133,53 @@ export default function SecurityPage() {
             ) : null}
           </div>
         </form>
+      </Card>
+
+      <Card>
+        {/* Подписи зависят от того, есть ли адрес, поэтому карточка ждёт
+            профиль: иначе первый кадр звал бы менять несуществующую почту. */}
+        {me.isPending ? (
+          <p className="text-text-secondary">{t('common.loading')}</p>
+        ) : (
+          <>
+            <h2 className="text-lg font-semibold text-text">
+              {hasEmail ? t('account.email_change') : t('account.email_add')}
+            </h2>
+            <form onSubmit={submitEmail} noValidate className="mt-4 flex flex-col gap-4">
+              <FormField
+                label={hasEmail ? t('account.email_new') : t('account.email')}
+                htmlFor="new-email"
+                hint={t('account.email_change_hint')}
+                error={emailError}
+              >
+                <Input
+                  id="new-email"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </FormField>
+
+              {requestEmail.error === null ? null : (
+                <p role="alert" className="text-sm text-danger">
+                  {errorText(requestEmail.error, language)}
+                </p>
+              )}
+
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={requestEmail.isPending}>
+                  {t('account.email_change_submit')}
+                </Button>
+                {requestEmail.isSuccess ? (
+                  <span className="text-sm text-text-secondary">
+                    {t('account.email_change_sent')}
+                  </span>
+                ) : null}
+              </div>
+            </form>
+          </>
+        )}
       </Card>
 
       <Card>
