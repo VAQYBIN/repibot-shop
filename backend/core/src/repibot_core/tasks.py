@@ -29,8 +29,9 @@ async def process_outbox() -> dict[str, int]:
 def _dispatcher() -> OutboxDispatcher:
     """Собирается на каждый прогон.
 
-    Обработчики писем появятся в задаче 7 — тогда сборка переедет в
-    services.email_dispatch.build_dispatcher, а импорт уйдёт внутрь функции,
-    чтобы разорвать цикл: services импортирует эту же задачу, чтобы её поставить.
+    Импорт внутри функции разрывает цикл: services импортирует эту же задачу,
+    чтобы поставить её после коммита.
     """
-    return OutboxDispatcher()
+    from repibot_core.services.email_dispatch import build_dispatcher
+
+    return build_dispatcher()
