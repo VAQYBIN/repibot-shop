@@ -41,7 +41,7 @@ for _key, _value in _TEST_ENV.items():
 # Импорты ниже — только после подготовки окружения.
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncEngine  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession  # noqa: E402
 from testcontainers.community.postgres import PostgresContainer  # noqa: E402
 
 from repibot_core.db.engine import create_engine  # noqa: E402
@@ -61,3 +61,25 @@ async def engine(postgres_url: str) -> AsyncIterator[AsyncEngine]:
     engine = create_engine(postgres_url)
     yield engine
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def db_session(postgres_url: str, engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
+    """Чистая база с применёнными миграциями и открытой сессией.
+
+    Схема пересоздаётся на каждый тест: остатки чужих строк дают тесты,
+    проходящие по одному и падающие в наборе.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    from repibot_core.db.engine import create_session_factory
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", postgres_url.replace("+asyncpg", "+psycopg"))
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+
+    factory = create_session_factory(engine)
+    async with factory() as session:
+        yield session
