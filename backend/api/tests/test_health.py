@@ -12,7 +12,8 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from repibot_api.health import check_valkey, get_engine
+from repibot_api.deps import get_engine
+from repibot_api.health import check_valkey
 from repibot_api.main import create_app
 from repibot_core.settings import get_settings
 

@@ -41,6 +41,7 @@ for _key, _value in _TEST_ENV.items():
 # Импорты ниже — только после подготовки окружения.
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession  # noqa: E402
 from testcontainers.community.postgres import PostgresContainer  # noqa: E402
 
@@ -83,3 +84,47 @@ async def db_session(postgres_url: str, engine: AsyncEngine) -> AsyncIterator[As
     factory = create_session_factory(engine)
     async with factory() as session:
         yield session
+
+
+@pytest_asyncio.fixture
+async def api_client(
+    postgres_url: str, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[AsyncClient]:
+    """Клиент API с реальной базой и подставным Valkey.
+
+    Postgres нужен настоящий — проверяются ограничения схемы. Valkey заменяется
+    fakeredis: кэш и лимиты не зависят от особенностей сервера, а контейнер
+    ради них удваивал бы время прогона.
+    """
+    from alembic import command
+    from alembic.config import Config
+    from fakeredis.aioredis import FakeRedis
+
+    from repibot_api import deps
+    from repibot_api.main import app
+    from repibot_core.db.engine import create_session_factory
+
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", postgres_url.replace("+asyncpg", "+psycopg"))
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+
+    factory = create_session_factory(engine)
+    redis = FakeRedis()
+
+    async def _session() -> AsyncIterator[AsyncSession]:
+        async with factory() as session:
+            yield session
+
+    app.dependency_overrides[deps.db_session] = _session
+    app.dependency_overrides[deps.get_redis] = lambda: redis
+    # Фабрика из deps собирает движок по DATABASE_URL, а адрес контейнера там
+    # неизвестен. Тест читает через неё outbox, поэтому подменяется и она —
+    # иначе запрос уйдёт в базу, которой на машине нет.
+    monkeypatch.setattr(deps, "get_session_factory", lambda: factory)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="https://testserver") as client:
+        yield client
+
+    app.dependency_overrides.clear()

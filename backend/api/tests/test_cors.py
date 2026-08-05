@@ -4,7 +4,7 @@
 (`https://example.org/app`) не совпадёт с ним никогда и просто мертва.
 """
 
-from repibot_api.main import allowed_origins
+from repibot_api.origins import allowed_origins
 
 
 def test_url_with_path_is_reduced_to_origin() -> None:
