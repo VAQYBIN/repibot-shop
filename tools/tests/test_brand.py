@@ -174,3 +174,15 @@ def test_public_raster_matches_the_brand_kit(name: str) -> None:
     original = (LOGO_DIR / "raster" / name).read_bytes()
 
     assert (ROOT / "frontend/apps/web/public" / name).read_bytes() == original
+
+
+def test_component_draws_the_same_spiral_as_the_files() -> None:
+    """Знак на странице и знак в файле обязаны быть одной фигурой."""
+    component = (ROOT / "frontend/packages/ui/src/components/logo-mark.tsx").read_text(
+        encoding="utf-8"
+    )
+
+    assert FULL.path in component
+    assert SMALL.path in component
+    assert f"strokeWidth: {FULL.stroke:g}" in component
+    assert f"strokeWidth: {SMALL.stroke:g}" in component
