@@ -24,7 +24,9 @@ _PLACEHOLDERS = {
     "BOT_WEBHOOK_BASE_URL": "https://example.invalid",
     "REMNAWAVE_BASE_URL": "https://example.invalid",
     "REMNAWAVE_TOKEN": "schema-export-placeholder",
-    "JWT_SECRET": "schema-export-placeholder",
+    # Не короче 32 символов: настройки отвергают слабый ключ подписи, и заглушка
+    # обязана проходить ту же проверку, что реальное значение.
+    "JWT_SECRET": "schema-export-placeholder-key-32b",
     "ENCRYPTION_KEY": "schema-export-placeholder",
     "PUBLIC_WEB_URL": "https://example.invalid",
     "PUBLIC_APP_URL": "https://example.invalid/app",

@@ -67,10 +67,30 @@ def test_migrate_does_not_restart(compose: dict[str, Any]) -> None:
 
 
 def test_only_nginx_publishes_ports(compose: dict[str, Any]) -> None:
-    """Открытый наружу порт базы — самый частый способ потерять данные."""
-    with_ports = {name for name, service in compose["services"].items() if service.get("ports")}
+    """Открытый наружу порт базы — самый частый способ потерять данные.
+
+    Инвариант проверяется на рабочем наборе. Сервисы с профилем `dev` (Mailpit
+    для писем в разработке) обычным `docker compose up` не поднимаются, и их
+    порты на сервере не появляются.
+    """
+    with_ports = {
+        name
+        for name, service in compose["services"].items()
+        if service.get("ports") and not service.get("profiles")
+    }
 
     assert with_ports == {"nginx"}
+
+
+def test_dev_only_services_are_behind_a_profile(compose: dict[str, Any]) -> None:
+    """Mailpit принимает почту без пароля — на сервере ему делать нечего.
+
+    Забыть профиль здесь означает открыть наружу чужую переписку, поэтому
+    проверяется именно он, а не наличие сервиса.
+    """
+    mailpit = compose["services"]["mailpit"]
+
+    assert mailpit.get("profiles") == ["dev"]
 
 
 def test_frontend_service_does_not_receive_backend_secrets(compose: dict[str, Any]) -> None:
