@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from repibot_api.deps import get_redis
@@ -13,13 +13,12 @@ from repibot_api.errors import register_error_handlers
 from repibot_api.health import router as health_router
 from repibot_api.middleware import register_request_id_middleware
 from repibot_api.origins import allowed_origins
+from repibot_api.routers.admin import router as admin_router
 from repibot_api.routers.auth import router as auth_router
+from repibot_api.routers.me import router as me_router
 from repibot_core.logging import configure_logging
 from repibot_core.queue import broker
 from repibot_core.settings import get_settings
-
-client_router = APIRouter(prefix="/api", tags=["client"])
-admin_router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @asynccontextmanager
@@ -60,7 +59,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(auth_router)
-    app.include_router(client_router)
+    app.include_router(me_router)
     app.include_router(admin_router)
     return app
 
