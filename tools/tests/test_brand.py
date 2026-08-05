@@ -138,3 +138,39 @@ def test_favicon_is_copied_to_both_applications() -> None:
 
     assert (ROOT / "frontend/apps/web/public/favicon.svg").read_bytes() == original
     assert (ROOT / "frontend/apps/miniapp/public/favicon.svg").read_bytes() == original
+
+
+RASTER = (
+    ("favicon-16.png", 16),
+    ("favicon-32.png", 32),
+    ("icon-192.png", 192),
+    ("icon-512.png", 512),
+    ("avatar-512.png", 512),
+)
+
+
+@pytest.mark.parametrize(("name", "side"), RASTER)
+def test_raster_file_has_the_declared_size(name: str, side: int) -> None:
+    """Ширина и высота PNG лежат в заголовке IHDR, отдельная библиотека не нужна."""
+    header = (LOGO_DIR / "raster" / name).read_bytes()[16:24]
+    width = int.from_bytes(header[:4], "big")
+    height = int.from_bytes(header[4:], "big")
+
+    assert (width, height) == (side, side)
+
+
+def test_open_graph_image_is_twelve_hundred_by_six_thirty() -> None:
+    header = (LOGO_DIR / "raster" / "og-image.png").read_bytes()[16:24]
+
+    assert int.from_bytes(header[:4], "big") == 1200
+    assert int.from_bytes(header[4:], "big") == 630
+
+
+@pytest.mark.parametrize(
+    "name", ["favicon-16.png", "favicon-32.png", "icon-192.png", "icon-512.png"]
+)
+def test_public_raster_matches_the_brand_kit(name: str) -> None:
+    """Копии в public — именно копии. Разошедшиеся иконки заметит только пользователь."""
+    original = (LOGO_DIR / "raster" / name).read_bytes()
+
+    assert (ROOT / "frontend/apps/web/public" / name).read_bytes() == original
