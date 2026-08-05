@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Разработка идёт на dev, в main попадают завершённые фичи.
+    # Проверки, не запускающиеся на рабочей ветке, никого не защищают.
+    branches: [main, dev]
   pull_request:
 
 concurrency:

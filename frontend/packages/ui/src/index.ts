@@ -1,4 +1,5 @@
 export { Button, type ButtonProps } from './components/button'
 export { Card } from './components/card'
 export { Input } from './components/input'
+export { LogoMark, type LogoMarkProps, type LogoMarkVariant } from './components/logo-mark'
 export { cn } from './lib/cn'

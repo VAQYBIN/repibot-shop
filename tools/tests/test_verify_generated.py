@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_generated_files_are_declared() -> None:
-    paths = {entry.path for entry in GENERATED}
+    paths = {path for entry in GENERATED for path in entry.paths}
 
     assert Path("frontend/packages/core/src/api/openapi.json") in paths
     assert Path("frontend/packages/core/src/api/schema.d.ts") in paths
@@ -60,12 +60,12 @@ def test_stale_file_keeps_its_committed_content(tmp_path: Path) -> None:
     target.write_text("закоммиченное", encoding="utf-8")
 
     entry = Generated(
-        path=target.relative_to(tmp_path),
+        paths=(target.relative_to(tmp_path),),
         command=_writer(target, "другое"),
         cwd=tmp_path,
     )
 
-    assert verify_generated([entry], root=tmp_path) == [str(entry.path)]
+    assert verify_generated([entry], root=tmp_path) == [str(entry.paths[0])]
     assert target.read_text(encoding="utf-8") == "закоммиченное"
 
 
@@ -74,7 +74,7 @@ def test_up_to_date_file_is_reported_as_current(tmp_path: Path) -> None:
     target.write_text("одно и то же", encoding="utf-8")
 
     entry = Generated(
-        path=target.relative_to(tmp_path),
+        paths=(target.relative_to(tmp_path),),
         command=_writer(target, "одно и то же"),
         cwd=tmp_path,
     )
@@ -96,7 +96,7 @@ def test_failed_generator_does_not_leave_the_file_damaged(tmp_path: Path) -> Non
         " raise SystemExit(1)"
     )
     entry = Generated(
-        path=Path("generated.txt"), command=[sys.executable, "-c", code], cwd=tmp_path
+        paths=(Path("generated.txt"),), command=[sys.executable, "-c", code], cwd=tmp_path
     )
 
     with pytest.raises(subprocess.CalledProcessError):
@@ -107,7 +107,9 @@ def test_failed_generator_does_not_leave_the_file_damaged(tmp_path: Path) -> Non
 
 def test_missing_generator_is_reported_without_a_traceback(tmp_path: Path) -> None:
     """Нет pnpm — это сообщение, а не трассировка: в tools/check.py уже так."""
-    entry = Generated(path=Path("generated.txt"), command=["repibot-no-such-tool"], cwd=tmp_path)
+    entry = Generated(
+        paths=(Path("generated.txt"),), command=["repibot-no-such-tool"], cwd=tmp_path
+    )
 
     assert verify_generated([entry], root=tmp_path) == ["generated.txt"]
 
@@ -117,10 +119,32 @@ def test_absent_file_is_not_left_behind(tmp_path: Path) -> None:
     target = tmp_path / "generated.txt"
 
     entry = Generated(
-        path=target.relative_to(tmp_path),
+        paths=(target.relative_to(tmp_path),),
         command=_writer(target, "новое"),
         cwd=tmp_path,
     )
 
-    assert verify_generated([entry], root=tmp_path) == [str(entry.path)]
+    assert verify_generated([entry], root=tmp_path) == [str(entry.paths[0])]
     assert not target.exists()
+
+
+def test_one_command_can_own_several_files(tmp_path: Path) -> None:
+    """Генератор бренда выдаёт тринадцать файлов за один запуск."""
+    first = tmp_path / "one.txt"
+    second = tmp_path / "two.txt"
+    first.write_text("одно", encoding="utf-8")
+    second.write_text("устарело", encoding="utf-8")
+
+    code = (
+        f"import pathlib;"
+        f" pathlib.Path({str(first)!r}).write_text('одно', encoding='utf-8');"
+        f" pathlib.Path({str(second)!r}).write_text('другое', encoding='utf-8')"
+    )
+    entry = Generated(
+        paths=(Path("one.txt"), Path("two.txt")),
+        command=[sys.executable, "-c", code],
+        cwd=tmp_path,
+    )
+
+    assert verify_generated([entry], root=tmp_path) == ["two.txt"]
+    assert second.read_text(encoding="utf-8") == "устарело"
