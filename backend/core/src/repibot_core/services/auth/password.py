@@ -150,6 +150,32 @@ class PasswordAuth:
 
         return await self._auth.issue(user, user_agent=user_agent, ip=ip, with_refresh=True)
 
+    async def issue_email_change(self, user: User, new_email: str) -> None:
+        """Письмо на новый адрес. Сам адрес меняется только после подтверждения."""
+        await self._issue_letter(user, TokenType.email_change, payload={"email": new_email})
+        await self._commit_and_notify()
+
+    async def apply_email_change(self, raw_token: str) -> None:
+        """Подтверждение приходит письмом и может открыться в другом браузере.
+
+        Поэтому операция авторизуется самим токеном, а не сессией: требовать
+        вход в том же браузере значило бы ломать нормальный сценарий.
+        """
+        token = await self._consume(TokenType.email_change, raw_token)
+        user = await self._require_user(token.user_id)
+
+        address = str((token.payload or {}).get("email", ""))
+        if not address:
+            raise AuthError("token_invalid", "в токене нет адреса")
+
+        occupied = await self._users.get_by_email(address)
+        if occupied is not None and occupied.id != user.id:
+            raise AuthError("email_taken", "адрес уже занят")
+
+        user.email = address
+        user.email_verified_at = datetime.now(UTC)
+        await self._session.commit()
+
     async def _issue_letter(
         self, user: User, kind: TokenType, *, payload: dict[str, Any] | None = None
     ) -> None:
