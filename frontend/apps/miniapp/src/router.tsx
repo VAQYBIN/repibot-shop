@@ -1,10 +1,11 @@
 import { createRouter } from '@tanstack/react-router'
 
 import { indexRoute } from './routes/index'
+import { profileRoute } from './routes/profile'
 import { rootRoute } from './routes/root'
 
 export const router = createRouter({
-  routeTree: rootRoute.addChildren([indexRoute]),
+  routeTree: rootRoute.addChildren([indexRoute, profileRoute]),
   basepath: '/app',
 })
 
