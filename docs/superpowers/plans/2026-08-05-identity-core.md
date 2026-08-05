@@ -24,6 +24,8 @@
 - Цвета, отступы и типографика — из `docs/design/repibot-brandbook.md` через токены `packages/ui`. Значений «на глаз» в коде нет.
 - Тесты, которым нужен Postgres, помечаются `pytestmark = pytest.mark.docker`.
 - `sa.Integer` для `users.id` сохраняется — таблица уже создана в подпроекте 0.
+- Модель сессии называется `Session` и при импорте затеняет `sqlalchemy.orm.Session`. В файлах, где нужны оба, ORM-класс берётся как `from sqlalchemy.orm import Session as OrmSession` или обращением через модуль.
+- Тестовый `JWT_SECRET` не короче 32 символов: настройки отвергают слабый ключ подписи, и PyJWT предупреждает о нём отдельно.
 - Passkey и Telegram OIDC в этот этап не входят: они в плане 1b. Мест «на будущее» под них в коде не оставляем, кроме уже описанной структуры верификаторов.
 
 ---
@@ -148,7 +150,10 @@ Expected: FAIL — `Settings object has no attribute admin_telegram_ids`.
 
     # Список идентификаторов Telegram. Роль поднимается при входе; удаление
     # идентификатора отсюда роль не снимает — понижение делается осознанно.
-    admin_telegram_ids: tuple[int, ...] = ()
+    # NoDecode отключает попытку pydantic-settings разобрать значение как JSON:
+    # без неё строка "111, 222" падает с ошибкой парсинга раньше, чем успевает
+    # отработать валидатор ниже.
+    admin_telegram_ids: Annotated[tuple[int, ...], NoDecode] = ()
 
     email_sender: Literal["smtp", "log"] = "log"
     smtp_host: str = ""
@@ -562,9 +567,14 @@ down_revision = "0001"
 branch_labels = None
 depends_on = None
 
-_ROLE = sa.Enum("user", "support", "admin", name="user_role")
-_STATUS = sa.Enum("active", "banned", name="user_status")
-_TOKEN_TYPE = sa.Enum("email_verify", "password_reset", "email_change", name="one_time_token_type")
+# create_type=False: типы создаются явным вызовом ниже. Без этого флага
+# CREATE TABLE и ADD COLUMN пытаются создать тип ещё раз и падают на
+# DuplicateObject — Postgres не умеет CREATE TYPE IF NOT EXISTS.
+_ROLE = postgresql.ENUM("user", "support", "admin", name="user_role", create_type=False)
+_STATUS = postgresql.ENUM("active", "banned", name="user_status", create_type=False)
+_TOKEN_TYPE = postgresql.ENUM(
+    "email_verify", "password_reset", "email_change", name="one_time_token_type", create_type=False
+)
 
 
 def upgrade() -> None:
