@@ -4113,7 +4113,9 @@ def parse_init_data(
 
     # compare_digest, а не ==: сравнение строк выходит из цикла на первом
     # различии, и по времени ответа подпись подбирается побайтово.
-    if not hmac.compare_digest(expected, signature):
+    # Сравниваются байты, а не строки: строковый вариант compare_digest падает
+    # с TypeError на не-ASCII подписи, а её присылает кто угодно.
+    if not hmac.compare_digest(expected.encode(), signature.encode()):
         raise InitDataError("подпись initData не совпала")
 
     try:
