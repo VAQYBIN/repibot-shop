@@ -19,7 +19,7 @@
 - Комментарии, докстринги и сообщения — на русском. Комментарий объясняет причину решения, а не пересказывает код.
 - `mypy` в strict и `ruff` с набором из `pyproject.toml` — блокирующие. Аннотации обязательны везде, включая тесты.
 - Новая переменная окружения добавляется одновременно в `Settings`, `.env.example` и `docs/deployment.md`.
-- Тексты ошибок API не локализуются: ответ несёт код (`invalid_credentials`, `email_not_verified`, `email_taken`, `weak_password`, `token_invalid`, `token_expired`, `rate_limited`, `last_login_method`, `unauthorized`, `forbidden`), фразу подбирает фронтенд.
+- Тексты ошибок API не локализуются: ответ несёт код (`invalid_credentials`, `email_not_verified`, `email_taken`, `weak_password`, `token_invalid`, `token_expired`, `rate_limited`, `last_login_method`, `unauthorized`, `forbidden`, `not_found`, `validation_error`), фразу подбирает фронтенд.
 - Секреты в логи не попадают: пароли, токены и `initData` не пишутся ни в сообщениях, ни в `extra`.
 - Цвета, отступы и типографика — из `docs/design/repibot-brandbook.md` через токены `packages/ui`. Значений «на глаз» в коде нет.
 - Тесты, которым нужен Postgres, помечаются `pytestmark = pytest.mark.docker`.
@@ -2332,6 +2332,10 @@ from repibot_core.integrations.email.sender import EmailMessage
 INK = "#1A1A18"
 PAPER = "#FAF9F7"
 JADE = "#17A67C"
+# Ссылка — мелкий текст: Jade к белому даёт 3.1:1, и бренд-бук требует для
+# текста и ссылок Jade Deep с контрастом 6.6:1. Основной Jade остаётся на
+# двоеточии в логотипе — крупный элемент.
+JADE_DEEP = "#0E6B50"
 
 _LAYOUT = Environment(autoescape=True).from_string(
     """<!doctype html>
@@ -2980,7 +2984,11 @@ class AuthService:
         expires_at = datetime.now(UTC) + timedelta(days=self._settings.refresh_token_ttl_days)
         row = await self._sessions.create(
             user_id=user.id,
-            token_hash=hash_opaque_token(raw_refresh) if raw_refresh else generate_opaque_token(),
+            # У сессии без refresh (MiniApp) поле всё равно заполняется: оно
+            # NOT NULL и уникально. Значение — хеш от выброшенного случайного
+            # токена: предъявить его нельзя, прообраза не знает никто, и в базе
+            # оно выглядит хешем, а не испорченной строкой.
+            token_hash=hash_opaque_token(raw_refresh or generate_opaque_token()),
             expires_at=expires_at,
             user_agent=(user_agent or None) and user_agent[:256],
             ip=ip,

@@ -65,7 +65,11 @@ class AuthService:
         expires_at = datetime.now(UTC) + timedelta(days=self._settings.refresh_token_ttl_days)
         row = await self._sessions.create(
             user_id=user.id,
-            token_hash=hash_opaque_token(raw_refresh) if raw_refresh else generate_opaque_token(),
+            # У сессии без refresh (MiniApp) поле всё равно заполняется: оно
+            # NOT NULL и уникально. Значение — хеш от выброшенного случайного
+            # токена: предъявить его нельзя, прообраза не знает никто, и в базе
+            # оно выглядит хешем, а не испорченной строкой.
+            token_hash=hash_opaque_token(raw_refresh or generate_opaque_token()),
             expires_at=expires_at,
             user_agent=(user_agent or None) and user_agent[:256],
             ip=ip,
