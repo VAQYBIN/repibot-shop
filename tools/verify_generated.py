@@ -22,26 +22,30 @@ ROOT = Path(__file__).resolve().parent.parent
 
 @dataclass(frozen=True)
 class Generated:
-    """Файл под контролем генерации и команда, которая его создаёт."""
+    """Файлы под контролем генерации и команда, которая их создаёт.
 
-    path: Path
+    Одна команда может выдавать несколько файлов: сборка бренда пишет
+    тринадцать за раз, и запускать её тринадцать раз было бы расточительно.
+    """
+
+    paths: tuple[Path, ...]
     command: list[str]
     cwd: Path
 
 
 GENERATED: list[Generated] = [
     Generated(
-        path=Path("frontend/packages/core/src/api/openapi.json"),
+        paths=(Path("frontend/packages/core/src/api/openapi.json"),),
         command=["uv", "run", "export-openapi"],
         cwd=ROOT,
     ),
     Generated(
-        path=Path("frontend/packages/core/src/api/schema.d.ts"),
+        paths=(Path("frontend/packages/core/src/api/schema.d.ts"),),
         command=["pnpm", "--filter", "@repibot/core", "gen:api"],
         cwd=ROOT / "frontend",
     ),
     Generated(
-        path=Path("backend/core/src/repibot_core/integrations/remnawave/models.py"),
+        paths=(Path("backend/core/src/repibot_core/integrations/remnawave/models.py"),),
         command=["uv", "run", "python", "tools/gen_remnawave_models.py"],
         cwd=ROOT,
     ),
@@ -75,33 +79,33 @@ def verify_generated(entries: list[Generated] | None = None, root: Path = ROOT) 
     """
     stale: list[str] = []
     for entry in entries if entries is not None else GENERATED:
-        target = root / entry.path
-        existed = target.exists()
-        before = target.read_bytes() if existed else b""
+        targets = [root / path for path in entry.paths]
+        before = [target.read_bytes() if target.exists() else None for target in targets]
 
-        generated: bytes | None = None
+        produced: list[bytes | None] = []
         try:
             subprocess.run(_resolve(entry.command), cwd=entry.cwd, check=True)  # noqa: S603
         except FileNotFoundError:
             # Нет pnpm или uv — это сообщение, а не трассировка.
             print(f"команда не найдена: {entry.command[0]}", flush=True)  # noqa: T201
-            stale.append(str(entry.path))
+            stale.extend(str(path) for path in entry.paths)
             continue
         finally:
             # Снимок и восстановление именно в finally: упавший генератор мог
             # успеть записать половину файла, и без восстановления проверка
             # испортила бы ровно то, что должна была защитить.
-            if target.exists():
-                generated = target.read_bytes()
-            if existed:
-                target.write_bytes(before)
-            else:
-                target.unlink(missing_ok=True)
+            for target, original in zip(targets, before, strict=True):
+                produced.append(target.read_bytes() if target.exists() else None)
+                if original is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    target.write_bytes(original)
 
-        if generated is None or _normalise(generated.decode("utf-8")) != _normalise(
-            before.decode("utf-8")
-        ):
-            stale.append(str(entry.path))
+        for path, original, current in zip(entry.paths, before, produced, strict=True):
+            if current is None or _normalise(current.decode("utf-8")) != _normalise(
+                (original or b"").decode("utf-8")
+            ):
+                stale.append(str(path))
     return stale
 
 
