@@ -1,0 +1,30 @@
+{
+  "name": "@repibot/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "gen:api": "openapi-typescript ./src/api/openapi.json -o ./src/api/schema.d.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.66.0",
+    "openapi-fetch": "^0.13.0",
+    "zod": "^3.24.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@repibot/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "openapi-typescript": "^7.6.0",
+    "react": "^19.0.0",
+    "vitest": "^3.0.0"
+  }
+}

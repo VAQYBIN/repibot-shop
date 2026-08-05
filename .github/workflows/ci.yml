@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Проверки
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Установить зависимости бэкенда
+        run: uv sync --frozen
+
+      - name: Установить зависимости фронтенда
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      # Тот же вход, что и локально: расхождение между CI и машиной
+      # разработчика невозможно по построению.
+      - name: Прогнать проверки
+        run: uv run check
+
+  e2e:
+    name: Сквозные тесты
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      - run: pnpm --filter @repibot/web exec playwright install --with-deps chromium
+        working-directory: frontend
+
+      - run: pnpm --filter @repibot/web e2e
+        working-directory: frontend
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/apps/web/playwright-report
+
+  build:
+    name: Сборка образов
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Собрать образы
+        run: |
+          cp .env.example .env
+          docker compose build

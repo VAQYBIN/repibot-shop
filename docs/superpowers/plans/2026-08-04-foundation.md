@@ -2,6 +2,13 @@
 
 > **Для агентов:** ОБЯЗАТЕЛЬНЫЙ ПОД-СКИЛЛ: используйте superpowers:subagent-driven-development (рекомендуется) или superpowers:executing-plans для выполнения задача-за-задачей. Шаги размечены чекбоксами (`- [ ]`).
 
+> **Правки после выполнения.** План выполнен; фрагменты кода в нём приведены в
+> соответствие с тем, что получилось, чтобы не служить источником устаревших
+> решений. Изменено: путь вебхука `/tg/webhook/<секрет>` заменён на постоянный
+> `/webhook/telegram` — секрет в адресе протекал в журналы прокси, а проверку
+> и раньше выполнял заголовок. Полное и актуальное описание системы — в
+> `docs/superpowers/specs/`.
+
 **Цель:** собрать каркас, на котором `docker compose up` поднимает работающий стек из девяти сервисов, а `uv run check` проходит все проверки — без единой бизнес-функции.
 
 **Архитектура:** бэкенд — uv workspace из четырёх пакетов: `repibot-core` с бизнес-логикой и три тонкие точки входа (`api`, `bot`, `worker`), собираемые в один Docker-образ и различающиеся командой запуска. Фронтенд — pnpm workspace: два приложения (`miniapp` на Vite, `web` на Next.js) над тремя общими пакетами (`core` — логика, `ui` — компоненты и токены, `config` — настройки инструментов). Связь между бэкендом и фронтендом — OpenAPI-схема, экспортируемая в файл и коммитируемая.
@@ -1594,9 +1601,9 @@ def _build_bot() -> Bot:
     )
 
 
-def _webhook_path() -> str:
-    """Секрет в пути — первый барьер: чужие запросы не доходят до разбора апдейта."""
-    return f"/tg/webhook/{get_settings().bot_webhook_secret.get_secret_value()}"
+# Все входящие вебхуки живут под общим префиксом: /webhook/<источник>.
+# Следующим сюда встанет /webhook/yookassa, уже на стороне api.
+WEBHOOK_PATH = "/webhook/telegram"
 
 
 def run_webhook() -> None:
@@ -1605,7 +1612,7 @@ def run_webhook() -> None:
     dispatcher = build_dispatcher(RedisStorage.from_url(settings.valkey_url))
 
     async def on_startup(bot: Bot) -> None:
-        url = f"{settings.bot_webhook_base_url}{_webhook_path()}"
+        url = f"{settings.bot_webhook_base_url}{WEBHOOK_PATH}"
         await bot.set_webhook(
             url,
             secret_token=settings.bot_webhook_secret.get_secret_value(),
@@ -1620,7 +1627,7 @@ def run_webhook() -> None:
         dispatcher=dispatcher,
         bot=bot,
         secret_token=settings.bot_webhook_secret.get_secret_value(),
-    ).register(app, path=_webhook_path())
+    ).register(app, path=WEBHOOK_PATH)
     setup_application(app, dispatcher, bot=bot)
 
     web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
@@ -4403,7 +4410,7 @@ git commit -m "feat: образы Docker для бэкенда, веба и ngin
 - Тест: `tools/tests/test_compose.py`, `tools/tests/test_nginx_conf.py`
 
 **Интерфейсы:**
-- Отдаёт: сервисы `nginx`, `web`, `api`, `bot`, `worker`, `scheduler`, `migrate`, `postgres`, `valkey`; маршруты `/`, `/app`, `/api`, `/tg/webhook`.
+- Отдаёт: сервисы `nginx`, `web`, `api`, `bot`, `worker`, `scheduler`, `migrate`, `postgres`, `valkey`; маршруты `/`, `/app`, `/api`, `/webhook/telegram`.
 
 - [ ] **Шаг 1: Написать падающие тесты**
 
@@ -4512,7 +4519,7 @@ def conf() -> str:
 
 @pytest.mark.parametrize(
     ("location", "upstream"),
-    [("/api", "api"), ("/app", None), ("/tg/webhook", "bot"), ("/", "web")],
+    [("/api", "api"), ("/app/", None), ("= /webhook/telegram", "bot"), ("/", "web")],
 )
 def test_routes_are_declared(conf: str, location: str, upstream: str | None) -> None:
     assert f"location {location}" in conf
@@ -4585,9 +4592,11 @@ server {
         proxy_read_timeout 30s;
     }
 
-    # Секрет бота уже содержится в самом пути — сюда попадают только
-    # запросы, знающие его. Подпись заголовка проверяет aiogram.
-    location /tg/webhook {
+    # Входящие вебхуки сгруппированы под общим префиксом: /webhook/<источник>.
+    # Секрета в пути нет: URL целиком пишется в журнал доступа и в любой
+    # промежуточный прокси. Подлинность запроса подтверждает заголовок
+    # X-Telegram-Bot-Api-Secret-Token, его проверяет aiogram.
+    location = /webhook/telegram {
         proxy_pass http://bot_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

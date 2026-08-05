@@ -1,0 +1,9 @@
+{
+  "extends": "@repibot/config/tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./src/*"] },
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src", "next-env.d.ts", ".next/types/**/*.ts", "vitest.config.ts", "vitest.setup.ts"]
+}

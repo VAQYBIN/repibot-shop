@@ -1,0 +1,19 @@
+{
+  "name": "repibot-frontend",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "lint": "biome ci .",
+    "format": "biome format --write .",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "test": "pnpm -r --parallel test",
+    "build": "pnpm -r build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.7",
+    "typescript": "^6.0.0"
+  }
+}
