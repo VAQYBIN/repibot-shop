@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Language = Literal["ru", "en"]
 
@@ -44,6 +44,24 @@ class Settings(BaseSettings):
     jwt_secret: SecretStr
     encryption_key: SecretStr
 
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 30
+
+    # Список идентификаторов Telegram. Роль поднимается при входе; удаление
+    # идентификатора отсюда роль не снимает — понижение делается осознанно.
+    # NoDecode отключает попытку pydantic-settings разобрать значение как JSON:
+    # без неё строка "111, 222" падает с ошибкой парсинга раньше, чем успевает
+    # отработать валидатор ниже.
+    admin_telegram_ids: Annotated[tuple[int, ...], NoDecode] = ()
+
+    email_sender: Literal["smtp", "log"] = "log"
+    smtp_host: str = ""
+    smtp_port: int = 1025
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from: str = "no-reply@example.org"
+    smtp_starttls: bool = False
+
     public_web_url: str
     public_app_url: str
 
@@ -59,6 +77,18 @@ class Settings(BaseSettings):
             msg = f"язык {value} не поддерживается"
             raise ValueError(msg)
         return value
+
+    @field_validator("admin_telegram_ids", mode="before")
+    @classmethod
+    def _split_admin_ids(cls, value: object) -> object:
+        """Читает "111, 222" из окружения.
+
+        Pydantic ждёт для кортежа JSON-массив, а в .env человек пишет список
+        через запятую. Пустая строка означает «админов нет».
+        """
+        if not isinstance(value, str):
+            return value
+        return tuple(int(part) for part in value.split(",") if part.strip())
 
 
 @lru_cache(maxsize=1)

@@ -29,6 +29,8 @@ _TEST_ENV = {
     "ENCRYPTION_KEY": "encryption-key",
     "PUBLIC_WEB_URL": "https://example.org",
     "PUBLIC_APP_URL": "https://example.org/app",
+    "ADMIN_TELEGRAM_IDS": "",
+    "EMAIL_SENDER": "log",
 }
 
 for _key, _value in _TEST_ENV.items():
