@@ -11,8 +11,11 @@ from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject
+from redis.asyncio import Redis
 
 from repibot_core.db.engine import create_engine, create_session_factory
+from repibot_core.integrations.telegram.bot_api import BotApi
+from repibot_core.services.telegram_link import TelegramLinkService
 from repibot_core.services.telegram_users import TelegramUserService
 from repibot_core.settings import get_settings
 
@@ -24,6 +27,12 @@ class UserMiddleware(BaseMiddleware):
         # открывать новый пул соединений на каждое сообщение.
         self._factory = create_session_factory(create_engine(settings.database_url))
         self._settings = settings
+        # Клиент Valkey тоже один на процесс и без декодирования ответов:
+        # коды привязки кладёт туда API с теми же настройками.
+        self._redis = Redis.from_url(settings.valkey_url, decode_responses=False)
+        # BotApi держит внутри httpx-клиент, поэтому он тоже один на процесс:
+        # новый на каждое сообщение открывал бы пул соединений и не закрывал его.
+        self._bot_api = BotApi(settings, self._redis)
 
     async def __call__(
         self,
@@ -46,4 +55,7 @@ class UserMiddleware(BaseMiddleware):
             data["user"] = user
             data["language"] = user.language
             data["telegram_users"] = service
+            data["telegram_link"] = TelegramLinkService(
+                session, self._settings, self._redis, self._bot_api
+            )
             return await handler(event, data)
