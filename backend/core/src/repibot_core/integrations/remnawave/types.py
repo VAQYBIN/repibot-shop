@@ -10,7 +10,12 @@ from __future__ import annotations
 
 from repibot_core.integrations.remnawave import models
 
-PanelUser = models.Response1
+# Номер меняется от состава корневых схем: добавление устройств и трафика
+# сдвинуло пользователя с Response1 на Response3. Ради этого файл и написан —
+# правится одна строка вместо всего кода.
+PanelUser = models.Response3
+PanelDevice = models.Device
+PanelUsage = models.Response1
 PanelSquad = models.InternalSquad
 PanelStatus = models.Status2
 PanelTrafficStrategy = models.TrafficLimitStrategy
@@ -18,12 +23,16 @@ PanelTrafficStrategy = models.TrafficLimitStrategy
 CreateUserBody = models.CreateUserBodyDto
 UpdateUserBody = models.UpdateUserBodyDto
 ResolveUserBody = models.ResolveUserBodyDto
+DeleteDeviceBody = models.DeleteUserHwidDeviceBodyDto
 
 __all__ = [
     "CreateUserBody",
+    "DeleteDeviceBody",
+    "PanelDevice",
     "PanelSquad",
     "PanelStatus",
     "PanelTrafficStrategy",
+    "PanelUsage",
     "PanelUser",
     "ResolveUserBody",
     "UpdateUserBody",

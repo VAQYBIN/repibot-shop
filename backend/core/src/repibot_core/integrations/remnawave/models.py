@@ -94,6 +94,11 @@ class CreateUserBodyDto(BaseModel):
     )
 
 
+class DeleteUserHwidDeviceBodyDto(BaseModel):
+    userId: float
+    hwid: str
+
+
 class Info(BaseModel):
     membersCount: float
     inboundsCount: float
@@ -127,6 +132,55 @@ class Response(BaseModel):
 
 class GetInternalSquadsResponseDto(BaseModel):
     response: Response
+
+
+class TopNode(BaseModel):
+    uuid: UUID
+    color: str
+    name: str
+    countryCode: str
+    total: float
+
+
+class Series(BaseModel):
+    uuid: UUID
+    name: str
+    color: str
+    countryCode: str
+    total: float
+    data: list[float]
+
+
+class Response1(BaseModel):
+    categories: list[str]
+    sparklineData: list[float]
+    topNodes: list[TopNode]
+    series: list[Series]
+
+
+class GetStatsUserUsageResponseDto(BaseModel):
+    response: Response1
+
+
+class Device(BaseModel):
+    hwid: str
+    userId: float
+    platform: str | None = Field(...)
+    osVersion: str | None = Field(...)
+    deviceModel: str | None = Field(...)
+    userAgent: str | None = Field(...)
+    requestIp: str | None = Field(...)
+    createdAt: AwareDatetime
+    updatedAt: AwareDatetime
+
+
+class Response2(BaseModel):
+    total: float
+    devices: list[Device]
+
+
+class GetUserHwidDevicesResponseDto(BaseModel):
+    response: Response2
 
 
 class ResolveUserBodyDto(BaseModel):
@@ -184,7 +238,7 @@ class UserTraffic(BaseModel):
     lastConnectedNodeUuid: UUID | None = Field(...)
 
 
-class Response1(BaseModel):
+class Response3(BaseModel):
     id: float
     shortUuid: str
     username: str
@@ -216,4 +270,4 @@ class Response1(BaseModel):
 
 
 class UserResponseDto(BaseModel):
-    response: Response1
+    response: Response3

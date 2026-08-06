@@ -20,7 +20,10 @@ TARGET = ROOT / "backend/core/src/repibot_core/integrations/remnawave/models.py"
 
 ROOT_SCHEMAS: tuple[str, ...] = (
     "CreateUserBodyDto",
+    "DeleteUserHwidDeviceBodyDto",
     "GetInternalSquadsResponseDto",
+    "GetStatsUserUsageResponseDto",
+    "GetUserHwidDevicesResponseDto",
     "ResolveUserBodyDto",
     "UpdateUserBodyDto",
     "UserResponseDto",
