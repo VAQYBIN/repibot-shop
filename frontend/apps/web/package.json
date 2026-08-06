@@ -13,6 +13,7 @@
   "dependencies": {
     "@repibot/core": "workspace:*",
     "@repibot/ui": "workspace:*",
+    "@simplewebauthn/browser": "^13.3.0",
     "@tanstack/react-query": "^5.66.0",
     "next": "^16.0.0",
     "react": "^19.0.0",
