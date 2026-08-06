@@ -1,7 +1,8 @@
-"""Вход через Telegram: MiniApp.
+"""Вход через Telegram: MiniApp и браузер через OIDC.
 
-Вход в браузере через OIDC добавляется планом 1b и встанет рядом — тем же
-способом: опознать, отдать пользователя AuthService.
+Оба способа устроены одинаково: опознать человека и отдать пользователя
+AuthService. Различаются они только тем, кто ручается за личность — подпись
+initData или ID-токен oauth.telegram.org — и выдаётся ли refresh.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import User
 from repibot_core.db.repositories.users import UserRepository
+from repibot_core.integrations.telegram.oidc import OidcIdentity
 from repibot_core.security.initdata import InitDataError, TelegramUser, parse_init_data
 from repibot_core.services.auth.service import AuthService
 from repibot_core.services.auth.types import AuthError, IssuedSession
@@ -51,6 +53,30 @@ class TelegramAuth:
         return await self._auth.issue(
             user, user_agent="telegram-miniapp", ip=ip, with_refresh=False
         )
+
+    async def login_from_oidc(
+        self, identity: OidcIdentity, *, user_agent: str | None, ip: str | None
+    ) -> IssuedSession:
+        """Вход через oauth.telegram.org.
+
+        Подпись ID-токена проверена вызывающим: сюда приходит уже опознанный
+        человек. Дальше путь общий с MiniApp — тот же поиск аккаунта и тот же
+        AuthService, иначе один человек завёл бы два аккаунта в зависимости от
+        того, откуда вошёл.
+        """
+        # OIDC даёт меньше, чем initData: языка в ID-токене нет вовсе, и
+        # None здесь означает «выбрать язык по умолчанию», а не «сбросить».
+        user = await self._find_or_create(
+            TelegramUser(
+                telegram_id=identity.telegram_id,
+                username=identity.username,
+                first_name=identity.name,
+                language_code=None,
+            )
+        )
+        # Refresh выдаётся, в отличие от MiniApp: обычный браузер держит нашу
+        # cookie в первом контексте, и сессия переживает перезагрузку.
+        return await self._auth.issue(user, user_agent=user_agent, ip=ip, with_refresh=True)
 
     async def _find_or_create(self, parsed: TelegramUser) -> User:
         user = await self._users.get_by_telegram_id(parsed.telegram_id)
