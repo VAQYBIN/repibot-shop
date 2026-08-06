@@ -16,6 +16,7 @@ Postgres поднимается в контейнере — SQLite здесь н
 
 import os
 from collections.abc import AsyncIterator, Iterator
+from decimal import Decimal
 
 _TEST_ENV = {
     "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost:5432/repibot",
@@ -42,12 +43,13 @@ for _key, _value in _TEST_ENV.items():
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy import update  # noqa: E402
+from sqlalchemy import text, update  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession  # noqa: E402
 from testcontainers.community.postgres import PostgresContainer  # noqa: E402
 
 from repibot_core.db.engine import create_engine, create_session_factory  # noqa: E402
-from repibot_core.db.models import User, UserRole  # noqa: E402
+from repibot_core.db.models import TrafficResetStrategy, User, UserRole  # noqa: E402
+from repibot_core.db.repositories.plans import PlanRepository  # noqa: E402
 from repibot_core.settings import Settings, get_settings  # noqa: E402
 from repibot_core.testing.initdata import build_init_data  # noqa: E402
 from repibot_core.testing.remnawave import FakePanel  # noqa: E402
@@ -213,11 +215,16 @@ def fake_panel(monkeypatch: pytest.MonkeyPatch) -> FakePanel:
     Подменяется фабрика клиента в роутере, а не фасад: маршруты, тела запросов
     и разбор ответов при этом проверяются настоящие. Сквадов у панели нет —
     их добавляет тот тест, которому они нужны.
+
+    Фабрика подменяется в каждом роутере, который её завёл: панель одна и та же,
+    и заглушка у неё обязана быть общая — иначе тариф, заведённый админским
+    маршрутом, уходил бы в одну панель, а выдача доступа — в другую.
     """
-    from repibot_api.routers import admin
+    from repibot_api.routers import admin, subscription
 
     panel = FakePanel()
-    monkeypatch.setattr(admin, "panel_client", panel.client)
+    for module in (admin, subscription):
+        monkeypatch.setattr(module, "panel_client", panel.client)
     return panel
 
 
@@ -225,3 +232,123 @@ def fake_panel(monkeypatch: pytest.MonkeyPatch) -> FakePanel:
 def fake_panel_squad(fake_panel: FakePanel) -> None:
     """Панель с одним сквадом — тем самым, из которого собран тариф теста."""
     fake_panel.add_squad(PANEL_SQUAD_UUID, PANEL_SQUAD_NAME)
+
+
+# --- тарифы и пользователи для клиентских наборов ---
+
+# Пользователь без Telegram: он заводится почтой, и триал ему не положен.
+# Отдельный адрес и отдельный telegram_id у каждой фикстуры — иначе два
+# заголовка в одном тесте указывали бы на одного и того же человека.
+PLAIN_USER_EMAIL = "subscriber@example.org"
+PLAIN_USER_PASSWORD = "совершенно обычный пароль"  # noqa: S105 — тестовая учётка
+TELEGRAM_USER_ID = 900_003
+
+
+async def _create_plan(
+    engine: AsyncEngine,
+    *,
+    code: str,
+    duration_days: int,
+    price_rub: Decimal,
+    price_stars: int,
+    is_trial: bool,
+) -> int:
+    """Тариф прямо через репозиторий, минуя админский маршрут.
+
+    Клиентские тесты проверяют витрину и подписку, а не заведение тарифа: путь
+    через POST /api/admin/plans тянул бы за собой роль администратора и делал
+    падение админского маршрута падением ещё и здесь.
+    """
+    async with create_session_factory(engine)() as session:
+        plan = await PlanRepository(session).create(
+            code=code,
+            name={"ru": code, "en": code},
+            description=None,
+            duration_days=duration_days,
+            price_rub=price_rub,
+            price_stars=price_stars,
+            traffic_limit_bytes=0,
+            traffic_reset_strategy=TrafficResetStrategy.NO_RESET,
+            hwid_device_limit=3,
+            internal_squad_uuids=[PANEL_SQUAD_UUID],
+            is_trial=is_trial,
+            is_active=True,
+            is_visible=True,
+            sort_order=0,
+        )
+        plan_id = plan.id
+        await session.commit()
+    return plan_id
+
+
+@pytest_asyncio.fixture
+async def month_plan(api_client: AsyncClient, engine: AsyncEngine) -> int:
+    """Обычный платный тариф в витрине."""
+    return await _create_plan(
+        engine,
+        code="month",
+        duration_days=30,
+        price_rub=Decimal("299.00"),
+        price_stars=199,
+        is_trial=False,
+    )
+
+
+@pytest_asyncio.fixture
+async def trial_plan(api_client: AsyncClient, engine: AsyncEngine, fake_panel_squad: None) -> int:
+    """Активный триальный тариф и панель, которая знает его сквад.
+
+    Панель здесь обязательна: активация триала сразу же заводит пользователя в
+    ней, и без заглушки тест уходил бы в сеть за несуществующим хостом.
+    """
+    return await _create_plan(
+        engine,
+        code="trial",
+        duration_days=3,
+        price_rub=Decimal("0.00"),
+        price_stars=0,
+        is_trial=True,
+    )
+
+
+@pytest_asyncio.fixture
+async def user_headers(api_client: AsyncClient) -> dict[str, str]:
+    """Заголовок авторизации пользователя без привязанного Telegram.
+
+    Регистрация почтой проходит целиком, вместе с подтверждением: аккаунт,
+    собранный в обход неё, отличался бы от боевого ровно теми полями, от
+    которых зависит выдача триала.
+    """
+    registered = await api_client.post(
+        "/api/auth/register",
+        json={"email": PLAIN_USER_EMAIL, "password": PLAIN_USER_PASSWORD, "language": "ru"},
+    )
+    assert registered.status_code == 202
+
+    from repibot_api.deps import get_session_factory
+
+    async with get_session_factory()() as session:
+        row = await session.execute(
+            text("select payload from outbox where topic = 'email.verify' order by id desc limit 1")
+        )
+        link = str(row.scalar_one()["link"])
+
+    confirmed = await api_client.post(
+        "/api/auth/verify-email", json={"token": link.split("token=")[1]}
+    )
+    assert confirmed.status_code == 200
+
+    logged_in = await api_client.post(
+        "/api/auth/login", json={"email": PLAIN_USER_EMAIL, "password": PLAIN_USER_PASSWORD}
+    )
+    return {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+
+
+@pytest_asyncio.fixture
+async def telegram_user_headers(api_client: AsyncClient) -> dict[str, str]:
+    """Заголовок авторизации пользователя с привязанным Telegram.
+
+    Вход через MiniApp привязывает Telegram сам, поэтому отдельного шага
+    привязки не нужно — именно такой аккаунт и имеет право на триал.
+    """
+    return await _telegram_token_headers(api_client, TELEGRAM_USER_ID)

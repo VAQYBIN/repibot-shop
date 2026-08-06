@@ -176,3 +176,44 @@ class PlanResponse(BaseModel):
 class SquadResponse(BaseModel):
     uuid: UUID
     name: str
+
+
+class PublicPlanResponse(BaseModel):
+    """Тариф в витрине. Внутренние поля наружу не уезжают.
+
+    internal_squad_uuids не отдаётся: состав локаций — наша кухня, а не то,
+    что клиент должен видеть в ответе API.
+    """
+
+    id: int
+    code: str
+    name: dict[str, str]
+    description: dict[str, str] | None
+    duration_days: int
+    price_rub: Decimal
+    price_stars: int
+    traffic_limit_bytes: int
+    hwid_device_limit: int
+    is_trial: bool
+
+
+class SubscriptionResponse(BaseModel):
+    plan_code: str
+    plan_name: dict[str, str]
+    status: str
+    started_at: datetime
+    expires_at: datetime
+    subscription_url: str | None
+    traffic_limit_bytes: int
+    hwid_device_limit: int
+
+
+class SubscriptionStateResponse(BaseModel):
+    """Подписка вместе с правом на триал.
+
+    Одним ответом, а не двумя запросами: экран подписки решает по обоим полям
+    сразу, показать срок или кнопку триала.
+    """
+
+    subscription: SubscriptionResponse | None
+    trial_available: bool
