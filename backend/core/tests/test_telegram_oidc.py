@@ -41,7 +41,11 @@ def _id_token(**overrides: Any) -> str:
     claims: dict[str, Any] = {
         "iss": ISSUER,
         "aud": CLIENT_ID,
-        "sub": "777000",
+        # Как в настоящем токене: sub — непрозрачное значение, а Telegram ID
+        # лежит в отдельном claim id. Значения намеренно разные, иначе тест
+        # прошёл бы и при чтении не того поля.
+        "sub": "1273349464943926156",
+        "id": 777000,
         "name": "Тест",
         "preferred_username": "tester",
         "iat": now,
@@ -233,3 +237,39 @@ def test_client_id_without_secret_is_not_configured() -> None:
 
 def test_both_halves_make_it_configured() -> None:
     assert is_configured(_settings()) is True
+
+
+async def test_identity_comes_from_id_claim_not_sub() -> None:
+    """sub — непрозрачное значение, Telegram ID лежит отдельно.
+
+    Проверено живым входом 2026-08-06: по sub человек получал второй аккаунт
+    вместо своего и не проходил по списку ADMIN_TELEGRAM_IDS. В
+    discovery-документе claim `id` не объявлен, список claims там неполный.
+    """
+    service = _service(_serve())
+
+    identity = await service.verify_id_token(_id_token(sub="1273349464943926156", id=728763367))
+
+    assert identity.telegram_id == 728763367
+
+
+async def test_token_without_id_claim_is_refused() -> None:
+    """Аккаунт по одному sub заводить нельзя: он не совпадёт ни с ботом, ни с MiniApp."""
+    now = int(time.time())
+    without_id = jwt.encode(
+        {
+            "iss": ISSUER,
+            "aud": CLIENT_ID,
+            "sub": "1273349464943926156",
+            "iat": now,
+            "exp": now + 300,
+        },
+        _KEY,
+        algorithm="RS256",
+        headers={"kid": _KID},
+    )
+    service = _service(_serve(without_id))
+
+    with pytest.raises(AuthError) as failure:
+        await service.verify_id_token(without_id)
+    assert failure.value.code == "invalid_credentials"

@@ -136,10 +136,18 @@ class TelegramOidc:
             logger.warning("ID-токен Telegram отклонён: %s", type(error).__name__)
             raise AuthError("invalid_credentials", "ID-токен не принят") from error
 
+        # Идентификатор берётся из claim `id`, а не из `sub`. Проверено живым
+        # входом: `sub` — непрозрачное девятнадцатизначное значение для
+        # соответствия стандарту, а настоящий Telegram ID лежит отдельно. С
+        # `sub` человек получал второй аккаунт вместо своего и не проходил по
+        # списку ADMIN_TELEGRAM_IDS. В discovery-документе claim `id` не
+        # объявлен — список claims там неполный.
         try:
-            telegram_id = int(claims["sub"])
+            telegram_id = int(claims["id"])
         except (KeyError, TypeError, ValueError) as error:
-            raise AuthError("invalid_credentials", "в ID-токене нет sub") from error
+            # Аккаунт по `sub` заводить нельзя: он не совпадёт ни с ботом, ни с
+            # MiniApp, и человек молча раздвоится.
+            raise AuthError("invalid_credentials", "в ID-токене нет идентификатора") from error
 
         return OidcIdentity(
             telegram_id=telegram_id,

@@ -46,7 +46,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession  # noqa: E402
 from testcontainers.community.postgres import PostgresContainer  # noqa: E402
 
 from repibot_core.db.engine import create_engine  # noqa: E402
-from repibot_core.settings import get_settings  # noqa: E402
+from repibot_core.settings import Settings, get_settings  # noqa: E402
+
+# Тесты не читают .env разработчика. Иначе набор проходит или падает в
+# зависимости от того, что человек прописал у себя: заполненный
+# ADMIN_TELEGRAM_IDS ломает проверку «админов нет по умолчанию», а
+# настроенный вход через Telegram — проверку «способ не настроен».
+# Значения берутся только из окружения выше.
+Settings.model_config["env_file"] = None
 
 get_settings.cache_clear()
 

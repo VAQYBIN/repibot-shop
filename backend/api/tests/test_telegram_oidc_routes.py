@@ -28,13 +28,16 @@ def _jwks() -> dict[str, Any]:
     return {"keys": [jwk]}
 
 
-def _id_token(sub: str = "777000") -> str:
+def _id_token(telegram_id: int = 777000) -> str:
     now = int(time.time())
     return jwt.encode(
         {
             "iss": ISSUER,
             "aud": CLIENT_ID,
-            "sub": sub,
+            # sub непрозрачен и намеренно не равен telegram_id: настоящий
+            # идентификатор приходит отдельным claim id.
+            "sub": "1273349464943926156",
+            "id": telegram_id,
             "name": "Тест",
             "preferred_username": "tester",
             "iat": now,
