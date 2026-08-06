@@ -63,6 +63,9 @@ _AUTH_STATUS = {
     "weak_password": 422,
     "validation_error": 422,
     "rate_limited": 429,
+    # Не наша поломка, а недоступность Telegram: человеку нужно повторить
+    # позже, а не искать ошибку у себя.
+    "telegram_unavailable": 503,
 }
 
 

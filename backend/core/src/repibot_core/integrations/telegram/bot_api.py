@@ -40,11 +40,11 @@ class BotApi:
             response = await self._client.get(f"https://api.telegram.org/bot{token}/getMe")
             response.raise_for_status()
         except httpx.HTTPError as error:
-            raise AuthError("not_found", "Telegram не ответил на getMe") from error
+            raise AuthError("telegram_unavailable", "Telegram не ответил на getMe") from error
 
         name = response.json().get("result", {}).get("username")
         if not isinstance(name, str) or not name:
-            raise AuthError("not_found", "Bot API не вернул имя бота")
+            raise AuthError("telegram_unavailable", "Bot API не вернул имя бота")
 
         await self._redis.set(CACHE_KEY, name, ex=CACHE_TTL_SECONDS)
         return name

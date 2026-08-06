@@ -54,6 +54,19 @@ export function errorMessageKey(code: string | undefined): TranslationKey {
     // домены вроде example.test он отвергает. Без этой строки человек видел бы
     // «не удалось выполнить запрос» и не понимал, что не так с адресом.
     validation_error: 'auth.error.validation_error',
+    last_login_method: 'auth.error.last_login_method',
+    link_conflict: 'auth.error.link_conflict',
+    telegram_already_linked: 'auth.error.telegram_already_linked',
+    // Приходит не телом ответа, а параметром ?error= после возврата из
+    // Telegram: браузерный вход отвечает редиректами, включая отказы.
+    telegram_unavailable: 'auth.error.telegram_unavailable',
+    // Тем же путём на страницу входа попадает отказ заблокированному аккаунту.
+    // Без строки человек видел бы «не удалось выполнить запрос» и повторял
+    // попытку, которая не пройдёт никогда.
+    forbidden: 'auth.error.forbidden',
+    // Удалённый ключ, отозванная сессия, снятая привязка: список на экране
+    // устарел, и перезагрузка страницы — то, что человеку нужно сделать.
+    not_found: 'auth.error.not_found',
   }
   return (code && known[code]) || 'auth.error.unknown'
 }
