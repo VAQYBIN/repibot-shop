@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from decimal import Decimal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -128,3 +129,50 @@ class LinkCodeResponse(BaseModel):
     code: str
     url: str
     expires_in: int
+
+
+class PlanRequest(BaseModel):
+    """Тариф, каким его заводит администратор.
+
+    Признака is_active здесь нет: тариф снимается с продажи архивацией через
+    DELETE, а не переключением поля в форме редактирования.
+    """
+
+    code: str = Field(min_length=2, max_length=32)
+    name: dict[str, str]
+    description: dict[str, str] | None = None
+    duration_days: int = Field(gt=0)
+    # Строкой, а не float: цена уходит в YooKassa в виде «299.00», и двоичная
+    # дробь превращается в расхождение с чеком.
+    price_rub: Decimal = Field(ge=0, decimal_places=2)
+    price_stars: int = Field(ge=0)
+    traffic_limit_bytes: int = Field(ge=0)
+    traffic_reset_strategy: Literal["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"]
+    hwid_device_limit: int = Field(ge=0)
+    internal_squad_uuids: list[UUID] = Field(min_length=1)
+    is_trial: bool = False
+    is_visible: bool = True
+    sort_order: int = 0
+
+
+class PlanResponse(BaseModel):
+    id: int
+    code: str
+    name: dict[str, str]
+    description: dict[str, str] | None
+    duration_days: int
+    price_rub: Decimal
+    price_stars: int
+    traffic_limit_bytes: int
+    traffic_reset_strategy: str
+    hwid_device_limit: int
+    internal_squad_uuids: list[UUID]
+    is_trial: bool
+    is_active: bool
+    is_visible: bool
+    sort_order: int
+
+
+class SquadResponse(BaseModel):
+    uuid: UUID
+    name: str
