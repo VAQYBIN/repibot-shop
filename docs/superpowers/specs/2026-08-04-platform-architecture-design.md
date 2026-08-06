@@ -8,7 +8,7 @@
 
 ## 1. Что строим
 
-Магазин VPN-подписок поверх панели Remnawave 2.8.1. Продажа и обслуживание идут через Telegram-бота, Telegram MiniApp и веб-сайт. Проект открытый: любой может развернуть его у себя рядом со своей панелью.
+Магазин VPN-подписок поверх панели Remnawave 3.2.1. Продажа и обслуживание идут через Telegram-бота, Telegram MiniApp и веб-сайт. Проект открытый: любой может развернуть его у себя рядом со своей панелью.
 
 Три группы пользователей:
 
@@ -118,11 +118,11 @@ re-pibot-shop/
 
 ### Разграничение истины
 
-Наша БД владеет деньгами, тарифами, промокодами, рефералами, тикетами и личностью пользователя. Remnawave владеет доступом, трафиком, устройствами, нодами и `subscriptionUrl`. Единственная связь — `users.remnawave_uuid`.
+Наша БД владеет деньгами, тарифами, промокодами, рефералами, тикетами и личностью пользователя. Remnawave владеет доступом, трафиком, устройствами, нодами и `subscriptionUrl`. Единственная связь — `users.remnawave_id`: в панели 3.2.1 пользователь адресуется числовым идентификатором, поля `uuid` у него больше нет.
 
 **Запись идёт только в сторону панели.** Пользователь в панели создаётся лениво, при первой выдаче подписки, с `username = rp_<id в base36>`. Трафик и список устройств запрашиваются по требованию и кэшируются в Valkey на 60 секунд; у себя мы их не дублируем.
 
-**Вебхуки панели — источник событий, но не биллинга.** Панель шлёт `user.expired`, `user.limited`, `user.first_connected`, `user.bandwidth_usage_threshold_reached`, `user_hwid_devices.added/deleted`, `node.connection_lost/restored`. Они дают повод уведомить пользователя или админа, но никогда не двигают дату окончания — её считаем только мы.
+**Вебхуки панели — источник событий, но не биллинга.** Панель шлёт `user.expired`, `user.expiration`, `user.limited`, `user.first_connected`, `user.not_connected`, `user.traffic_reset`, `user.bandwidth_usage_threshold_reached`, `user_hwid_devices.added/deleted`, `node.connection_lost/restored`. Они дают повод уведомить пользователя или админа, но никогда не двигают дату окончания — её считаем только мы.
 
 **Реконсиляция.** Раз в настраиваемый интервал джоб сверяет `expireAt`, лимиты и состав скводов с нашей БД, приводит панель к нашему состоянию и записывает найденные расхождения в отчёт. Молчаливое исправление недопустимо: расхождение обычно означает ручную правку админом, и о ней надо знать.
 
@@ -130,7 +130,7 @@ re-pibot-shop/
 
 **Идентичность**
 
-- `users` — `id`, `email` (уникальный, может отсутствовать), `email_verified_at`, `password_hash` (может отсутствовать), `telegram_id` (уникальный, может отсутствовать), `telegram_username`, `language`, `role` (`user`/`support`/`admin`), `status`, `referral_code`, `referred_by_id`, `remnawave_uuid`, `remnawave_short_uuid`, `created_at`.
+- `users` — `id`, `email` (уникальный, может отсутствовать), `email_verified_at`, `password_hash` (может отсутствовать), `telegram_id` (уникальный, может отсутствовать), `telegram_username`, `language`, `role` (`user`/`support`/`admin`), `status`, `referral_code`, `referred_by_id`, `remnawave_id`, `remnawave_short_uuid`, `created_at`.
 - `passkey_credentials` — `user_id`, `credential_id`, `public_key`, `sign_count`, `transports`, `name`, `created_at`, `last_used_at`.
 - `sessions` — `id`, `user_id`, `refresh_token_hash`, `user_agent`, `ip`, `created_at`, `expires_at`, `revoked_at`.
 - `one_time_tokens` — `type` (подтверждение почты, сброс пароля, смена почты), `user_id`, `token_hash`, `payload`, `expires_at`, `used_at`.
