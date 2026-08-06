@@ -6,9 +6,12 @@ cookie. Решений здесь нет — они в services.
 
 from __future__ import annotations
 
+import secrets
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import RedirectResponse
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +28,7 @@ from repibot_api.errors import ApiError, api_error_from
 from repibot_api.origins import allowed_origins
 from repibot_api.schemas import (
     AcceptedResponse,
+    AuthMethodsResponse,
     EmailRequest,
     LoginRequest,
     MiniAppLoginRequest,
@@ -33,6 +37,7 @@ from repibot_api.schemas import (
     TokenRequest,
     TokenResponse,
 )
+from repibot_core.integrations.telegram.oidc import TIMEOUT_SECONDS, TelegramOidc
 from repibot_core.ratelimit import (
     LETTER_PER_EMAIL,
     LETTER_PER_IP,
@@ -43,14 +48,19 @@ from repibot_core.ratelimit import (
     RateLimiter,
     Rule,
 )
+from repibot_core.security.pkce import code_challenge, generate_code_verifier
 from repibot_core.services.auth.password import PasswordAuth
 from repibot_core.services.auth.service import AuthService
 from repibot_core.services.auth.telegram import TelegramAuth
 from repibot_core.services.auth.types import AuthError, IssuedSession
 from repibot_core.services.principal import PrincipalCache
-from repibot_core.settings import get_settings
+from repibot_core.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+# Десять минут на дорогу до Telegram и обратно: человек успевает подтвердить
+# вход в другом приложении, а брошенная попытка не висит в Valkey сутками.
+STATE_TTL_SECONDS = 600
 
 
 async def _enforce(redis: Redis, key: str, rule: Rule) -> None:
@@ -287,3 +297,95 @@ async def login_from_miniapp(
     except AuthError as error:
         raise api_error_from(error) from error
     return _respond(response, issued)
+
+
+def oidc_http_client() -> httpx.AsyncClient:
+    """Отдельная функция — точка подмены в тестах: сети к Telegram там нет."""
+    return httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
+
+
+def _redirect_uri(settings: Settings) -> str:
+    """Адрес возврата собирается из PUBLIC_WEB_URL и должен совпадать с BotFather."""
+    return f"{settings.public_web_url}/api/auth/telegram/callback"
+
+
+def _to_login(settings: Settings, code: str) -> RedirectResponse:
+    return RedirectResponse(f"{settings.public_web_url}/login?error={code}", status_code=307)
+
+
+@router.get("/methods", response_model=AuthMethodsResponse)
+async def auth_methods() -> AuthMethodsResponse:
+    return AuthMethodsResponse(telegram=bool(get_settings().telegram_oidc_client_id))
+
+
+@router.get("/telegram/start")
+async def telegram_start(redis: Annotated[Redis, Depends(get_redis)]) -> RedirectResponse:
+    settings = get_settings()
+    async with oidc_http_client() as client:
+        oidc = TelegramOidc(settings, redis, client=client)
+        if not oidc.is_configured:
+            return _to_login(settings, "telegram_unavailable")
+
+        verifier = generate_code_verifier()
+        state = secrets.token_urlsafe(32)
+        # Verifier живёт только у нас: браузеру достаётся его хеш, и перехваченный
+        # код без нашего Valkey обменять нельзя.
+        await redis.set(f"oidc:state:{state}", verifier, ex=STATE_TTL_SECONDS)
+
+        return RedirectResponse(
+            oidc.authorization_url(
+                state=state,
+                code_challenge=code_challenge(verifier),
+                redirect_uri=_redirect_uri(settings),
+            ),
+            status_code=307,
+        )
+
+
+@router.get("/telegram/callback")
+async def telegram_callback(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    principals: Annotated[PrincipalCache, Depends(get_principals)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> RedirectResponse:
+    settings = get_settings()
+    code = request.query_params.get("code")
+    state = request.query_params.get("state")
+    if not code or not state:
+        return _to_login(settings, "token_invalid")
+
+    # GETDEL: state одноразовый, иначе перехваченная ссылка возврата работала бы
+    # столько же, сколько живёт запись.
+    stored = await redis.getdel(f"oidc:state:{state}")
+    if stored is None:
+        return _to_login(settings, "token_invalid")
+    verifier = stored.decode() if isinstance(stored, bytes) else str(stored)
+
+    auth = AuthService(session, settings, principals)
+    telegram = TelegramAuth(session, settings, auth)
+    try:
+        async with oidc_http_client() as client:
+            oidc = TelegramOidc(settings, redis, client=client)
+            token = await oidc.exchange(
+                code=code, code_verifier=verifier, redirect_uri=_redirect_uri(settings)
+            )
+            identity = await oidc.verify_id_token(token)
+        issued = await telegram.login_from_oidc(
+            identity, user_agent=request.headers.get("user-agent"), ip=client_ip(request)
+        )
+    except AuthError as error:
+        return _to_login(settings, error.code)
+
+    # Access-токен остаётся вне адреса: кабинет получит его в память, вызвав
+    # refresh по только что поставленной cookie. В строке он попал бы в историю
+    # браузера и в журнал прокси.
+    redirect = RedirectResponse(f"{settings.public_web_url}/account", status_code=307)
+    if issued.refresh_token is not None and issued.refresh_expires_at is not None:
+        set_refresh_cookie(
+            redirect,
+            issued.refresh_token,
+            expires_at=issued.refresh_expires_at,
+            secure=settings.environment == "production",
+        )
+    return redirect

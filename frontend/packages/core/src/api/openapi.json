@@ -390,6 +390,65 @@
         }
       }
     },
+    "/api/auth/methods": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Methods",
+        "operationId": "auth_methods_api_auth_methods_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMethodsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/telegram/start": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Telegram Start",
+        "operationId": "telegram_start_api_auth_telegram_start_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/telegram/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Telegram Callback",
+        "operationId": "telegram_callback_api_auth_telegram_callback_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [
@@ -634,6 +693,25 @@
           "status"
         ],
         "title": "AcceptedResponse"
+      },
+      "AuthMethodsResponse": {
+        "properties": {
+          "telegram": {
+            "type": "boolean",
+            "title": "Telegram"
+          },
+          "passkey": {
+            "type": "boolean",
+            "title": "Passkey",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "telegram"
+        ],
+        "title": "AuthMethodsResponse",
+        "description": "Какие способы входа показывать на экране входа.\n\nPasskey поддерживает браузер, а не сервер, поэтому здесь он всегда true:\nрешение принимает клиент. Telegram зависит от настроек развёртывания."
       },
       "ChangeEmailRequest": {
         "properties": {

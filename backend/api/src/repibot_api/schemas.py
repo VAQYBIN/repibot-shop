@@ -47,6 +47,17 @@ class AcceptedResponse(BaseModel):
     status: str
 
 
+class AuthMethodsResponse(BaseModel):
+    """Какие способы входа показывать на экране входа.
+
+    Passkey поддерживает браузер, а не сервер, поэтому здесь он всегда true:
+    решение принимает клиент. Telegram зависит от настроек развёртывания.
+    """
+
+    telegram: bool
+    passkey: bool = True
+
+
 class MeResponse(BaseModel):
     id: int
     email: str | None
