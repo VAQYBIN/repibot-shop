@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from repibot_core.db.engine import create_engine, create_session_factory
@@ -14,6 +17,11 @@ from repibot_core.integrations.remnawave.client import RemnawaveClient
 from repibot_core.queue import broker
 from repibot_core.services.outbox import OutboxDispatcher
 from repibot_core.settings import get_settings
+
+if TYPE_CHECKING:
+    # Только ради аннотации: настоящий импорт сервиса на уровне модуля
+    # замкнул бы цикл services → tasks → services.
+    from repibot_core.services.subscriptions import SubscriptionService
 
 
 @broker.task(schedule=[{"cron": "* * * * *"}])
@@ -31,6 +39,30 @@ async def process_outbox() -> dict[str, int]:
         await engine.dispose()
 
     return {"delivered": delivered}
+
+
+@broker.task(schedule=[{"cron": "0 * * * *"}])
+async def expire_subscriptions() -> dict[str, int]:
+    """Переводит просроченные подписки в expired и снимает доступ в панели.
+
+    Раз в час, а не раз в сутки: каждый лишний час доступа после окончания
+    оплаченного срока — это доступ, за который никто не заплатил. Дата
+    окончания при этом не двигается: expired — следствие даты, а не решение.
+    """
+    engine = create_engine(get_settings().database_url)
+    # Клиент панели нужен сервису подписки при сборке и закрывается наравне с
+    # движком: задача идёт каждый час, и брошенный httpx.AsyncClient — это
+    # утечка сокетов, растущая всё время работы воркера.
+    panel = _panel_client()
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            expired = await _subscriptions(session, panel).expire_due(now=datetime.now(UTC))
+    finally:
+        await panel.aclose()
+        await engine.dispose()
+
+    return {"expired": expired}
 
 
 def _panel_client() -> RemnawaveClient:
@@ -55,3 +87,23 @@ def _dispatcher(
     from repibot_core.services.dispatcher import build_dispatcher
 
     return build_dispatcher(factory, users=PanelUsers(panel))
+
+
+def _subscriptions(session: AsyncSession, panel: RemnawaveClient) -> SubscriptionService:
+    """Сервис подписок на сессию задачи.
+
+    Импорты внутри функции по той же причине, что и у диспетчера: services
+    зовёт задачи этого модуля после коммита, и цикл services → tasks →
+    services иначе не разрывается.
+
+    Примирение сервису передаётся, хотя истечение само в панель не ходит:
+    доступ снимает разбор outbox отдельной транзакцией, а сервис собирается
+    ровно одним способом на всех вызывающих.
+    """
+    from repibot_core.integrations.remnawave.users import PanelUsers
+    from repibot_core.services.provisioning import ProvisioningService
+    from repibot_core.services.subscriptions import SubscriptionService
+
+    return SubscriptionService(
+        session, get_settings(), ProvisioningService(session, PanelUsers(panel))
+    )
