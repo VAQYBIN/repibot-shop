@@ -26,6 +26,11 @@ TOKEN_LIFETIMES: dict[TokenType, timedelta] = {
     TokenType.email_change: timedelta(hours=1),
 }
 
+# Код привязки человек переносит из браузера в Telegram руками, и десяти минут
+# на это достаточно. Живёт он в Valkey, а не в one_time_tokens: строка в базе
+# ради значения с таким сроком — лишняя запись и лишняя уборка.
+LINK_CODE_TTL = timedelta(minutes=10)
+
 LoginMethod = Literal["password", "telegram", "passkey"]
 
 
