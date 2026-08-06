@@ -137,6 +137,42 @@ async def test_callback_with_unknown_state_is_refused(
     assert "/login?error=token_invalid" in response.headers["location"]
 
 
+async def test_callback_needs_the_browser_that_started_the_login(
+    api_client: AsyncClient, telegram_configured: None
+) -> None:
+    """Чужой браузер с готовым кодом не должен усадить человека в чужой аккаунт.
+
+    Злоумышленник начинает вход у себя, доводит его до рабочего `code` и
+    подсовывает жертве ссылку возврата. Без привязки к браузеру жертва молча
+    оказалась бы в аккаунте злоумышленника и платила бы за его подписку.
+    """
+    started = await api_client.get("/api/auth/telegram/start")
+    state = parse_qs(urlsplit(started.headers["location"]).query)["state"][0]
+    api_client.cookies.delete("repibot_oidc", path="/api/auth/telegram")
+
+    response = await api_client.get(
+        "/api/auth/telegram/callback", params={"code": "the-code", "state": state}
+    )
+
+    assert "/login?error=token_invalid" in response.headers["location"]
+
+
+async def test_callback_refuses_a_foreign_binding(
+    api_client: AsyncClient, telegram_configured: None
+) -> None:
+    """Подставленное значение cookie не проходит: оно сверяется с сохранённым."""
+    started = await api_client.get("/api/auth/telegram/start")
+    state = parse_qs(urlsplit(started.headers["location"]).query)["state"][0]
+    # Значение только из ASCII: cookie переносит байты, а не текст.
+    api_client.cookies.set("repibot_oidc", "forged-binding", path="/api/auth/telegram")
+
+    response = await api_client.get(
+        "/api/auth/telegram/callback", params={"code": "the-code", "state": state}
+    )
+
+    assert "/login?error=token_invalid" in response.headers["location"]
+
+
 async def test_state_works_only_once(api_client: AsyncClient, telegram_configured: None) -> None:
     started = await api_client.get("/api/auth/telegram/start")
     state = parse_qs(urlsplit(started.headers["location"]).query)["state"][0]

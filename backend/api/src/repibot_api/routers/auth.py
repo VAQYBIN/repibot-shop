@@ -6,6 +6,7 @@ cookie. Решений здесь нет — они в services.
 
 from __future__ import annotations
 
+import hmac
 import secrets
 from typing import Annotated
 
@@ -15,7 +16,14 @@ from fastapi.responses import RedirectResponse
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from repibot_api.cookies import REFRESH_COOKIE, clear_refresh_cookie, set_refresh_cookie
+from repibot_api.cookies import (
+    OIDC_COOKIE,
+    REFRESH_COOKIE,
+    clear_oidc_cookie,
+    clear_refresh_cookie,
+    set_oidc_cookie,
+    set_refresh_cookie,
+)
 from repibot_api.deps import (
     AuthContext,
     client_ip,
@@ -310,7 +318,12 @@ def _redirect_uri(settings: Settings) -> str:
 
 
 def _to_login(settings: Settings, code: str) -> RedirectResponse:
-    return RedirectResponse(f"{settings.public_web_url}/login?error={code}", status_code=307)
+    redirect = RedirectResponse(f"{settings.public_web_url}/login?error={code}", status_code=307)
+    # Попытка входа закончилась — привязка к браузеру больше не нужна ни при
+    # отказе, ни при успехе, и оставлять её значит держать лишний ключ, по
+    # которому можно доиграть чужой state.
+    clear_oidc_cookie(redirect, secure=settings.environment == "production")
+    return redirect
 
 
 @router.get("/methods", response_model=AuthMethodsResponse)
@@ -328,11 +341,15 @@ async def telegram_start(redis: Annotated[Redis, Depends(get_redis)]) -> Redirec
 
         verifier = generate_code_verifier()
         state = secrets.token_urlsafe(32)
+        # Привязка попытки к браузеру. Одного state мало: он приходит обратно в
+        # адресе, и подсунуть жертве чужой готовый код — известный способ тихо
+        # усадить её в аккаунт злоумышленника.
+        binding = secrets.token_urlsafe(32)
         # Verifier живёт только у нас: браузеру достаётся его хеш, и перехваченный
         # код без нашего Valkey обменять нельзя.
-        await redis.set(f"oidc:state:{state}", verifier, ex=STATE_TTL_SECONDS)
+        await redis.set(f"oidc:state:{state}", f"{binding}:{verifier}", ex=STATE_TTL_SECONDS)
 
-        return RedirectResponse(
+        redirect = RedirectResponse(
             oidc.authorization_url(
                 state=state,
                 code_challenge=code_challenge(verifier),
@@ -340,6 +357,8 @@ async def telegram_start(redis: Annotated[Redis, Depends(get_redis)]) -> Redirec
             ),
             status_code=307,
         )
+        set_oidc_cookie(redirect, binding, secure=settings.environment == "production")
+        return redirect
 
 
 @router.get("/telegram/callback")
@@ -360,7 +379,15 @@ async def telegram_callback(
     stored = await redis.getdel(f"oidc:state:{state}")
     if stored is None:
         return _to_login(settings, "token_invalid")
-    verifier = stored.decode() if isinstance(stored, bytes) else str(stored)
+    raw = stored.decode() if isinstance(stored, bytes) else str(stored)
+    binding, _, verifier = raw.partition(":")
+
+    # Вход должен закончиться в том же браузере, где начался. Иначе ссылку
+    # возврата с чужим кодом можно подсунуть жертве, и она молча окажется в
+    # аккаунте злоумышленника.
+    presented = request.cookies.get(OIDC_COOKIE, "")
+    if not hmac.compare_digest(presented, binding):
+        return _to_login(settings, "token_invalid")
 
     auth = AuthService(session, settings, principals)
     telegram = TelegramAuth(session, settings, auth)
@@ -388,4 +415,5 @@ async def telegram_callback(
             expires_at=issued.refresh_expires_at,
             secure=settings.environment == "production",
         )
+    clear_oidc_cookie(redirect, secure=settings.environment == "production")
     return redirect
