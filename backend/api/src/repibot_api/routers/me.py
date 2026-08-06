@@ -62,7 +62,7 @@ def _to_response(view: ProfileView) -> MeResponse:
         email_verified=view.email_verified,
         telegram_username=view.telegram_username,
         name=view.name,
-        language=view.language,  # type: ignore[arg-type]
+        language=view.language,
         role=view.role.value,
         referral_code=view.referral_code,
         has_password=view.has_password,

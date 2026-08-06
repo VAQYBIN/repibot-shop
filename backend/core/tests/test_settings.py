@@ -33,7 +33,7 @@ def _apply_env(monkeypatch: pytest.MonkeyPatch, env: dict[str, str]) -> None:
 
 def _build(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> Settings:
     _apply_env(monkeypatch, {**REQUIRED_ENV, **overrides})
-    return Settings(_env_file=None)  # type: ignore[call-arg]
+    return Settings(_env_file=None)
 
 
 def test_settings_load_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -62,7 +62,7 @@ def test_missing_required_variable_fails_with_its_name(
     _apply_env(monkeypatch, {k: v for k, v in REQUIRED_ENV.items() if k != missing})
 
     with pytest.raises(ValidationError) as exc:
-        Settings(_env_file=None)  # type: ignore[call-arg]
+        Settings(_env_file=None)
 
     assert missing.lower() in str(exc.value)
 

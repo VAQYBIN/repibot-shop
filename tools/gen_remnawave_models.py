@@ -94,6 +94,12 @@ def main() -> int:
                 # Без этого флага поле с "nullable": true генерируется обязательным
                 # и разбор ответа падает на первом же пользователе панели без тега.
                 "--strict-nullable",
+                # Флага --use-annotated здесь намеренно нет. Он переносит
+                # ограничения схемы в Annotated, и тогда pattern из описания
+                # даты применяется к полю типа AwareDatetime как строковый —
+                # разбор любого ответа панели падает на expireAt. Слепоту mypy
+                # к позиционному Field(None, ...) лечит плагин pydantic.mypy,
+                # подключённый в pyproject.toml.
                 "--disable-timestamp",
                 "--custom-file-header",
                 "# Сгенерировано tools/gen_remnawave_models.py. Не редактировать вручную.",

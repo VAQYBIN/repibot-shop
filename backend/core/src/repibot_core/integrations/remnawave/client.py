@@ -1,7 +1,8 @@
 """HTTP-клиент панели Remnawave.
 
 Бизнес-методов здесь нет: только транспорт, авторизация и поведение при
-отказах. Методы появятся в подпроекте 2 и будут возвращать модели из models.py.
+отказах. Адреса и разбор ответов живут в фасадах users.py и squads.py — так
+поведение при отказе панели меняется в одном месте, а не в каждом методе.
 """
 
 from __future__ import annotations
@@ -33,6 +34,15 @@ class RemnawaveUnavailable(RemnawaveError):  # noqa: N818 — суффикс Err
     """Панель недоступна или отвечает ошибкой сервера после всех попыток."""
 
 
+class RemnawaveRejected(RemnawaveError):  # noqa: N818 — суффикс Error уже в базовом классе
+    """Панель ответила осмысленным отказом: 4xx кроме 404."""
+
+    def __init__(self, status_code: int, body: str) -> None:
+        super().__init__(f"панель отклонила запрос: {status_code}")
+        self.status_code = status_code
+        self.body = body
+
+
 class _RetryableResponse(Exception):  # noqa: N818
     """Внутренний сигнал для tenacity: ответ получен, но его стоит повторить."""
 
@@ -58,12 +68,22 @@ class RemnawaveClient:
         token: str,
         timeout: float = 10.0,
         max_attempts: int = 3,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.max_attempts = max_attempts
+        # Транспорт подменяется в тестах: заглушка отвечает за поведение
+        # панели, а маршруты и тела запросов при этом проверяются настоящие.
         self._http = httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
             timeout=timeout,
-            headers={"Authorization": f"Bearer {token}"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                # Тела фасады отдают готовой строкой JSON через content=, а на
+                # него httpx тип содержимого не проставляет — панель без этого
+                # заголовка читает запрос как пустой.
+                "Content-Type": "application/json",
+            },
+            transport=transport,
         )
 
     async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:

@@ -59,7 +59,7 @@ async def test_logging_sender_keeps_messages() -> None:
 
 def test_build_sender_respects_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EMAIL_SENDER", "log")
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     assert isinstance(build_sender(settings), LoggingEmailSender)
 

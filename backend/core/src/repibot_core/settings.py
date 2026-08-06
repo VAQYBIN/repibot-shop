@@ -146,4 +146,4 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Кэшированные настройки. Читаются один раз за жизнь процесса."""
-    return Settings()  # type: ignore[call-arg]
+    return Settings()

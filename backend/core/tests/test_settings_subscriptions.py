@@ -6,7 +6,7 @@ from repibot_core.settings import Settings
 
 
 def test_defaults_are_safe() -> None:
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
 
     # Пустой секрет означает «вебхуки не настроены»: принимать неподписанные
     # события опаснее, чем не принимать никаких.
