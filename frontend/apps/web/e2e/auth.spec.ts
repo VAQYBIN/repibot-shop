@@ -10,9 +10,10 @@ import { MAILPIT_URL } from './stack'
  * → ссылка обратно в браузер. Каждый шаг по отдельности покрыт тестами уровнем
  * ниже; здесь важно, что они соединены.
  *
- * Подписи берутся из словаря `@repibot/core` дословно: приблизительный шаблон
- * вроде /пароль/i совпал бы заодно с кнопкой «Показать пароль» и упал бы на
- * строгом режиме Playwright.
+ * Подписи берутся из словаря `@repibot/core` дословно и с `exact`:
+ * приблизительное совпадение задевает соседей — «Пароль» находит и «Показать
+ * пароль», «Войти» — и «Войти по ключу», — а строгий режим Playwright на двух
+ * найденных элементах падает.
  */
 
 const PASSWORD = 'совершенно обычный пароль'
@@ -63,7 +64,7 @@ test('регистрация, подтверждение почты и вход'
   await signOut(page)
   await page.getByLabel('Почта', { exact: true }).fill(email)
   await page.getByLabel('Пароль', { exact: true }).fill(PASSWORD)
-  await page.getByRole('button', { name: 'Войти' }).click()
+  await page.getByRole('button', { name: 'Войти', exact: true }).click()
 
   await expect(page).toHaveURL(/\/account/)
   await expect(page.getByText(email)).toBeVisible()
@@ -96,7 +97,7 @@ test('сброс пароля пускает с новым паролем', asyn
   await signOut(page)
   await page.getByLabel('Почта', { exact: true }).fill(email)
   await page.getByLabel('Пароль', { exact: true }).fill(PASSWORD)
-  await page.getByRole('button', { name: 'Войти' }).click()
+  await page.getByRole('button', { name: 'Войти', exact: true }).click()
 
   await expect(page.getByRole('alert')).toBeVisible()
   await expect(page).toHaveURL(/\/login/)
@@ -112,7 +113,7 @@ test('отзыв сессии обрывает доступ', async ({ page, bro
   await secondPage.goto('/login')
   await secondPage.getByLabel('Почта', { exact: true }).fill(email)
   await secondPage.getByLabel('Пароль', { exact: true }).fill(PASSWORD)
-  await secondPage.getByRole('button', { name: 'Войти' }).click()
+  await secondPage.getByRole('button', { name: 'Войти', exact: true }).click()
   await expect(secondPage).toHaveURL(/\/account/)
 
   await page.goto('/account/security')

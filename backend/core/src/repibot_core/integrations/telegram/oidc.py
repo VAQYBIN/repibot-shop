@@ -42,6 +42,22 @@ JWKS_CACHE_TTL_SECONDS = 3600
 TIMEOUT_SECONDS = 10.0
 
 
+def is_configured(settings: Settings) -> bool:
+    """Настроен ли браузерный вход через Telegram.
+
+    Нужны обе половины пары из BotFather. С одним Client ID кнопка выглядела бы
+    рабочей, а вход обрывался бы на обмене кода — то есть уже после того, как
+    человек подтвердил доступ в Telegram. Отсутствующая кнопка честнее сломанной.
+
+    Функция отдельно от класса, потому что список доступных способов входа
+    спрашивают на каждой отрисовке страницы, а поднимать ради ответа HTTP-клиент
+    не за чем.
+    """
+    return bool(
+        settings.telegram_oidc_client_id and settings.telegram_oidc_client_secret.get_secret_value()
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class OidcIdentity:
     """Кто пришёл. Единственный источник — ID-токен: userinfo у Telegram нет."""
@@ -61,8 +77,7 @@ class TelegramOidc:
 
     @property
     def is_configured(self) -> bool:
-        """Без Client ID кнопку входа показывать нечему: BotFather её не выдал."""
-        return bool(self._settings.telegram_oidc_client_id)
+        return is_configured(self._settings)
 
     def authorization_url(self, *, state: str, code_challenge: str, redirect_uri: str) -> str:
         query = urlencode(

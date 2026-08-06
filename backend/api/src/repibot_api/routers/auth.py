@@ -48,6 +48,7 @@ from repibot_api.schemas import (
     TokenResponse,
 )
 from repibot_core.integrations.telegram.oidc import TIMEOUT_SECONDS, TelegramOidc
+from repibot_core.integrations.telegram.oidc import is_configured as telegram_is_configured
 from repibot_core.ratelimit import (
     LETTER_PER_EMAIL,
     LETTER_PER_IP,
@@ -372,7 +373,9 @@ def _to_login(settings: Settings, code: str) -> RedirectResponse:
 
 @router.get("/methods", response_model=AuthMethodsResponse)
 async def auth_methods() -> AuthMethodsResponse:
-    return AuthMethodsResponse(telegram=bool(get_settings().telegram_oidc_client_id))
+    # Тот же признак, что у самого входа: список способов не должен обещать
+    # больше, чем эндпоинт готов выполнить.
+    return AuthMethodsResponse(telegram=telegram_is_configured(get_settings()))
 
 
 @router.get("/telegram/start")

@@ -17,7 +17,7 @@ from fakeredis.aioredis import FakeRedis
 from jwt.algorithms import RSAAlgorithm
 from pydantic import SecretStr
 
-from repibot_core.integrations.telegram.oidc import ISSUER, TelegramOidc
+from repibot_core.integrations.telegram.oidc import ISSUER, TelegramOidc, is_configured
 from repibot_core.security.pkce import code_challenge, generate_code_verifier
 from repibot_core.services.auth.types import AuthError
 from repibot_core.settings import Settings, get_settings
@@ -216,3 +216,20 @@ async def test_secrets_never_reach_the_log(caplog: pytest.LogCaptureFixture) -> 
     assert "the-code" not in written
     assert "the-verifier" not in written
     assert "secret" not in written
+
+
+def test_client_id_without_secret_is_not_configured() -> None:
+    """Половина пары из BotFather хуже, чем ничего.
+
+    С одним Client ID кнопка выглядит рабочей, а вход обрывается на обмене кода —
+    уже после того, как человек подтвердил доступ в Telegram.
+    """
+    settings = get_settings().model_copy(
+        update={"telegram_oidc_client_id": CLIENT_ID, "telegram_oidc_client_secret": SecretStr("")}
+    )
+
+    assert is_configured(settings) is False
+
+
+def test_both_halves_make_it_configured() -> None:
+    assert is_configured(_settings()) is True
