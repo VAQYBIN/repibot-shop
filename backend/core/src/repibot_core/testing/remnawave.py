@@ -23,7 +23,14 @@ class FakePanel:
     def __init__(self) -> None:
         self.users: dict[int, dict[str, Any]] = {}
         self.squads: list[dict[str, Any]] = []
+        self.devices: dict[int, list[dict[str, Any]]] = {}
+        # Трафик хранится днями: панель отдаёт его как ряд по датам, а не
+        # одним числом, и тесты сверяют именно разбивку.
+        self.usage: dict[int, dict[str, float]] = {}
         self.requests: list[tuple[str, str]] = []
+        # Строка запроса последнего вызова: обязательные start и end иначе
+        # никак не проверить — в путь они не попадают.
+        self.last_query: dict[str, str] = {}
         self._next_id = 1
         self._failures = 0
 
@@ -55,6 +62,32 @@ class FakePanel:
             }
         )
 
+    def add_device(
+        self,
+        panel_id: int,
+        hwid: str,
+        *,
+        platform: str | None = None,
+        os_version: str | None = None,
+        device_model: str | None = None,
+    ) -> None:
+        self.devices.setdefault(panel_id, []).append(
+            {
+                "hwid": hwid,
+                "userId": panel_id,
+                "platform": platform,
+                "osVersion": os_version,
+                "deviceModel": device_model,
+                "userAgent": None,
+                "requestIp": None,
+                "createdAt": _now(),
+                "updatedAt": _now(),
+            }
+        )
+
+    def add_usage(self, panel_id: int, day: str, used_bytes: float) -> None:
+        self.usage.setdefault(panel_id, {})[day] = used_bytes
+
     def fail_next(self, times: int = 1) -> None:
         """Следующие запросы отвечают 503 — панель «лежит»."""
         self._failures = times
@@ -63,6 +96,7 @@ class FakePanel:
 
     def _handle(self, request: httpx.Request) -> httpx.Response:
         self.requests.append((request.method, request.url.path))
+        self.last_query = dict(request.url.params)
 
         if self._failures > 0:
             self._failures -= 1
@@ -85,6 +119,15 @@ class FakePanel:
             # Панель на такое отвечает 404, а не падает.
             if tail.isdigit():
                 return self._get(int(tail))
+        # Удаление проверяется раньше списка: у обоих маршрутов общий префикс
+        # /api/hwid/devices/, и хвост «delete» иначе разбирался бы как номер
+        # пользователя.
+        if path == "/api/hwid/devices/delete" and request.method == "POST":
+            return self._delete_device(json.loads(request.content))
+        if path.startswith("/api/hwid/devices/") and request.method == "GET":
+            return self._devices(int(path.rsplit("/", 1)[-1]))
+        if path.startswith("/api/bandwidth-stats/users/"):
+            return self._usage(int(path.rsplit("/", 1)[-1]))
 
         return httpx.Response(404, json={"message": "not found"})
 
@@ -131,6 +174,50 @@ class FakePanel:
         if user is None:
             return httpx.Response(404, json={"message": "not found"})
         return httpx.Response(200, json={"response": user})
+
+    def _devices(self, panel_id: int) -> httpx.Response:
+        devices = self.devices.get(panel_id, [])
+        return httpx.Response(200, json={"response": {"total": len(devices), "devices": devices}})
+
+    def _delete_device(self, body: dict[str, Any]) -> httpx.Response:
+        # int: идентификатор в схеме объявлен числом и приходит как 7.0.
+        panel_id = int(body["userId"])
+        devices = self.devices.get(panel_id, [])
+        remaining = [device for device in devices if device["hwid"] != body["hwid"]]
+        if len(remaining) == len(devices):
+            # Панель отвечает отказом на чужой или несуществующий hwid — от
+            # этого зависит поведение сервиса, и заглушка обязана его повторять.
+            return httpx.Response(404, json={"message": "device not found"})
+        self.devices[panel_id] = remaining
+        return httpx.Response(200, json={"response": {"isDeleted": True}})
+
+    def _usage(self, panel_id: int) -> httpx.Response:
+        days = self.usage.get(panel_id, {})
+        categories = sorted(days)
+        return httpx.Response(
+            200,
+            json={
+                "response": {
+                    "categories": categories,
+                    "sparklineData": [days[day] for day in categories],
+                    "topNodes": [],
+                    # Без единого дня ряд пустой: панель не рисует ноду, по
+                    # которой ничего не прошло.
+                    "series": [
+                        {
+                            "uuid": "22222222-2222-4222-8222-222222222222",
+                            "name": "Нода",
+                            "color": "#000000",
+                            "countryCode": "NL",
+                            "total": sum(days.values()),
+                            "data": [days[day] for day in categories],
+                        }
+                    ]
+                    if categories
+                    else [],
+                }
+            },
+        )
 
 
 def _now() -> str:
