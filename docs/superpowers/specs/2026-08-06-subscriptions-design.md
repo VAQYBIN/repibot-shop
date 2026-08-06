@@ -52,10 +52,15 @@
 
 ### `users`
 
-Одна правка: `remnawave_uuid` (`uuid`) заменяется на `remnawave_id` (`bigint`,
-уникальный, `null`). Поле `remnawave_short_uuid` остаётся — из него собирается
-ссылка подписки, и его принимает `resolve`. Данных в проде нет, миграция
-переносить ничего не должна.
+`remnawave_uuid` (`uuid`) заменяется на `remnawave_id` (`bigint`, уникальный,
+`null`). Поле `remnawave_short_uuid` остаётся: его принимает `resolve`. Данных
+в проде нет, миграция переносить ничего не должна.
+
+Добавляется `remnawave_subscription_url` (`varchar`, `null`) — значение из
+ответа панели, обновляется на каждом примирении. Собирать ссылку из
+`REMNAWAVE_BASE_URL` нельзя: публичный домен страницы подписки настраивается в
+панели отдельно, а `revoke` меняет `shortUuid`, и собранная однажды ссылка
+начала бы вести в никуда.
 
 ### `plans`
 
@@ -80,7 +85,7 @@
 подпроекте 3 сошлются платежи. `DELETE` в админском API снимает `is_active`.
 
 Активный триальный тариф может быть только один: частичный уникальный индекс по
-константе с условием `WHERE is_trial AND is_active`. Правило «один триал на
+`is_trial` с условием `WHERE is_trial AND is_active`. Правило «один триал на
 аккаунт» живёт не здесь, а в `trial_grants`.
 
 ### `subscriptions`
@@ -106,7 +111,8 @@
 ### `subscription_events`
 
 Журнал начислений: `user_id`, `type` (`trial` / `purchase` / `renew` /
-`plan_change` / `bonus_days` / `gift` / `admin_grant` / `admin_revoke`),
+`plan_change` / `bonus_days` / `gift` / `expired` / `admin_grant` /
+`admin_revoke`),
 `days_delta`, `plan_id`, `actor` (`user` / `admin` / `system`), `actor_user_id`
 (`null` у системы), `comment`, `created_at`. Ссылка на платёж добавится в
 подпроекте 3.
@@ -374,6 +380,7 @@ POST   /webhook/remnawave
 | `trial_disabled` | Активного триального тарифа нет |
 | `subscription_exists` | Подписка уже есть или была — триал не положен |
 | `plan_not_found` | Тарифа нет |
+| `plan_code_taken` | Тариф с таким кодом уже заведён |
 | `plan_inactive` | Тариф архивирован или скрыт |
 | `plan_squads_unknown` | В тарифе сквад, которого нет в панели |
 | `subscription_missing` | Действие требует подписки, а её нет |
