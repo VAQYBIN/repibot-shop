@@ -390,6 +390,68 @@
         }
       }
     },
+    "/api/auth/passkey/login/options": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Passkey Login Options",
+        "operationId": "passkey_login_options_api_auth_passkey_login_options_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptionsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/login/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Passkey Login Verify",
+        "operationId": "passkey_login_verify_api_auth_passkey_login_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/methods": {
       "get": {
         "tags": [
@@ -657,6 +719,161 @@
         }
       }
     },
+    "/api/me/passkeys/options": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Passkey Registration Options",
+        "operationId": "passkey_registration_options_api_me_passkeys_options_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptionsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/passkeys": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "List Passkeys",
+        "operationId": "list_passkeys_api_me_passkeys_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PasskeyResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Passkeys Api Me Passkeys Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Add Passkey",
+        "operationId": "add_passkey_api_me_passkeys_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/passkeys/{passkey_id}": {
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Delete Passkey",
+        "operationId": "delete_passkey_api_me_passkeys__passkey_id__delete",
+        "parameters": [
+          {
+            "name": "passkey_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Passkey Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/telegram/link-code": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Issue Link Code",
+        "operationId": "issue_link_code_api_me_telegram_link_code_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCodeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/telegram": {
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Unlink Telegram",
+        "operationId": "unlink_telegram_api_me_telegram_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
     "/api/admin/whoami": {
       "get": {
         "tags": [
@@ -781,6 +998,30 @@
         ],
         "title": "HealthResponse"
       },
+      "LinkCodeResponse": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "url",
+          "expires_in"
+        ],
+        "title": "LinkCodeResponse",
+        "description": "Код привязки Telegram и готовая ссылка в чат бота."
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -902,6 +1143,92 @@
           "init_data"
         ],
         "title": "MiniAppLoginRequest"
+      },
+      "PasskeyLoginRequest": {
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Credential"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "PasskeyLoginRequest"
+      },
+      "PasskeyOptionsResponse": {
+        "properties": {
+          "options": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "options"
+        ],
+        "title": "PasskeyOptionsResponse",
+        "description": "Параметры WebAuthn как есть.\n\nСтруктура задана спецификацией браузера и целиком уходит в\n`navigator.credentials`; описывать её своими моделями значит поддерживать\nкопию чужого стандарта."
+      },
+      "PasskeyRegisterRequest": {
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Credential"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Name",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "PasskeyRegisterRequest"
+      },
+      "PasskeyResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "last_used_at"
+        ],
+        "title": "PasskeyResponse"
       },
       "PasswordResetRequest": {
         "properties": {

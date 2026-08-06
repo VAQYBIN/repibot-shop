@@ -197,6 +197,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/passkey/login/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Passkey Login Options */
+        post: operations["passkey_login_options_api_auth_passkey_login_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Passkey Login Verify */
+        post: operations["passkey_login_verify_api_auth_passkey_login_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/methods": {
         parameters: {
             query?: never;
@@ -335,6 +369,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/passkeys/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Passkey Registration Options */
+        post: operations["passkey_registration_options_api_me_passkeys_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Passkeys */
+        get: operations["list_passkeys_api_me_passkeys_get"];
+        put?: never;
+        /** Add Passkey */
+        post: operations["add_passkey_api_me_passkeys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/passkeys/{passkey_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Passkey */
+        delete: operations["delete_passkey_api_me_passkeys__passkey_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/telegram/link-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue Link Code */
+        post: operations["issue_link_code_api_me_telegram_link_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unlink Telegram */
+        delete: operations["unlink_telegram_api_me_telegram_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/whoami": {
         parameters: {
             query?: never;
@@ -410,6 +530,18 @@ export interface components {
             /** Valkey */
             valkey: boolean;
         };
+        /**
+         * LinkCodeResponse
+         * @description Код привязки Telegram и готовая ссылка в чат бота.
+         */
+        LinkCodeResponse: {
+            /** Code */
+            code: string;
+            /** Url */
+            url: string;
+            /** Expires In */
+            expires_in: number;
+        };
         /** LoginRequest */
         LoginRequest: {
             /**
@@ -452,6 +584,53 @@ export interface components {
         MiniAppLoginRequest: {
             /** Init Data */
             init_data: string;
+        };
+        /** PasskeyLoginRequest */
+        PasskeyLoginRequest: {
+            /** Credential */
+            credential: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * PasskeyOptionsResponse
+         * @description Параметры WebAuthn как есть.
+         *
+         *     Структура задана спецификацией браузера и целиком уходит в
+         *     `navigator.credentials`; описывать её своими моделями значит поддерживать
+         *     копию чужого стандарта.
+         */
+        PasskeyOptionsResponse: {
+            /** Options */
+            options: {
+                [key: string]: unknown;
+            };
+        };
+        /** PasskeyRegisterRequest */
+        PasskeyRegisterRequest: {
+            /** Credential */
+            credential: {
+                [key: string]: unknown;
+            };
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /** PasskeyResponse */
+        PasskeyResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Used At */
+            last_used_at: string | null;
         };
         /** PasswordResetRequest */
         PasswordResetRequest: {
@@ -882,6 +1061,59 @@ export interface operations {
             };
         };
     };
+    passkey_login_options_api_auth_passkey_login_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyOptionsResponse"];
+                };
+            };
+        };
+    };
+    passkey_login_verify_api_auth_passkey_login_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     auth_methods_api_auth_methods_get: {
         parameters: {
             query?: never;
@@ -1123,6 +1355,146 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    passkey_registration_options_api_me_passkeys_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyOptionsResponse"];
+                };
+            };
+        };
+    };
+    list_passkeys_api_me_passkeys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyResponse"][];
+                };
+            };
+        };
+    };
+    add_passkey_api_me_passkeys_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_passkey_api_me_passkeys__passkey_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                passkey_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issue_link_code_api_me_telegram_link_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkCodeResponse"];
+                };
+            };
+        };
+    };
+    unlink_telegram_api_me_telegram_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
