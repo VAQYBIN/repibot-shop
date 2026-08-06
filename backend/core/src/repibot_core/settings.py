@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     bot_webhook_base_url: str
     bot_use_polling: bool = False
 
+    # Выдаются в мини-приложении BotFather: Bot Settings → Web Login. Пустые
+    # значения означают, что вход через Telegram в браузере не настроен —
+    # кнопка тогда не показывается, а не ломается.
+    telegram_oidc_client_id: str = ""
+    telegram_oidc_client_secret: SecretStr = SecretStr("")
+
     remnawave_base_url: str
     remnawave_token: SecretStr
     remnawave_timeout_seconds: float = 10.0
