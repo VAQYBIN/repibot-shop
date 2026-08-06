@@ -33,6 +33,15 @@ REGISTER_PER_IP = Rule(limit=5, window=timedelta(hours=1))
 LETTER_PER_EMAIL = Rule(limit=3, window=timedelta(hours=1))
 LETTER_PER_IP = Rule(limit=10, window=timedelta(hours=1))
 MINIAPP_PER_IP = Rule(limit=30, window=timedelta(minutes=1))
+# Выдача параметров passkey дешева для нас и бесполезна для перебора, но
+# бесконечной быть не должна: challenge занимает место в Valkey.
+PASSKEY_PER_IP = Rule(limit=20, window=timedelta(minutes=1))
+# Старт входа через Telegram — тот же случай: аноним без ограничения набивает
+# память записями state, каждая из которых живёт десять минут.
+OIDC_START_PER_IP = Rule(limit=20, window=timedelta(minutes=1))
+# Код привязки виден в чате бота: пять штук в час хватает любому нормальному
+# сценарию и отсекает попытку набить Valkey кодами.
+LINK_CODE_PER_USER = Rule(limit=5, window=timedelta(hours=1))
 
 
 class RateLimiter:

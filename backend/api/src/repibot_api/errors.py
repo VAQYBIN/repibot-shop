@@ -54,6 +54,11 @@ _AUTH_STATUS = {
     "forbidden": 403,
     "not_found": 404,
     "email_taken": 409,
+    # Конфликт состояния, а не ошибка запроса: тот же запрос при другом
+    # состоянии аккаунта пройдёт.
+    "last_login_method": 409,
+    "telegram_already_linked": 409,
+    "link_conflict": 409,
     "token_invalid": 400,
     "weak_password": 422,
     "validation_error": 422,

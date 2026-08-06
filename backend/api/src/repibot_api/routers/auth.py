@@ -40,6 +40,8 @@ from repibot_api.schemas import (
     EmailRequest,
     LoginRequest,
     MiniAppLoginRequest,
+    PasskeyLoginRequest,
+    PasskeyOptionsResponse,
     PasswordResetRequest,
     RegisterRequest,
     TokenRequest,
@@ -52,15 +54,19 @@ from repibot_core.ratelimit import (
     LOGIN_PER_EMAIL,
     LOGIN_PER_IP,
     MINIAPP_PER_IP,
+    OIDC_START_PER_IP,
+    PASSKEY_PER_IP,
     REGISTER_PER_IP,
     RateLimiter,
     Rule,
 )
 from repibot_core.security.pkce import code_challenge, generate_code_verifier
+from repibot_core.services.auth.passkey import PasskeyAuth
 from repibot_core.services.auth.password import PasswordAuth
 from repibot_core.services.auth.service import AuthService
 from repibot_core.services.auth.telegram import TelegramAuth
 from repibot_core.services.auth.types import AuthError, IssuedSession
+from repibot_core.services.challenges import ChallengeStore
 from repibot_core.services.principal import PrincipalCache
 from repibot_core.settings import Settings, get_settings
 
@@ -307,6 +313,44 @@ async def login_from_miniapp(
     return _respond(response, issued)
 
 
+def _passkeys(session: AsyncSession, principals: PrincipalCache, redis: Redis) -> PasskeyAuth:
+    settings = get_settings()
+    auth = AuthService(session, settings, principals)
+    return PasskeyAuth(session, settings, auth, ChallengeStore(redis))
+
+
+@router.post("/passkey/login/options", response_model=PasskeyOptionsResponse)
+async def passkey_login_options(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    principals: Annotated[PrincipalCache, Depends(get_principals)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> PasskeyOptionsResponse:
+    await _enforce(redis, f"passkey:ip:{client_ip(request)}", PASSKEY_PER_IP)
+    options = await _passkeys(session, principals, redis).login_options()
+    return PasskeyOptionsResponse(options=options)
+
+
+@router.post("/passkey/login/verify", response_model=TokenResponse)
+async def passkey_login_verify(
+    payload: PasskeyLoginRequest,
+    request: Request,
+    response: Response,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    principals: Annotated[PrincipalCache, Depends(get_principals)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> TokenResponse:
+    try:
+        issued = await _passkeys(session, principals, redis).login(
+            payload.credential,
+            user_agent=request.headers.get("user-agent"),
+            ip=client_ip(request),
+        )
+    except AuthError as error:
+        raise api_error_from(error) from error
+    return _respond(response, issued)
+
+
 def oidc_http_client() -> httpx.AsyncClient:
     """Отдельная функция — точка подмены в тестах: сети к Telegram там нет."""
     return httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
@@ -332,7 +376,15 @@ async def auth_methods() -> AuthMethodsResponse:
 
 
 @router.get("/telegram/start")
-async def telegram_start(redis: Annotated[Redis, Depends(get_redis)]) -> RedirectResponse:
+async def telegram_start(
+    request: Request, redis: Annotated[Redis, Depends(get_redis)]
+) -> RedirectResponse:
+    # Каждый старт кладёт в Valkey запись state на десять минут, а эндпоинт
+    # публичный: без предела аноним набивает память. Превышение уходит обычной
+    # ошибкой API, а не редиректом на страницу входа — отказ обслужить запрос
+    # не является закончившейся попыткой входа.
+    await _enforce(redis, f"oidc:start:ip:{client_ip(request)}", OIDC_START_PER_IP)
+
     settings = get_settings()
     async with oidc_http_client() as client:
         oidc = TelegramOidc(settings, redis, client=client)

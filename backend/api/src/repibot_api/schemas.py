@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -58,6 +59,33 @@ class AuthMethodsResponse(BaseModel):
     passkey: bool = True
 
 
+class PasskeyOptionsResponse(BaseModel):
+    """Параметры WebAuthn как есть.
+
+    Структура задана спецификацией браузера и целиком уходит в
+    `navigator.credentials`; описывать её своими моделями значит поддерживать
+    копию чужого стандарта.
+    """
+
+    options: dict[str, Any]
+
+
+class PasskeyRegisterRequest(BaseModel):
+    credential: dict[str, Any]
+    name: str = Field(default="", max_length=64)
+
+
+class PasskeyLoginRequest(BaseModel):
+    credential: dict[str, Any]
+
+
+class PasskeyResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    last_used_at: datetime | None
+
+
 class MeResponse(BaseModel):
     id: int
     email: str | None
@@ -92,3 +120,11 @@ class SessionResponse(BaseModel):
     ip: str | None
     created_at: datetime
     is_current: bool
+
+
+class LinkCodeResponse(BaseModel):
+    """Код привязки Telegram и готовая ссылка в чат бота."""
+
+    code: str
+    url: str
+    expires_in: int
