@@ -4,7 +4,7 @@
 
 - Сервер с Docker и Docker Compose.
 - Домен с сертификатом TLS.
-- Панель Remnawave 2.8.1 — на этом же сервере или на другом.
+- Панель Remnawave 3.2.1 — на этом же сервере или на другом.
 - Бот, созданный в @BotFather.
 
 ## 1. Панель Remnawave
@@ -217,7 +217,56 @@ curl https://ваш-домен/health
 и завершается кодом 0. Проверка живости возвращает
 `{"status":"ok","database":true,"valkey":true}`.
 
-## 8. Обновление
+## 8. Первые тарифы
+
+Интерфейса управления тарифами пока нет — он появится вместе с админкой.
+Тарифы заводятся через API, и для этого нужен вошедший пользователь с ролью
+`admin`: роль поднимается по `ADMIN_TELEGRAM_IDS` при входе через Telegram
+(см. раздел 4).
+
+Сначала посмотрите, какие внутренние сквады есть в вашей панели — из них и
+собирается тариф:
+
+```bash
+curl -H "Authorization: Bearer $ACCESS_TOKEN" https://ваш-домен/api/admin/remnawave/squads
+```
+
+Затем создайте тариф, подставив uuid нужных сквадов:
+
+```bash
+curl -X POST https://ваш-домен/api/admin/plans \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "month",
+    "name": {"ru": "Месяц", "en": "Month"},
+    "description": null,
+    "duration_days": 30,
+    "price_rub": "299.00",
+    "price_stars": 199,
+    "traffic_limit_bytes": 0,
+    "traffic_reset_strategy": "NO_RESET",
+    "hwid_device_limit": 3,
+    "internal_squad_uuids": ["uuid-сквада-из-ответа-выше"],
+    "is_trial": false,
+    "is_visible": true,
+    "sort_order": 0
+  }'
+```
+
+`traffic_limit_bytes: 0` означает безлимит, `hwid_device_limit: 0` — без
+ограничения на устройства. Цена передаётся строкой: так её принимает и
+платёжный провайдер, и двоичная дробь не искажает сумму.
+
+Триальный тариф — такая же запись с `"is_trial": true` и нулевыми ценами.
+Активным он может быть только один; чтобы выключить триал целиком, снимите с
+него `is_active` запросом `DELETE /api/admin/plans/{id}` — тариф архивируется,
+а не удаляется, и история начислений остаётся читаемой.
+
+Тариф со сквадом, которого нет в панели, создать нельзя: такой тариф
+продавался бы и не давал доступа.
+
+## 9. Обновление
 
 ```bash
 git pull
