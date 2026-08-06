@@ -15,6 +15,8 @@ import type { FormEvent } from 'react'
 import { useState } from 'react'
 
 import { errorText, useProfileLanguage, useTranslate } from '@/lib/i18n'
+import { passkeyErrorText, useAddPasskey, useDeletePasskey, usePasskeys } from '@/lib/passkey'
+import { useLinkCode, useUnlinkTelegram } from '@/lib/telegram'
 
 export default function SecurityPage() {
   const language = useProfileLanguage()
@@ -30,6 +32,14 @@ export default function SecurityPage() {
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
   const [pendingRevoke, setPendingRevoke] = useState<string | null>(null)
+  const passkeys = usePasskeys()
+  const addPasskey = useAddPasskey()
+  const deletePasskey = useDeletePasskey()
+  const [keyName, setKeyName] = useState('')
+  const [pendingKey, setPendingKey] = useState<number | null>(null)
+  const linkCode = useLinkCode(language)
+  const unlink = useUnlinkTelegram(language)
+  const [unlinkOpen, setUnlinkOpen] = useState(false)
 
   const changePassword = useMutation({
     mutationFn: async (input: { current_password: string | null; new_password: string }) => {
@@ -75,6 +85,16 @@ export default function SecurityPage() {
     // значение выглядело бы как несохранённая правка.
     requestEmail.mutate(parsed.data.email, { onSuccess: () => setEmail('') })
   }
+
+  function submitPasskey(event: FormEvent) {
+    event.preventDefault()
+    addPasskey.mutate(keyName.trim(), { onSuccess: () => setKeyName('') })
+  }
+
+  // Отмена окна выбора ключа приходит сюда наравне с отказом сервера, но
+  // фразы у неё нет: человек закрыл окно сам, объяснять ему нечего.
+  const passkeyFailure = addPasskey.error ?? deletePasskey.error
+  const passkeyError = passkeyFailure === null ? null : passkeyErrorText(passkeyFailure, language)
 
   function confirmRevoke() {
     if (pendingRevoke === null) return
@@ -183,6 +203,64 @@ export default function SecurityPage() {
       </Card>
 
       <Card>
+        <h2 className="text-lg font-semibold text-text">{t('account.passkeys.title')}</h2>
+        <p className="mt-1 text-sm text-text-secondary">{t('account.passkeys.hint')}</p>
+
+        {passkeyError === null ? null : (
+          <p role="alert" className="mt-2 text-sm text-danger">
+            {passkeyError}
+          </p>
+        )}
+
+        {passkeys.isPending ? (
+          <p className="mt-4 text-text-secondary">{t('common.loading')}</p>
+        ) : passkeys.data === undefined || passkeys.data.length === 0 ? (
+          <EmptyState className="mt-4" title={t('account.passkeys.empty')} />
+        ) : (
+          <ul className="mt-4 flex flex-col gap-3">
+            {passkeys.data.map((key) => (
+              <li key={key.id} className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-text">{key.name}</p>
+                  <p className="text-sm text-text-muted">
+                    {key.last_used_at === null
+                      ? t('account.passkeys.never_used')
+                      : `${t('account.passkeys.last_used')}: ${new Date(
+                          key.last_used_at,
+                        ).toLocaleString(language)}`}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPendingKey(key.id)}
+                >
+                  {t('account.passkeys.delete')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <form onSubmit={submitPasskey} noValidate className="mt-4 flex flex-col gap-4">
+          <FormField label={t('account.passkeys.name')} htmlFor="passkey-name">
+            <Input
+              id="passkey-name"
+              value={keyName}
+              placeholder={t('account.passkeys.name_placeholder')}
+              onChange={(event) => setKeyName(event.target.value)}
+            />
+          </FormField>
+          <div>
+            <Button type="submit" disabled={addPasskey.isPending}>
+              {addPasskey.isPending ? t('account.passkeys.adding') : t('account.passkeys.add')}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card>
         <h2 className="text-lg font-semibold text-text">{t('account.sessions')}</h2>
         {revoke.error === null ? null : (
           <p role="alert" className="mt-2 text-sm text-danger">
@@ -225,14 +303,104 @@ export default function SecurityPage() {
 
       <Card>
         <h2 className="text-lg font-semibold text-text">{t('account.telegram')}</h2>
-        {/* Привязка и отвязка появятся в плане 1b вместе с OIDC: сейчас
-            показываем только текущее состояние. */}
-        <p className="mt-2 text-sm text-text-secondary">
-          {me.data?.has_telegram === true
-            ? t('account.telegram_linked')
-            : t('account.telegram_absent')}
-        </p>
+
+        {me.data?.has_telegram === true ? (
+          <>
+            <p className="mt-2 text-sm text-text-secondary">
+              {me.data.telegram_username === null
+                ? t('account.telegram_linked')
+                : `@${me.data.telegram_username}`}
+            </p>
+            {unlink.error === null ? null : (
+              <p role="alert" className="mt-2 text-sm text-danger">
+                {errorText(unlink.error, language)}
+              </p>
+            )}
+            <div className="mt-4">
+              <Button type="button" variant="secondary" onClick={() => setUnlinkOpen(true)}>
+                {t('account.telegram.unlink')}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-sm text-text-secondary">{t('account.telegram_absent')}</p>
+            {linkCode.data === undefined ? (
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  onClick={() => linkCode.mutate()}
+                  disabled={linkCode.isPending}
+                >
+                  {t('account.telegram.link')}
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col gap-3">
+                <p className="text-sm text-text-secondary">{t('account.telegram.code_hint')}</p>
+                {/* Код набирают руками в чате бота: моноширинный шрифт и
+                    разрядка нужны, чтобы не спутать похожие знаки. */}
+                <p className="font-mono text-2xl tracking-widest text-text">{linkCode.data.code}</p>
+                <p className="text-sm text-text-muted">{t('account.telegram.code_expires')}</p>
+                <div>
+                  {/* Ссылка, а не window.open: чужой домен должен быть виден
+                      до перехода и открываться средствами браузера. */}
+                  <Button asChild>
+                    <a href={linkCode.data.url} target="_blank" rel="noopener noreferrer">
+                      {t('account.telegram.open_bot')}
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            )}
+            {linkCode.error === null ? null : (
+              <p role="alert" className="mt-2 text-sm text-danger">
+                {errorText(linkCode.error, language)}
+              </p>
+            )}
+          </>
+        )}
       </Card>
+
+      <Dialog
+        open={pendingKey !== null}
+        onClose={() => setPendingKey(null)}
+        title={t('account.passkeys.delete_title')}
+        description={t('account.passkeys.delete_text')}
+      >
+        <Button type="button" variant="secondary" onClick={() => setPendingKey(null)}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          type="button"
+          onClick={() => {
+            if (pendingKey !== null) deletePasskey.mutate(pendingKey)
+            setPendingKey(null)
+          }}
+        >
+          {t('account.passkeys.delete')}
+        </Button>
+      </Dialog>
+
+      <Dialog
+        open={unlinkOpen}
+        onClose={() => setUnlinkOpen(false)}
+        title={t('account.telegram.unlink_title')}
+        description={t('account.telegram.unlink_text')}
+      >
+        <Button type="button" variant="secondary" onClick={() => setUnlinkOpen(false)}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          type="button"
+          onClick={() => {
+            unlink.mutate()
+            setUnlinkOpen(false)
+          }}
+        >
+          {t('account.telegram.unlink')}
+        </Button>
+      </Dialog>
 
       <Dialog
         open={pendingRevoke !== null}

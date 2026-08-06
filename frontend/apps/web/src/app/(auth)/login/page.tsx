@@ -1,21 +1,30 @@
 'use client'
 
-import { loginSchema, useLogin } from '@repibot/core'
+import { errorMessageKey, loginSchema, useLogin } from '@repibot/core'
 import { Button, FormField, Input, PasswordInput } from '@repibot/ui'
 import { useRouter } from 'next/navigation'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 
 import { useBrowserLanguage, useTranslate } from '@/lib/i18n'
+import { passkeyErrorText, usePasskeyLogin } from '@/lib/passkey'
+import { useQueryParam } from '@/lib/query-param'
+import { useAuthMethods } from '@/lib/telegram'
 
 export default function LoginPage() {
   const router = useRouter()
   const language = useBrowserLanguage()
   const t = useTranslate(language)
   const login = useLogin(language)
+  const passkeyLogin = usePasskeyLogin()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const methods = useAuthMethods()
+  // Браузерный вход через Telegram отвечает редиректами, включая отказы, и
+  // возвращается сюда с кодом ошибки в адресе: показать её иначе цепочка
+  // редиректов не может.
+  const returnedError = useQueryParam('error')
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -39,12 +48,31 @@ export default function LoginPage() {
     }
   }
 
+  async function signInWithPasskey() {
+    setFormError(null)
+    try {
+      await passkeyLogin.mutateAsync()
+      router.replace('/account')
+    } catch (error) {
+      // Отмена окна выбора ключа — не повод краснеть: человек просто передумал,
+      // и passkeyErrorText отдаёт для неё null.
+      const message = passkeyErrorText(error, language)
+      if (message !== null) setFormError(message)
+    }
+  }
+
   // noValidate: встроенная проверка браузера показывает подсказки на своём
   // языке и не даёт форме отправиться, поэтому наше сообщение до пользователя
   // не доходит. Единственный источник правды о форме — zod.
   return (
     <form onSubmit={submit} noValidate className="flex w-full flex-col gap-4">
       <h1 className="text-2xl font-semibold text-text">{t('auth.login.title')}</h1>
+
+      {returnedError === null || returnedError === undefined ? null : (
+        <p role="alert" className="text-sm text-danger">
+          {t(errorMessageKey(returnedError))}
+        </p>
+      )}
 
       <FormField label={t('auth.field.email')} htmlFor="email">
         <Input
@@ -86,11 +114,23 @@ export default function LoginPage() {
         </a>
       </div>
 
-      {/* Кнопка появится в плане 1b вместе с OIDC. Показываем отключённой, чтобы
-          вход через Telegram не выглядел отсутствующим в продукте. */}
-      <Button type="button" variant="secondary" disabled>
-        {t('auth.login.telegram_soon')}
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={signInWithPasskey}
+        disabled={passkeyLogin.isPending}
+      >
+        {t('auth.login.passkey')}
       </Button>
+
+      {/* Ссылка, а не кнопка с fetch: за ней идёт цепочка редиректов на чужой
+          домен, и пройти она должна в адресной строке. Кнопки нет вовсе, пока
+          развёртывание не настроено, — она привела бы на страницу с ошибкой. */}
+      {methods.data?.telegram === true ? (
+        <Button asChild variant="secondary">
+          <a href="/api/auth/telegram/start">{t('auth.login.telegram')}</a>
+        </Button>
+      ) : null}
     </form>
   )
 }

@@ -11,6 +11,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.test.tsx'],
+    // И .ts тоже: разметки в тестах хелперов нет, а без второго расширения
+    // такой файл молча не запускается — падение показалось бы «зелёным».
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })

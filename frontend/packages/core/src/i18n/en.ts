@@ -43,7 +43,6 @@ export const en: Record<TranslationKey, string> = {
   'auth.login.pending': 'Signing in…',
   'auth.login.register_link': 'Create an account',
   'auth.login.forgot_link': 'Forgot your password?',
-  'auth.login.telegram_soon': 'Telegram sign-in — coming soon',
   'auth.login.passkey': 'Sign in with a passkey',
   'auth.login.telegram': 'Sign in with Telegram',
   'auth.register.title': 'Sign up',

@@ -41,7 +41,6 @@ export const ru = {
   'auth.login.pending': 'Входим…',
   'auth.login.register_link': 'Создать аккаунт',
   'auth.login.forgot_link': 'Забыли пароль?',
-  'auth.login.telegram_soon': 'Вход через Telegram — скоро',
   'auth.login.passkey': 'Войти по ключу',
   'auth.login.telegram': 'Войти через Telegram',
   'auth.register.title': 'Регистрация',
