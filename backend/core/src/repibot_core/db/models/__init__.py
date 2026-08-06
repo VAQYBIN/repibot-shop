@@ -5,6 +5,7 @@ from repibot_core.db.models.one_time_token import OneTimeToken, TokenType
 from repibot_core.db.models.outbox import OutboxMessage
 from repibot_core.db.models.passkey import PasskeyCredential
 from repibot_core.db.models.plan import Plan, TrafficResetStrategy
+from repibot_core.db.models.reconciliation import FindingAction, ReconciliationFinding
 from repibot_core.db.models.session import Session
 from repibot_core.db.models.subscription import (
     Subscription,
@@ -15,13 +16,16 @@ from repibot_core.db.models.subscription import (
 )
 from repibot_core.db.models.trial import TrialGrant
 from repibot_core.db.models.user import User, UserRole, UserStatus
+from repibot_core.db.models.webhook import WebhookEvent, WebhookSource
 
 __all__ = [
     "AuditLog",
+    "FindingAction",
     "OneTimeToken",
     "OutboxMessage",
     "PasskeyCredential",
     "Plan",
+    "ReconciliationFinding",
     "Session",
     "Subscription",
     "SubscriptionActor",
@@ -34,4 +38,6 @@ __all__ = [
     "User",
     "UserRole",
     "UserStatus",
+    "WebhookEvent",
+    "WebhookSource",
 ]
