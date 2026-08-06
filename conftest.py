@@ -43,7 +43,7 @@ for _key, _value in _TEST_ENV.items():
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy import text, update  # noqa: E402
+from sqlalchemy import select, text, update  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession  # noqa: E402
 from testcontainers.community.postgres import PostgresContainer  # noqa: E402
 
@@ -216,14 +216,17 @@ def fake_panel(monkeypatch: pytest.MonkeyPatch) -> FakePanel:
     и разбор ответов при этом проверяются настоящие. Сквадов у панели нет —
     их добавляет тот тест, которому они нужны.
 
-    Фабрика подменяется в каждом роутере, который её завёл: панель одна и та же,
-    и заглушка у неё обязана быть общая — иначе тариф, заведённый админским
-    маршрутом, уходил бы в одну панель, а выдача доступа — в другую.
+    Фабрика живёт в subscription_view, но админский роутер импортировал её к
+    себе — и получил собственное имя, которое подмена в чужом модуле не
+    затрагивает. Поэтому подменяются оба: панель одна и та же, и заглушка у
+    неё обязана быть общая, иначе тариф, заведённый админским маршрутом, уходил
+    бы в одну панель, а выдача доступа — в другую.
     """
-    from repibot_api.routers import admin, subscription
+    from repibot_api import subscription_view
+    from repibot_api.routers import admin
 
     panel = FakePanel()
-    for module in (admin, subscription):
+    for module in (admin, subscription_view):
         monkeypatch.setattr(module, "panel_client", panel.client)
     return panel
 
@@ -342,6 +345,20 @@ async def user_headers(api_client: AsyncClient) -> dict[str, str]:
         "/api/auth/login", json={"email": PLAIN_USER_EMAIL, "password": PLAIN_USER_PASSWORD}
     )
     return {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+
+
+@pytest_asyncio.fixture
+async def plain_user_id(user_headers: dict[str, str], engine: AsyncEngine) -> int:
+    """Идентификатор пользователя, которому админ начисляет дни.
+
+    Аккаунт берётся тот же, что и у user_headers, а не вставляется в таблицу
+    напрямую: админское начисление заводит человека в панели, и собранный в
+    обход регистрации пользователь отличался бы ровно теми полями, которые
+    туда уезжают.
+    """
+    async with create_session_factory(engine)() as session:
+        found = await session.execute(select(User.id).where(User.email == PLAIN_USER_EMAIL))
+        return int(found.scalar_one())
 
 
 @pytest_asyncio.fixture

@@ -208,6 +208,16 @@ class SubscriptionResponse(BaseModel):
     hwid_device_limit: int
 
 
+class AdminSubscriptionRequest(BaseModel):
+    """Начисление дней или смена тарифа админом."""
+
+    plan_id: int
+    # Пустое значение означает смену тарифа с конвертацией остатка, а не
+    # начисление нуля дней: у этих двух действий разный смысл.
+    days: int | None = Field(default=None, gt=0)
+    comment: str | None = Field(default=None, max_length=512)
+
+
 class SubscriptionStateResponse(BaseModel):
     """Подписка вместе с правом на триал.
 

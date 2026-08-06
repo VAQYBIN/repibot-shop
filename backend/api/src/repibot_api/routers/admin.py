@@ -1,13 +1,13 @@
-"""Административные маршруты: гейт роли и управление тарифами.
+"""Административные маршруты: гейт роли, тарифы и начисление дней.
 
-Роль support сюда не допускается ни к одному маршруту тарифов: поддержка
-разбирается с обращениями, а не с ценообразованием. Гейт стоит на каждом
-маршруте отдельно — скрытая кнопка в интерфейсе защитой не является.
+Роль support сюда не допускается ни к одному маршруту тарифов и подписок:
+поддержка разбирается с обращениями, а не с ценообразованием и не с чужим
+сроком. Гейт стоит на каждом маршруте отдельно — скрытая кнопка в интерфейсе
+защитой не является.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
@@ -15,18 +15,34 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from repibot_api.deps import AuthContext, db_session, require_role
+from repibot_api.deps import AuthContext, client_ip, db_session, require_role
 from repibot_api.errors import ApiError, api_error_from_service
-from repibot_api.schemas import PlanRequest, PlanResponse, SquadResponse
-from repibot_core.db.models import TrafficResetStrategy, UserRole
-from repibot_core.integrations.remnawave.client import (
-    RemnawaveClient,
-    RemnawaveUnavailable,
-    create_remnawave_client,
+from repibot_api.schemas import (
+    AdminSubscriptionRequest,
+    PlanRequest,
+    PlanResponse,
+    SquadResponse,
+    SubscriptionStateResponse,
 )
+from repibot_api.subscription_view import (
+    panel_client,
+    plan_service,
+    subscription_response,
+    subscription_service,
+)
+from repibot_core.db.models import (
+    SubscriptionActor,
+    SubscriptionEventType,
+    SubscriptionSource,
+    TrafficResetStrategy,
+    UserRole,
+)
+from repibot_core.db.repositories.audit import AuditRepository
+from repibot_core.integrations.remnawave.client import RemnawaveUnavailable
 from repibot_core.integrations.remnawave.squads import PanelSquads
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.plans import PlanInput, PlanService, PlanView
+from repibot_core.services.subscriptions import SubscriptionService, SubscriptionView
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -41,26 +57,6 @@ async def whoami(
     context: Annotated[AuthContext, Depends(require_role(UserRole.admin, UserRole.support))],
 ) -> WhoAmIResponse:
     return WhoAmIResponse(id=context.principal.user_id, role=context.principal.role.value)
-
-
-def panel_client() -> RemnawaveClient:
-    """Точка подмены в тестах: живой панели в наборе нет."""
-    return create_remnawave_client()
-
-
-async def plan_service(
-    session: Annotated[AsyncSession, Depends(db_session)],
-) -> AsyncIterator[PlanService]:
-    """Сервис тарифов вместе с клиентом панели.
-
-    Клиент закрывается после ответа: httpx держит пул соединений, и клиент на
-    каждый запрос без закрытия оставляет сокеты открытыми до сборки мусора.
-    """
-    client = panel_client()
-    try:
-        yield PlanService(session, PanelSquads(client))
-    finally:
-        await client.aclose()
 
 
 @router.get("/plans", response_model=list[PlanResponse])
@@ -129,6 +125,74 @@ async def list_squads(
     finally:
         await client.aclose()
     return [SquadResponse(uuid=squad.uuid, name=squad.name) for squad in squads]
+
+
+@router.post("/users/{user_id}/subscription", response_model=SubscriptionStateResponse)
+async def grant_subscription(
+    user_id: int,
+    payload: AdminSubscriptionRequest,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    plans: Annotated[PlanService, Depends(plan_service)],
+    subscriptions: Annotated[SubscriptionService, Depends(subscription_service)],
+    context: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+    ip: Annotated[str | None, Depends(client_ip)],
+) -> SubscriptionStateResponse:
+    """Начисление дней и смена тарифа руками админа.
+
+    Тело без days означает смену тарифа с конвертацией оплаченного остатка, с
+    days — начисление указанного числа дней по этому тарифу. Разные действия
+    разными полями, а не двумя маршрутами: решение принимает один и тот же
+    человек в одной и той же форме.
+    """
+    before = await subscriptions.current(user_id)
+    try:
+        plan = await plans.require(payload.plan_id)
+        if payload.days is None:
+            view = await subscriptions.change_plan(
+                user_id,
+                payload.plan_id,
+                actor=SubscriptionActor.admin,
+                actor_user_id=context.principal.user_id,
+            )
+        else:
+            view = await subscriptions.grant_days(
+                user_id,
+                plan,
+                payload.days,
+                source=SubscriptionSource.admin,
+                event_type=SubscriptionEventType.admin_grant,
+                actor=SubscriptionActor.admin,
+                actor_user_id=context.principal.user_id,
+                comment=payload.comment,
+            )
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+
+    # Каждое действие персонала оставляет след с состоянием до и после:
+    # спор «кому и сколько начислили» иначе не разобрать.
+    await AuditRepository(session).record(
+        "subscription.grant",
+        "subscription",
+        actor_id=context.principal.user_id,
+        entity_id=str(user_id),
+        before=_audit_snapshot(before),
+        after=_audit_snapshot(view),
+        ip=ip,
+    )
+    await session.commit()
+
+    # Право на триал здесь не считается: админ смотрит на подписку, которую
+    # только что завёл, и триал ей уже не положен.
+    return SubscriptionStateResponse(
+        subscription=subscription_response(view), trial_available=False
+    )
+
+
+def _audit_snapshot(view: SubscriptionView | None) -> dict[str, str] | None:
+    """Состояние подписки для журнала: тариф и срок, без служебных полей."""
+    if view is None:
+        return None
+    return {"plan_code": view.plan_code, "expires_at": view.expires_at.isoformat()}
 
 
 def _plan_input(payload: PlanRequest) -> PlanInput:
