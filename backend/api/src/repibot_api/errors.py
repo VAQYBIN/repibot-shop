@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from repibot_api.middleware import HEADER, request_id_of
+from repibot_core.services.auth.types import AuthError
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +29,48 @@ _STATUS_CODES = {
 class ApiError(Exception):
     """Ожидаемая ошибка, о которой клиенту можно рассказать честно."""
 
-    def __init__(self, message: str, status_code: int, code: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        status_code: int,
+        code: str,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.code = code
+        # Retry-After для 429: без него клиент не знает, когда повторить, и
+        # повторяет немедленно.
+        self.headers = headers or {}
+
+
+# Статус выбирается здесь, а не в сервисе: сервис знает, что произошло, а не
+# как об этом принято сообщать по HTTP.
+_AUTH_STATUS = {
+    "invalid_credentials": 401,
+    "unauthorized": 401,
+    "email_not_verified": 403,
+    "forbidden": 403,
+    "not_found": 404,
+    "email_taken": 409,
+    # Конфликт состояния, а не ошибка запроса: тот же запрос при другом
+    # состоянии аккаунта пройдёт.
+    "last_login_method": 409,
+    "telegram_already_linked": 409,
+    "link_conflict": 409,
+    "token_invalid": 400,
+    "weak_password": 422,
+    "validation_error": 422,
+    "rate_limited": 429,
+    # Не наша поломка, а недоступность Telegram: человеку нужно повторить
+    # позже, а не искать ошибку у себя.
+    "telegram_unavailable": 503,
+}
+
+
+def api_error_from(error: AuthError) -> ApiError:
+    return ApiError(str(error), _AUTH_STATUS.get(error.code, 400), error.code)
 
 
 def _error_response(
@@ -41,6 +79,7 @@ def _error_response(
     code: str,
     message: str,
     details: list[dict[str, Any]] | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     """Собирает ответ в общем формате.
 
@@ -52,7 +91,7 @@ def _error_response(
     if details:
         body["details"] = details
 
-    headers = {}
+    headers = dict(extra_headers or {})
     request_id = request_id_of(request)
     if request_id is not None:
         headers[HEADER] = request_id
@@ -63,7 +102,9 @@ def _error_response(
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
-        return _error_response(request, exc.status_code, exc.code, exc.message)
+        return _error_response(
+            request, exc.status_code, exc.code, exc.message, extra_headers=exc.headers
+        )
 
     @app.exception_handler(StarletteHTTPException)
     async def _handle_http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:

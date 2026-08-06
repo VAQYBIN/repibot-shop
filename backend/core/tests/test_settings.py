@@ -1,9 +1,11 @@
 """Настройки обязаны падать на старте, а не при первом обращении к пустому полю."""
 
+from collections.abc import Iterator
+
 import pytest
 from pydantic import ValidationError
 
-from repibot_core.settings import Settings
+from repibot_core.settings import Settings, get_settings
 
 REQUIRED_ENV = {
     "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost:5432/repibot",
@@ -13,7 +15,8 @@ REQUIRED_ENV = {
     "BOT_WEBHOOK_BASE_URL": "https://example.org",
     "REMNAWAVE_BASE_URL": "https://panel.example.org",
     "REMNAWAVE_TOKEN": "panel-token",
-    "JWT_SECRET": "jwt-secret",
+    # Длина не случайна: короткий ключ подписи настройки отвергают.
+    "JWT_SECRET": "0123456789abcdef0123456789abcdef",
     "ENCRYPTION_KEY": "encryption-key",
     "PUBLIC_WEB_URL": "https://example.org",
     "PUBLIC_APP_URL": "https://example.org/app",
@@ -67,3 +70,48 @@ def test_missing_required_variable_fails_with_its_name(
 def test_unsupported_default_language_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(ValidationError):
         _build(monkeypatch, DEFAULT_LANGUAGE="de")
+
+
+def test_short_jwt_secret_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Слабый ключ подписи позволяет собрать токен с любым sub.
+
+    Проверка на старте, а не строчка в документации: развёртывание с секретом
+    вида «changeme» не должно доехать до приёма запросов.
+    """
+    with pytest.raises(ValidationError) as exc:
+        _build(monkeypatch, JWT_SECRET="слишком короткий")
+
+    assert "openssl rand -hex 32" in str(exc.value)
+
+
+def test_admin_ids_parse_from_comma_separated_string(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Список админов задаётся строкой: JSON в .env читать неудобно человеку."""
+    monkeypatch.setenv("ADMIN_TELEGRAM_IDS", "111, 222")
+    get_settings.cache_clear()
+
+    assert get_settings().admin_telegram_ids == (111, 222)
+
+
+def test_admin_ids_default_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ADMIN_TELEGRAM_IDS", raising=False)
+    get_settings.cache_clear()
+
+    assert get_settings().admin_telegram_ids == ()
+
+
+def test_token_lifetimes_have_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ACCESS_TOKEN_TTL_MINUTES", raising=False)
+    monkeypatch.delenv("REFRESH_TOKEN_TTL_DAYS", raising=False)
+    get_settings.cache_clear()
+
+    settings = get_settings()
+    assert settings.access_token_ttl_minutes == 15
+    assert settings.refresh_token_ttl_days == 30
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache() -> Iterator[None]:
+    """Настройки кэшируются на процесс, а тесты меняют окружение."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()

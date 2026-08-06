@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
+import { AuthProvider } from '@/components/auth-provider'
+
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -21,7 +23,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru" data-theme="light">
-      <body>{children}</body>
+      <body>
+        {/* Провайдер стоит в корне: форма входа обращается к тому же клиенту
+            API, что и кабинет, а токен живёт в памяти одного экземпляра. */}
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   )
 }

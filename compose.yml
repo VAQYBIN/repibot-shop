@@ -94,6 +94,14 @@ services:
     restart: unless-stopped
     depends_on: [api]
 
+  # Только для разработки и сквозных тестов: SMTP-приёмник с веб-интерфейсом.
+  # Профиль dev означает, что обычный `docker compose up` его не поднимает.
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: [dev]
+    ports: ["8025:8025"]
+    restart: unless-stopped
+
   nginx:
     build:
       context: .

@@ -1,7 +1,9 @@
 """Задачи воркера.
 
-В этом подпроекте одна задача-заглушка: она подтверждает, что очередь,
+Своя здесь одна — заглушка heartbeat: она подтверждает, что очередь,
 планировщик и подключение к базе из воркера действительно работают.
+Остальные задачи объявлены в core и реэкспортируются: воркер запускается по
+пути `repibot_worker.tasks` и должен видеть их все.
 """
 
 from __future__ import annotations
@@ -10,9 +12,12 @@ import logging
 
 from repibot_core.db.engine import check_database, create_engine
 from repibot_core.settings import get_settings
+from repibot_core.tasks import process_outbox
 from repibot_worker.broker import broker
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["heartbeat", "process_outbox"]
 
 
 @broker.task(schedule=[{"cron": "*/5 * * * *"}])

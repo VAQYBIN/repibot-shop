@@ -1,66 +1,79 @@
-import { render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useAuthState } from '../auth'
+import { PROFILE, renderWithProviders, stubFetch, withRussianLocale } from '../test-utils'
 import { Home } from './index'
+
+// Состояние входа сбрасывается до отрисовки: после неё React уже смонтирован,
+// и обновление хранилища мимо act() дало бы предупреждение.
+beforeEach(() => {
+  useAuthState.setState({ state: 'checking' })
+})
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-/** По умолчанию jsdom сообщает en-US, а тексты проверяются по-русски. */
-function withRussianLocale(): void {
-  vi.stubGlobal('navigator', { ...navigator, languages: ['ru-RU'] })
-}
-
 describe('главная MiniApp', () => {
-  it('показывает название и подзаголовок', () => {
+  it('пока идёт вход, показывает скелет, а не пустой экран', () => {
     withRussianLocale()
 
-    render(<Home />)
+    renderWithProviders(<Home />)
 
-    expect(screen.getByRole('heading', { name: 'Re:Pibot' })).toBeInTheDocument()
-    expect(screen.getByText('Магазин ещё готовится')).toBeInTheDocument()
+    expect(screen.getByText('Загрузка')).toBeInTheDocument()
   })
 
-  it('сообщает, что открыт вне Telegram, когда SDK недоступен', () => {
-    render(<Home />)
+  it('вне Telegram предлагает открыть приложение через бота', () => {
+    withRussianLocale()
+    useAuthState.setState({ state: 'outside' })
 
-    expect(screen.getByText('Telegram: вне приложения')).toBeInTheDocument()
+    renderWithProviders(<Home />)
+
+    expect(screen.getByText('Откройте приложение через бота Re:Pibot')).toBeInTheDocument()
   })
 
-  it('сообщает о подключении, когда initData получен', () => {
-    vi.stubGlobal('Telegram', { WebApp: { initData: 'query_id=AAA' } })
+  it('после неудачного входа даёт повторить попытку', () => {
+    withRussianLocale()
+    const signIn = vi.fn(async () => {})
+    useAuthState.setState({ state: 'failed', signIn })
 
-    render(<Home />)
+    renderWithProviders(<Home />)
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }))
 
-    expect(screen.getByText('Telegram: подключён')).toBeInTheDocument()
+    expect(screen.getByText('Не удалось войти')).toBeInTheDocument()
+    expect(signIn).toHaveBeenCalledTimes(1)
   })
 
-  it('берёт язык, который Telegram выставил пользователю', () => {
-    /* Определение языка написано и покрыто тестами в @repibot/core, но пока
-       оно не подключено, интерфейс остаётся русским для всех. */
-    vi.stubGlobal('Telegram', {
-      WebApp: { initData: 'query_id=AAA', initDataUnsafe: { user: { language_code: 'en-US' } } },
-    })
+  it('после входа здоровается именем из профиля', async () => {
+    stubFetch(() => Response.json(PROFILE))
+    useAuthState.setState({ state: 'ready' })
 
-    render(<Home />)
+    renderWithProviders(<Home />)
 
-    expect(screen.getByText('The shop is still being built')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Добро пожаловать, Аня' }),
+    ).toBeInTheDocument()
   })
 
-  it('вне Telegram берёт язык из настроек браузера', () => {
-    vi.stubGlobal('navigator', { ...navigator, languages: ['en-GB', 'ru'] })
+  it('говорит на языке из профиля, а не из настроек браузера', async () => {
+    withRussianLocale()
+    stubFetch(() => Response.json({ ...PROFILE, language: 'en' }))
+    useAuthState.setState({ state: 'ready' })
 
-    render(<Home />)
+    renderWithProviders(<Home />)
 
-    expect(screen.getByText('The shop is still being built')).toBeInTheDocument()
+    expect(await screen.findByText('The shop is still being built')).toBeInTheDocument()
   })
 
-  it('падает обратно на русский, когда язык не поддержан', () => {
-    vi.stubGlobal('navigator', { ...navigator, languages: ['de-DE', 'fr'] })
+  it('ошибку профиля показывает с кнопкой повтора', async () => {
+    withRussianLocale()
+    stubFetch(() => Response.json({ error: { code: 'unauthorized' } }, { status: 500 }))
+    useAuthState.setState({ state: 'ready' })
 
-    render(<Home />)
+    renderWithProviders(<Home />)
 
-    expect(screen.getByText('Магазин ещё готовится')).toBeInTheDocument()
+    expect(await screen.findByText('Что-то пошло не так')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument()
   })
 })

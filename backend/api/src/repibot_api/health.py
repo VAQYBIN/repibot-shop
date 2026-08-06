@@ -5,16 +5,16 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Coroutine
-from functools import lru_cache
 from typing import Literal
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
-from sqlalchemy.ext.asyncio import AsyncEngine
 
-from repibot_core.db.engine import check_database, create_engine
+# Движок берётся из deps: два пула соединений в одном процессе не нужны.
+from repibot_api.deps import get_engine
+from repibot_core.db.engine import check_database
 from repibot_core.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -30,16 +30,6 @@ class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     database: bool
     valkey: bool
-
-
-@lru_cache(maxsize=1)
-def get_engine() -> AsyncEngine:
-    """Один движок на процесс.
-
-    Создавать движок на каждый запрос значит поднимать новый пул соединений
-    на каждый опрос наблюдателя — так исчерпывается лимит подключений базы.
-    """
-    return create_engine(get_settings().database_url, connect_timeout=PROBE_TIMEOUT_SECONDS)
 
 
 async def check_valkey(url: str) -> bool:

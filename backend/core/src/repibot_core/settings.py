@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Language = Literal["ru", "en"]
+
+# Минимум для HMAC-SHA256 по RFC 7518 — 32 байта.
+MIN_JWT_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -35,6 +38,12 @@ class Settings(BaseSettings):
     bot_webhook_base_url: str
     bot_use_polling: bool = False
 
+    # Выдаются в мини-приложении BotFather: Bot Settings → Web Login. Пустые
+    # значения означают, что вход через Telegram в браузере не настроен —
+    # кнопка тогда не показывается, а не ломается.
+    telegram_oidc_client_id: str = ""
+    telegram_oidc_client_secret: SecretStr = SecretStr("")
+
     remnawave_base_url: str
     remnawave_token: SecretStr
     remnawave_timeout_seconds: float = 10.0
@@ -43,6 +52,24 @@ class Settings(BaseSettings):
 
     jwt_secret: SecretStr
     encryption_key: SecretStr
+
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 30
+
+    # Список идентификаторов Telegram. Роль поднимается при входе; удаление
+    # идентификатора отсюда роль не снимает — понижение делается осознанно.
+    # NoDecode отключает попытку pydantic-settings разобрать значение как JSON:
+    # без неё строка "111, 222" падает с ошибкой парсинга раньше, чем успевает
+    # отработать валидатор ниже.
+    admin_telegram_ids: Annotated[tuple[int, ...], NoDecode] = ()
+
+    email_sender: Literal["smtp", "log"] = "log"
+    smtp_host: str = ""
+    smtp_port: int = 1025
+    smtp_username: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from: str = "no-reply@example.org"
+    smtp_starttls: bool = False
 
     public_web_url: str
     public_app_url: str
@@ -59,6 +86,37 @@ class Settings(BaseSettings):
             msg = f"язык {value} не поддерживается"
             raise ValueError(msg)
         return value
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def _jwt_secret_is_long_enough(cls, value: SecretStr) -> SecretStr:
+        """HS256 подписывает ключом любой длины, но стойкость даёт только длинный.
+
+        RFC 7518 требует для HMAC-SHA256 ключ не короче размера выхода хеша, то
+        есть 32 байт. Короткий секрет подбирается перебором, и тогда подделать
+        access-токен с любым `sub` — вопрос машинного времени. Проверка стоит
+        здесь, а не в напоминании в документации: процесс со слабым ключом не
+        должен стартовать вовсе.
+        """
+        if len(value.get_secret_value()) < MIN_JWT_SECRET_LENGTH:
+            msg = (
+                f"JWT_SECRET короче {MIN_JWT_SECRET_LENGTH} символов; "
+                "сгенерируйте: openssl rand -hex 32"
+            )
+            raise ValueError(msg)
+        return value
+
+    @field_validator("admin_telegram_ids", mode="before")
+    @classmethod
+    def _split_admin_ids(cls, value: object) -> object:
+        """Читает "111, 222" из окружения.
+
+        Pydantic ждёт для кортежа JSON-массив, а в .env человек пишет список
+        через запятую. Пустая строка означает «админов нет».
+        """
+        if not isinstance(value, str):
+            return value
+        return tuple(int(part) for part in value.split(",") if part.strip())
 
 
 @lru_cache(maxsize=1)
