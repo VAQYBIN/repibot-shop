@@ -23,6 +23,9 @@ from repibot_api.schemas import (
     ChangeEmailRequest,
     LinkCodeResponse,
     MeResponse,
+    PasskeyOptionsResponse,
+    PasskeyRegisterRequest,
+    PasskeyResponse,
     SessionResponse,
     SetPasswordRequest,
     UpdateMeRequest,
@@ -31,9 +34,11 @@ from repibot_core.domain.identity import LINK_CODE_TTL
 from repibot_core.integrations.telegram.bot_api import TIMEOUT_SECONDS as BOT_TIMEOUT_SECONDS
 from repibot_core.integrations.telegram.bot_api import BotApi
 from repibot_core.ratelimit import LETTER_PER_EMAIL, LINK_CODE_PER_USER, RateLimiter
+from repibot_core.services.auth.passkey import PasskeyAuth
 from repibot_core.services.auth.password import PasswordAuth
 from repibot_core.services.auth.service import AuthService
 from repibot_core.services.auth.types import AuthError
+from repibot_core.services.challenges import ChallengeStore
 from repibot_core.services.principal import PrincipalCache
 from repibot_core.services.profile import ProfileService, ProfileView
 from repibot_core.services.telegram_link import TelegramLinkService
@@ -180,6 +185,78 @@ async def revoke_other_sessions(
 ) -> None:
     auth = AuthService(session, get_settings(), principals)
     await auth.revoke_other_sessions(context.principal.user_id, context.session_id)
+
+
+def _passkeys(session: AsyncSession, principals: PrincipalCache, redis: Redis) -> PasskeyAuth:
+    settings = get_settings()
+    auth = AuthService(session, settings, principals)
+    return PasskeyAuth(session, settings, auth, ChallengeStore(redis))
+
+
+@router.post("/passkeys/options", response_model=PasskeyOptionsResponse)
+async def passkey_registration_options(
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+    principals: Annotated[PrincipalCache, Depends(get_principals)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> PasskeyOptionsResponse:
+    try:
+        options = await _passkeys(session, principals, redis).registration_options(
+            context.principal.user_id
+        )
+    except AuthError as error:
+        raise api_error_from(error) from error
+    return PasskeyOptionsResponse(options=options)
+
+
+@router.post("/passkeys", status_code=201, response_model=AcceptedResponse)
+async def add_passkey(
+    payload: PasskeyRegisterRequest,
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+    principals: Annotated[PrincipalCache, Depends(get_principals)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> AcceptedResponse:
+    try:
+        await _passkeys(session, principals, redis).register(
+            context.principal.user_id, payload.credential, payload.name
+        )
+    except AuthError as error:
+        raise api_error_from(error) from error
+    return AcceptedResponse(status="passkey_added")
+
+
+@router.get("/passkeys", response_model=list[PasskeyResponse])
+async def list_passkeys(
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+    principals: Annotated[PrincipalCache, Depends(get_principals)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> list[PasskeyResponse]:
+    items = await _passkeys(session, principals, redis).list_keys(context.principal.user_id)
+    return [
+        PasskeyResponse(
+            id=item.id,
+            name=item.name,
+            created_at=item.created_at,
+            last_used_at=item.last_used_at,
+        )
+        for item in items
+    ]
+
+
+@router.delete("/passkeys/{passkey_id}", status_code=204)
+async def delete_passkey(
+    passkey_id: int,
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+    principals: Annotated[PrincipalCache, Depends(get_principals)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> None:
+    try:
+        await _passkeys(session, principals, redis).delete(context.principal.user_id, passkey_id)
+    except AuthError as error:
+        raise api_error_from(error) from error
 
 
 def bot_http_client() -> httpx.AsyncClient:
