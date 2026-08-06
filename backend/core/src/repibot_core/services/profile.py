@@ -16,6 +16,7 @@ from repibot_core.security.passwords import hash_password, verify_password
 from repibot_core.services.auth.password import PasswordAuth
 from repibot_core.services.auth.service import AuthService
 from repibot_core.services.auth.types import AuthError
+from repibot_core.services.login_methods import login_methods
 from repibot_core.services.principal import PrincipalCache
 from repibot_core.settings import Settings
 
@@ -65,6 +66,7 @@ class ProfileService:
         user = await self._users.get(user_id)
         if user is None:
             raise AuthError("not_found", "пользователь не найден")
+        methods = await login_methods(self._session, user)
         return ProfileView(
             user_id=user.id,
             email=user.email,
@@ -74,11 +76,9 @@ class ProfileService:
             language=user.language,
             role=user.role,
             referral_code=user.referral_code,
-            has_password=user.password_hash is not None,
-            has_telegram=user.telegram_id is not None,
-            # Passkey появятся в плане 1b; до тех пор их ноль, и это честное
-            # значение, а не заглушка: таблицы ещё нет.
-            passkey_count=0,
+            has_password=methods.has_password,
+            has_telegram=methods.has_telegram,
+            passkey_count=methods.passkey_count,
         )
 
     async def update(self, user_id: int, *, name: str | None, language: str) -> ProfileView:
