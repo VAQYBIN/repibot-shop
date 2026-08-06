@@ -455,6 +455,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Plans
+         * @description Витрина открыта без входа: до регистрации человеку не на что смотреть.
+         */
+        get: operations["list_plans_api_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Subscription
+         * @description Подписки может не быть, и это не ошибка.
+         *
+         *     Пустой ответ со статусом 200 фронтенд отличает от отказа; 404 он вынужден
+         *     был бы разбирать по коду, чтобы понять, показывать витрину или сообщение.
+         */
+        get: operations["my_subscription_api_me_subscription_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/subscription/trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Trial */
+        post: operations["activate_trial_api_me_subscription_trial_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/whoami": {
         parameters: {
             query?: never;
@@ -472,6 +532,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Plans
+         * @description Все тарифы, включая скрытые и архивные: админ управляет и ими тоже.
+         */
+        get: operations["list_plans_api_admin_plans_get"];
+        put?: never;
+        /** Create Plan */
+        post: operations["create_plan_api_admin_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Archive Plan
+         * @description Архивация, а не удаление: на тариф ссылаются подписки и журнал.
+         */
+        delete: operations["archive_plan_api_admin_plans__plan_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Plan */
+        patch: operations["update_plan_api_admin_plans__plan_id__patch"];
+        trace?: never;
+    };
+    "/api/admin/remnawave/squads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Squads
+         * @description Сквады читаются из панели, а не хранятся у нас: их состав меняет админ панели.
+         */
+        get: operations["list_squads_api_admin_remnawave_squads_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant Subscription
+         * @description Начисление дней и смена тарифа руками админа.
+         *
+         *     Тело без days означает смену тарифа с конвертацией оплаченного остатка, с
+         *     days — начисление указанного числа дней по этому тарифу. Разные действия
+         *     разными полями, а не двумя маршрутами: решение принимает один и тот же
+         *     человек в одной и той же форме.
+         */
+        post: operations["grant_subscription_api_admin_users__user_id__subscription_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -480,6 +627,18 @@ export interface components {
         AcceptedResponse: {
             /** Status */
             status: string;
+        };
+        /**
+         * AdminSubscriptionRequest
+         * @description Начисление дней или смена тарифа админом.
+         */
+        AdminSubscriptionRequest: {
+            /** Plan Id */
+            plan_id: number;
+            /** Days */
+            days?: number | null;
+            /** Comment */
+            comment?: string | null;
         };
         /**
          * AuthMethodsResponse
@@ -639,6 +798,127 @@ export interface components {
             /** Password */
             password: string;
         };
+        /**
+         * PlanRequest
+         * @description Тариф, каким его заводит администратор.
+         *
+         *     Признака is_active здесь нет: тариф снимается с продажи архивацией через
+         *     DELETE, а не переключением поля в форме редактирования.
+         */
+        PlanRequest: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: {
+                [key: string]: string;
+            };
+            /** Description */
+            description?: {
+                [key: string]: string;
+            } | null;
+            /** Duration Days */
+            duration_days: number;
+            /** Price Rub */
+            price_rub: number | string;
+            /** Price Stars */
+            price_stars: number;
+            /** Traffic Limit Bytes */
+            traffic_limit_bytes: number;
+            /**
+             * Traffic Reset Strategy
+             * @enum {string}
+             */
+            traffic_reset_strategy: "NO_RESET" | "DAY" | "WEEK" | "MONTH" | "MONTH_ROLLING";
+            /** Hwid Device Limit */
+            hwid_device_limit: number;
+            /** Internal Squad Uuids */
+            internal_squad_uuids: string[];
+            /**
+             * Is Trial
+             * @default false
+             */
+            is_trial: boolean;
+            /**
+             * Is Visible
+             * @default true
+             */
+            is_visible: boolean;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** PlanResponse */
+        PlanResponse: {
+            /** Id */
+            id: number;
+            /** Code */
+            code: string;
+            /** Name */
+            name: {
+                [key: string]: string;
+            };
+            /** Description */
+            description: {
+                [key: string]: string;
+            } | null;
+            /** Duration Days */
+            duration_days: number;
+            /** Price Rub */
+            price_rub: string;
+            /** Price Stars */
+            price_stars: number;
+            /** Traffic Limit Bytes */
+            traffic_limit_bytes: number;
+            /** Traffic Reset Strategy */
+            traffic_reset_strategy: string;
+            /** Hwid Device Limit */
+            hwid_device_limit: number;
+            /** Internal Squad Uuids */
+            internal_squad_uuids: string[];
+            /** Is Trial */
+            is_trial: boolean;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Visible */
+            is_visible: boolean;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /**
+         * PublicPlanResponse
+         * @description Тариф в витрине. Внутренние поля наружу не уезжают.
+         *
+         *     internal_squad_uuids не отдаётся: состав локаций — наша кухня, а не то,
+         *     что клиент должен видеть в ответе API.
+         */
+        PublicPlanResponse: {
+            /** Id */
+            id: number;
+            /** Code */
+            code: string;
+            /** Name */
+            name: {
+                [key: string]: string;
+            };
+            /** Description */
+            description: {
+                [key: string]: string;
+            } | null;
+            /** Duration Days */
+            duration_days: number;
+            /** Price Rub */
+            price_rub: string;
+            /** Price Stars */
+            price_stars: number;
+            /** Traffic Limit Bytes */
+            traffic_limit_bytes: number;
+            /** Hwid Device Limit */
+            hwid_device_limit: number;
+            /** Is Trial */
+            is_trial: boolean;
+        };
         /** RegisterRequest */
         RegisterRequest: {
             /**
@@ -680,6 +960,55 @@ export interface components {
             current_password?: string | null;
             /** New Password */
             new_password: string;
+        };
+        /** SquadResponse */
+        SquadResponse: {
+            /**
+             * Uuid
+             * Format: uuid
+             */
+            uuid: string;
+            /** Name */
+            name: string;
+        };
+        /** SubscriptionResponse */
+        SubscriptionResponse: {
+            /** Plan Code */
+            plan_code: string;
+            /** Plan Name */
+            plan_name: {
+                [key: string]: string;
+            };
+            /** Status */
+            status: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Subscription Url */
+            subscription_url: string | null;
+            /** Traffic Limit Bytes */
+            traffic_limit_bytes: number;
+            /** Hwid Device Limit */
+            hwid_device_limit: number;
+        };
+        /**
+         * SubscriptionStateResponse
+         * @description Подписка вместе с правом на триал.
+         *
+         *     Одним ответом, а не двумя запросами: экран подписки решает по обоим полям
+         *     сразу, показать срок или кнопку триала.
+         */
+        SubscriptionStateResponse: {
+            subscription: components["schemas"]["SubscriptionResponse"] | null;
+            /** Trial Available */
+            trial_available: boolean;
         };
         /** TokenRequest */
         TokenRequest: {
@@ -1498,6 +1827,66 @@ export interface operations {
             };
         };
     };
+    list_plans_api_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPlanResponse"][];
+                };
+            };
+        };
+    };
+    my_subscription_api_me_subscription_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionStateResponse"];
+                };
+            };
+        };
+    };
+    activate_trial_api_me_subscription_trial_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionStateResponse"];
+                };
+            };
+        };
+    };
     whoami_api_admin_whoami_get: {
         parameters: {
             query?: never;
@@ -1514,6 +1903,178 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WhoAmIResponse"];
+                };
+            };
+        };
+    };
+    list_plans_api_admin_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanResponse"][];
+                };
+            };
+        };
+    };
+    create_plan_api_admin_plans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_plan_api_admin_plans__plan_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_plan_api_admin_plans__plan_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_squads_api_admin_remnawave_squads_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SquadResponse"][];
+                };
+            };
+        };
+    };
+    grant_subscription_api_admin_users__user_id__subscription_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
