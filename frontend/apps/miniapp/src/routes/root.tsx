@@ -8,9 +8,15 @@ function Navigation() {
   const language = useLanguage()
 
   return (
-    <nav className="mx-auto mb-4 flex max-w-md gap-4 text-sm">
+    <nav className="mx-auto mb-4 flex max-w-md flex-wrap gap-x-4 gap-y-2 text-sm">
       <Link to="/" className="text-text-accent">
         {translate(language, 'miniapp.nav.home')}
+      </Link>
+      <Link to="/subscription" className="text-text-accent">
+        {translate(language, 'subscription.title')}
+      </Link>
+      <Link to="/devices" className="text-text-accent">
+        {translate(language, 'devices.title')}
       </Link>
       <Link to="/profile" className="text-text-accent">
         {translate(language, 'account.title')}

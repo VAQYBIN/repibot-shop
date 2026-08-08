@@ -11,7 +11,9 @@ import { rootRoute } from './root'
 export function Loading({ language }: { language: Language }) {
   return (
     <Card className="mx-auto max-w-md" aria-busy="true">
-      <p className="text-text-secondary">{translate(language, 'common.loading')}</p>
+      <p role="status" className="text-text-secondary">
+        {translate(language, 'common.loading')}
+      </p>
       <div className="mt-4 h-4 animate-pulse rounded-sm bg-surface-sunken" />
       <div className="mt-2 h-4 w-2/3 animate-pulse rounded-sm bg-surface-sunken" />
     </Card>
