@@ -10,6 +10,8 @@
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
+import { seed } from './seed'
+
 const ROOT = resolve(__dirname, '../../../..')
 const PROJECT = 'repibot-e2e'
 const ENV_FILE = 'frontend/apps/web/e2e/stack.env'
@@ -72,4 +74,5 @@ export default async function globalSetup(): Promise<void> {
   await waitFor(`${WEB_URL}/health`, 'API')
   await waitFor(`${WEB_URL}/login`, 'веб-приложение')
   await waitFor(`${MAILPIT_URL}/api/v1/info`, 'Mailpit')
+  seed()
 }
