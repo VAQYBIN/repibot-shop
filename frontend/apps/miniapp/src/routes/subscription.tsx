@@ -11,7 +11,7 @@ import { createRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { useLanguage } from '../api'
-import { Loading, Retry } from './index'
+import { Loading, Retry } from '../auth-fallback'
 import { rootRoute } from './root'
 
 interface CurrentSubscription {
@@ -22,10 +22,17 @@ interface CurrentSubscription {
   subscription_url: string | null
 }
 
-function errorText(error: unknown, language: Language): string {
+function mutationErrorText(error: unknown, language: Language): string {
   if (error instanceof Error && error.message !== '') return error.message
   const code = (error as { error?: { code?: string } } | undefined)?.error?.code
   return translate(language, errorMessageKey(code))
+}
+
+function queryErrorText(error: unknown, language: Language): string {
+  const code = (error as { error?: { code?: string } } | undefined)?.error?.code
+  return code === undefined
+    ? translate(language, 'common.error')
+    : translate(language, errorMessageKey(code))
 }
 
 function planName(subscription: CurrentSubscription, language: Language): string {
@@ -148,7 +155,7 @@ export function Subscription() {
     return (
       <Retry
         language={language}
-        message={errorText(subscription.error, language)}
+        message={queryErrorText(subscription.error, language)}
         onRetry={() => void subscription.refetch()}
       />
     )
@@ -179,7 +186,7 @@ export function Subscription() {
 
       {trial.error === null ? null : (
         <p role="alert" className="text-sm text-danger">
-          {errorText(trial.error, language)}
+          {mutationErrorText(trial.error, language)}
         </p>
       )}
     </main>

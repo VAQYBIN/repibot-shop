@@ -129,4 +129,20 @@ describe('устройства в MiniApp', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Повторить' }))
     expect(await screen.findByText('iPhone 15')).toBeVisible()
   })
+
+  it('не выводит внутренний Error вместо локализованной ошибки', async () => {
+    withRussianLocale()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (request: Request) => {
+        if (new URL(request.url).pathname === '/api/me') return Response.json(PROFILE)
+        throw new Error('raw panel transport details')
+      }),
+    )
+
+    renderWithProviders(<Devices />)
+
+    expect(await screen.findByText('Что-то пошло не так')).toBeVisible()
+    expect(screen.queryByText(/transport details/i)).not.toBeInTheDocument()
+  })
 })

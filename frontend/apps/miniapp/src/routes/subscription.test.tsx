@@ -127,4 +127,21 @@ describe('подписка в MiniApp', () => {
     expect(await screen.findByRole('heading', { name: 'Месяц' })).toBeVisible()
     view.unmount()
   })
+
+  it('не показывает читателю внутренний Error из запроса', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (request: Request) => {
+        if (new URL(request.url).pathname === '/api/me') {
+          return Response.json({ ...PROFILE, language: 'en' })
+        }
+        throw new Error('upstream socket exposed a secret path')
+      }),
+    )
+
+    renderWithProviders(<Subscription />)
+
+    expect(await screen.findByText('Something went wrong')).toBeVisible()
+    expect(screen.queryByText(/secret path/i)).not.toBeInTheDocument()
+  })
 })

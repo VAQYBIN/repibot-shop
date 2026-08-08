@@ -10,7 +10,7 @@ import { createRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { useLanguage } from '../api'
-import { Loading, Retry } from './index'
+import { Loading, Retry } from '../auth-fallback'
 import { rootRoute } from './root'
 
 interface Device {
@@ -20,10 +20,17 @@ interface Device {
   os_version: string | null
 }
 
-function errorText(error: unknown, language: Language): string {
+function mutationErrorText(error: unknown, language: Language): string {
   if (error instanceof Error && error.message !== '') return error.message
   const code = (error as { error?: { code?: string } } | undefined)?.error?.code
   return translate(language, errorMessageKey(code))
+}
+
+function queryErrorText(error: unknown, language: Language): string {
+  const code = (error as { error?: { code?: string } } | undefined)?.error?.code
+  return code === undefined
+    ? translate(language, 'common.error')
+    : translate(language, errorMessageKey(code))
 }
 
 function deviceName(device: Device, language: Language): string {
@@ -41,7 +48,7 @@ export function Devices() {
     return (
       <Retry
         language={language}
-        message={errorText(devices.error, language)}
+        message={queryErrorText(devices.error, language)}
         onRetry={() => void devices.refetch()}
       />
     )
@@ -68,7 +75,7 @@ export function Devices() {
 
         {unlink.error === null ? null : (
           <p role="alert" className="mt-3 text-sm text-danger">
-            {errorText(unlink.error, language)}
+            {mutationErrorText(unlink.error, language)}
           </p>
         )}
 
