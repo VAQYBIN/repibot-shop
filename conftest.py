@@ -369,3 +369,15 @@ async def telegram_user_headers(api_client: AsyncClient) -> dict[str, str]:
     привязки не нужно — именно такой аккаунт и имеет право на триал.
     """
     return await _telegram_token_headers(api_client, TELEGRAM_USER_ID)
+
+
+@pytest_asyncio.fixture
+async def trial_subscriber(
+    api_client: AsyncClient,
+    telegram_user_headers: dict[str, str],
+    trial_plan: int,
+) -> str:
+    """Пользователь с активным триалом для сценариев кабинета."""
+    response = await api_client.post("/api/me/subscription/trial", headers=telegram_user_headers)
+    assert response.status_code == 201
+    return str(response.json()["subscription"]["subscription_url"])

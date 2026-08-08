@@ -943,6 +943,82 @@
         }
       }
     },
+    "/api/me/devices": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "My Devices",
+        "operationId": "my_devices_api_me_devices_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/devices/unlink": {
+      "post": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Unlink Device",
+        "operationId": "unlink_device_api_me_devices_unlink_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnlinkDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/traffic": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "My Traffic",
+        "operationId": "my_traffic_api_me_traffic_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrafficResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/whoami": {
       "get": {
         "tags": [
@@ -1280,6 +1356,87 @@
           "email"
         ],
         "title": "ChangeEmailRequest"
+      },
+      "DeviceResponse": {
+        "properties": {
+          "hwid": {
+            "type": "string",
+            "title": "Hwid"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "device_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Model"
+          },
+          "os_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hwid",
+          "platform",
+          "device_model",
+          "os_version",
+          "created_at"
+        ],
+        "title": "DeviceResponse"
+      },
+      "DevicesResponse": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceResponse"
+            },
+            "type": "array",
+            "title": "Devices"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "used": {
+            "type": "integer",
+            "title": "Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "devices",
+          "limit",
+          "used"
+        ],
+        "title": "DevicesResponse"
       },
       "EmailRequest": {
         "properties": {
@@ -2112,6 +2269,71 @@
           "expires_in"
         ],
         "title": "TokenResponse"
+      },
+      "TrafficDayResponse": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "used_bytes"
+        ],
+        "title": "TrafficDayResponse"
+      },
+      "TrafficResponse": {
+        "properties": {
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes"
+          },
+          "lifetime_bytes": {
+            "type": "integer",
+            "title": "Lifetime Bytes"
+          },
+          "limit_bytes": {
+            "type": "integer",
+            "title": "Limit Bytes"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TrafficDayResponse"
+            },
+            "type": "array",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "used_bytes",
+          "lifetime_bytes",
+          "limit_bytes",
+          "days"
+        ],
+        "title": "TrafficResponse"
+      },
+      "UnlinkDeviceRequest": {
+        "properties": {
+          "hwid": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Hwid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hwid"
+        ],
+        "title": "UnlinkDeviceRequest"
       },
       "UpdateMeRequest": {
         "properties": {

@@ -11,7 +11,7 @@ import secrets
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,7 @@ from repibot_api.deps import (
     get_redis,
 )
 from repibot_api.errors import ApiError, api_error_from
+from repibot_api.limits import enforce
 from repibot_api.origins import allowed_origins
 from repibot_api.schemas import (
     AcceptedResponse,
@@ -58,8 +59,6 @@ from repibot_core.ratelimit import (
     OIDC_START_PER_IP,
     PASSKEY_PER_IP,
     REGISTER_PER_IP,
-    RateLimiter,
-    Rule,
 )
 from repibot_core.security.pkce import code_challenge, generate_code_verifier
 from repibot_core.services.auth.passkey import PasskeyAuth
@@ -76,17 +75,6 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # Десять минут на дорогу до Telegram и обратно: человек успевает подтвердить
 # вход в другом приложении, а брошенная попытка не висит в Valkey сутками.
 STATE_TTL_SECONDS = 600
-
-
-async def _enforce(redis: Redis, key: str, rule: Rule) -> None:
-    result = await RateLimiter(redis).hit(key, rule)
-    if not result.allowed:
-        raise ApiError(
-            "слишком часто",
-            status.HTTP_429_TOO_MANY_REQUESTS,
-            "rate_limited",
-            {"Retry-After": str(result.retry_after_seconds)},
-        )
 
 
 def _services(
@@ -117,7 +105,7 @@ async def register(
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> AcceptedResponse:
     ip = client_ip(request)
-    await _enforce(redis, f"register:ip:{ip}", REGISTER_PER_IP)
+    await enforce(redis, f"register:ip:{ip}", REGISTER_PER_IP)
 
     _, letters, _ = _services(session, principals)
     try:
@@ -160,8 +148,8 @@ async def resend_verification(
     principals: Annotated[PrincipalCache, Depends(get_principals)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> AcceptedResponse:
-    await _enforce(redis, f"letter:email:{payload.email}", LETTER_PER_EMAIL)
-    await _enforce(redis, f"letter:ip:{client_ip(request)}", LETTER_PER_IP)
+    await enforce(redis, f"letter:email:{payload.email}", LETTER_PER_EMAIL)
+    await enforce(redis, f"letter:ip:{client_ip(request)}", LETTER_PER_IP)
 
     _, letters, _ = _services(session, principals)
     await letters.resend_verification(payload.email)
@@ -177,8 +165,8 @@ async def login(
     principals: Annotated[PrincipalCache, Depends(get_principals)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> TokenResponse:
-    await _enforce(redis, f"login:ip:{client_ip(request)}", LOGIN_PER_IP)
-    await _enforce(redis, f"login:email:{payload.email}", LOGIN_PER_EMAIL)
+    await enforce(redis, f"login:ip:{client_ip(request)}", LOGIN_PER_IP)
+    await enforce(redis, f"login:email:{payload.email}", LOGIN_PER_EMAIL)
 
     _, letters, _ = _services(session, principals)
     try:
@@ -246,8 +234,8 @@ async def forgot_password(
     principals: Annotated[PrincipalCache, Depends(get_principals)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> AcceptedResponse:
-    await _enforce(redis, f"letter:email:{payload.email}", LETTER_PER_EMAIL)
-    await _enforce(redis, f"letter:ip:{client_ip(request)}", LETTER_PER_IP)
+    await enforce(redis, f"letter:email:{payload.email}", LETTER_PER_EMAIL)
+    await enforce(redis, f"letter:ip:{client_ip(request)}", LETTER_PER_IP)
 
     _, letters, _ = _services(session, principals)
     await letters.request_reset(payload.email)
@@ -304,7 +292,7 @@ async def login_from_miniapp(
     principals: Annotated[PrincipalCache, Depends(get_principals)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> TokenResponse:
-    await _enforce(redis, f"miniapp:ip:{client_ip(request)}", MINIAPP_PER_IP)
+    await enforce(redis, f"miniapp:ip:{client_ip(request)}", MINIAPP_PER_IP)
 
     _, _, telegram = _services(session, principals)
     try:
@@ -327,7 +315,7 @@ async def passkey_login_options(
     principals: Annotated[PrincipalCache, Depends(get_principals)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> PasskeyOptionsResponse:
-    await _enforce(redis, f"passkey:ip:{client_ip(request)}", PASSKEY_PER_IP)
+    await enforce(redis, f"passkey:ip:{client_ip(request)}", PASSKEY_PER_IP)
     options = await _passkeys(session, principals, redis).login_options()
     return PasskeyOptionsResponse(options=options)
 
@@ -386,7 +374,7 @@ async def telegram_start(
     # публичный: без предела аноним набивает память. Превышение уходит обычной
     # ошибкой API, а не редиректом на страницу входа — отказ обслужить запрос
     # не является закончившейся попыткой входа.
-    await _enforce(redis, f"oidc:start:ip:{client_ip(request)}", OIDC_START_PER_IP)
+    await enforce(redis, f"oidc:start:ip:{client_ip(request)}", OIDC_START_PER_IP)
 
     settings = get_settings()
     async with oidc_http_client() as client:

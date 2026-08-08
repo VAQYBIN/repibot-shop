@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
@@ -227,3 +227,35 @@ class SubscriptionStateResponse(BaseModel):
 
     subscription: SubscriptionResponse | None
     trial_available: bool
+
+
+class DeviceResponse(BaseModel):
+    hwid: str
+    platform: str | None
+    device_model: str | None
+    os_version: str | None
+    created_at: datetime
+
+
+class DevicesResponse(BaseModel):
+    devices: list[DeviceResponse]
+    limit: int
+    used: int
+
+
+class UnlinkDeviceRequest(BaseModel):
+    # В теле, а не в пути: hwid приходит от клиента произвольной строкой и в
+    # сегменте адреса ломается.
+    hwid: str = Field(min_length=1, max_length=255)
+
+
+class TrafficDayResponse(BaseModel):
+    day: date
+    used_bytes: int
+
+
+class TrafficResponse(BaseModel):
+    used_bytes: int
+    lifetime_bytes: int
+    limit_bytes: int
+    days: list[TrafficDayResponse]

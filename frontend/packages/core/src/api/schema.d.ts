@@ -515,6 +515,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Devices */
+        get: operations["my_devices_api_me_devices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/devices/unlink": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unlink Device */
+        post: operations["unlink_device_api_me_devices_unlink_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/traffic": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Traffic */
+        get: operations["my_traffic_api_me_traffic_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/whoami": {
         parameters: {
             query?: never;
@@ -663,6 +714,31 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /** DeviceResponse */
+        DeviceResponse: {
+            /** Hwid */
+            hwid: string;
+            /** Platform */
+            platform: string | null;
+            /** Device Model */
+            device_model: string | null;
+            /** Os Version */
+            os_version: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** DevicesResponse */
+        DevicesResponse: {
+            /** Devices */
+            devices: components["schemas"]["DeviceResponse"][];
+            /** Limit */
+            limit: number;
+            /** Used */
+            used: number;
         };
         /** EmailRequest */
         EmailRequest: {
@@ -1021,6 +1097,32 @@ export interface components {
             access_token: string;
             /** Expires In */
             expires_in: number;
+        };
+        /** TrafficDayResponse */
+        TrafficDayResponse: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Used Bytes */
+            used_bytes: number;
+        };
+        /** TrafficResponse */
+        TrafficResponse: {
+            /** Used Bytes */
+            used_bytes: number;
+            /** Lifetime Bytes */
+            lifetime_bytes: number;
+            /** Limit Bytes */
+            limit_bytes: number;
+            /** Days */
+            days: components["schemas"]["TrafficDayResponse"][];
+        };
+        /** UnlinkDeviceRequest */
+        UnlinkDeviceRequest: {
+            /** Hwid */
+            hwid: string;
         };
         /** UpdateMeRequest */
         UpdateMeRequest: {
@@ -1883,6 +1985,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubscriptionStateResponse"];
+                };
+            };
+        };
+    };
+    my_devices_api_me_devices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevicesResponse"];
+                };
+            };
+        };
+    };
+    unlink_device_api_me_devices_unlink_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnlinkDeviceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_traffic_api_me_traffic_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrafficResponse"];
                 };
             };
         };

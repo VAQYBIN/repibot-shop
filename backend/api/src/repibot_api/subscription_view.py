@@ -16,16 +16,22 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 
 from fastapi import Depends
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from repibot_api.deps import db_session
+from repibot_api.deps import db_session, get_redis
 from repibot_api.schemas import SubscriptionResponse
 from repibot_core.integrations.remnawave.client import RemnawaveClient, create_remnawave_client
+from repibot_core.integrations.remnawave.devices import PanelDevices
 from repibot_core.integrations.remnawave.squads import PanelSquads
+from repibot_core.integrations.remnawave.stats import PanelStats
 from repibot_core.integrations.remnawave.users import PanelUsers
+from repibot_core.services.devices import DeviceService
+from repibot_core.services.panel_cache import PanelCache
 from repibot_core.services.plans import PlanService
 from repibot_core.services.provisioning import ProvisioningService
 from repibot_core.services.subscriptions import SubscriptionService, SubscriptionView
+from repibot_core.services.traffic import TrafficService
 from repibot_core.settings import get_settings
 
 
@@ -61,6 +67,37 @@ async def subscription_service(
     try:
         yield SubscriptionService(
             session, get_settings(), ProvisioningService(session, PanelUsers(client))
+        )
+    finally:
+        await client.aclose()
+
+
+async def device_service(
+    session: Annotated[AsyncSession, Depends(db_session)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> AsyncIterator[DeviceService]:
+    client = panel_client()
+    try:
+        yield DeviceService(
+            session,
+            PanelDevices(client),
+            PanelCache(redis, get_settings().panel_cache_ttl_seconds),
+        )
+    finally:
+        await client.aclose()
+
+
+async def traffic_service(
+    session: Annotated[AsyncSession, Depends(db_session)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> AsyncIterator[TrafficService]:
+    client = panel_client()
+    try:
+        yield TrafficService(
+            session,
+            PanelUsers(client),
+            PanelStats(client),
+            PanelCache(redis, get_settings().panel_cache_ttl_seconds),
         )
     finally:
         await client.aclose()
