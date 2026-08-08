@@ -5,15 +5,23 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from asyncio import Barrier, create_task, gather, sleep
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from fakeredis.aioredis import FakeRedis
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from repibot_core.db.models import OutboxMessage, SubscriptionSource, TrafficResetStrategy, User
+from repibot_core.db.engine import create_session_factory
+from repibot_core.db.models import (
+    OutboxMessage,
+    SubscriptionSource,
+    TrafficResetStrategy,
+    User,
+    WebhookEvent,
+)
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
 from repibot_core.domain.subscriptions import SubscriptionState
@@ -105,6 +113,55 @@ async def test_repeated_delivery_is_ignored(db_session: AsyncSession) -> None:
 
     assert await service.handle(_event("user.revoked")) is True
     assert await service.handle(_event("user.revoked")) is False
+
+
+@docker
+async def test_concurrent_delivery_is_stored_and_processed_once(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Одинаковые доставки на разных соединениях не ломают приём вебхука."""
+    await _subscriber(db_session)
+    factory = create_session_factory(engine)
+    ready = Barrier(2)
+
+    async def deliver() -> bool:
+        async with factory() as session:
+            await ready.wait()
+            return await PanelWebhookService(
+                session, PanelCache(FakeRedis(), ttl_seconds=60)
+            ).handle(_event("user.revoked"))
+
+    async with factory() as lock_session:
+        # SHARE ROW EXCLUSIVE не мешает SELECT из старого алгоритма, но держит
+        # оба его INSERT. Поэтому к моменту снятия lock обе сессии уже увидели
+        # отсутствие события и воспроизводят реальную гонку без mock'ов.
+        await lock_session.execute(text("LOCK TABLE webhook_events IN SHARE ROW EXCLUSIVE MODE"))
+        deliveries = [create_task(deliver()) for _ in range(2)]
+        try:
+            for _ in range(500):
+                waiting = await lock_session.scalar(
+                    text(
+                        "SELECT count(*) FROM pg_locks "
+                        "WHERE relation = 'webhook_events'::regclass AND NOT granted"
+                    )
+                )
+                if waiting == 2:
+                    break
+                await sleep(0.01)
+            else:
+                raise AssertionError("доставки не дошли до конфликтующих INSERT")
+        finally:
+            await lock_session.rollback()
+
+    outcomes = await gather(*deliveries)
+
+    assert sorted(outcomes) == [False, True]
+    async with factory() as session:
+        events = (await session.execute(select(WebhookEvent))).scalars().all()
+        messages = (await session.execute(select(OutboxMessage))).scalars().all()
+    assert len(events) == 1
+    assert events[0].processed_at is not None
+    assert [message.topic for message in messages] == [TOPIC_PROVISION]
 
 
 @docker

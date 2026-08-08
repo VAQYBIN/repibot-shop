@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import WebhookEvent, WebhookSource
@@ -26,22 +26,24 @@ class WebhookRepository:
     ) -> WebhookEvent | None:
         """Записывает событие. `None` — такое уже принимали.
 
-        Проверка запросом, а не перехватом ошибки уникальности: перехват
-        оставил бы транзакцию в состоянии отката, и обработчику пришлось бы
-        начинать её заново ради заведомо ненужной работы.
+        Один INSERT с ON CONFLICT не оставляет проигравшую транзакцию в
+        состоянии отката. Разделённые SELECT и INSERT позволяли двум
+        одновременным доставкам увидеть отсутствие строки и столкнуться на
+        уникальном индексе.
         """
-        statement = select(WebhookEvent).where(
-            WebhookEvent.source == source, WebhookEvent.event_id == event_id
+        statement = (
+            insert(WebhookEvent)
+            .values(
+                source=source,
+                event_id=event_id,
+                event=event,
+                payload=payload,
+                received_at=now,
+            )
+            .on_conflict_do_nothing(constraint="uq_webhook_events_source_id")
+            .returning(WebhookEvent)
         )
-        if (await self._session.execute(statement)).scalar_one_or_none() is not None:
-            return None
-
-        row = WebhookEvent(
-            source=source, event_id=event_id, event=event, payload=payload, received_at=now
-        )
-        self._session.add(row)
-        await self._session.flush()
-        return row
+        return (await self._session.execute(statement)).scalar_one_or_none()
 
     async def mark_processed(self, event: WebhookEvent, now: datetime) -> None:
         """Отмечает событие разобранным.
