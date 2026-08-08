@@ -12,6 +12,7 @@ import { AuthGuard } from './auth-guard'
 
 const LINKS = [
   { href: '/account', key: 'account.title' },
+  { href: '/account/subscription', key: 'subscription.title' },
   { href: '/account/security', key: 'account.security' },
 ] as const
 
@@ -36,7 +37,7 @@ function AccountFrame({ children }: { children: ReactNode }) {
         </Button>
       </header>
 
-      <nav aria-label={t('account.title')} className="flex gap-2">
+      <nav aria-label={t('account.title')} className="flex flex-wrap gap-2">
         {LINKS.map((link) => {
           const current = pathname === link.href
           return (
