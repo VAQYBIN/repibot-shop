@@ -2511,7 +2511,8 @@ git commit -m "feat: витрина тарифов в вебе"
 **Перед написанием кода прочитать руководство Next.js 16** в `node_modules/next/dist/docs/`.
 
 **Интерфейсы:**
-- Потребляет: `useSubscription`, `useActivateTrial`, `useDevices`, `useUnlinkDevice`, `useTraffic`, `formatBytes` (задача 11); `PlanCard` (задача 12).
+- Потребляет: `useSubscription`, `useActivateTrial`, `useDevices`, `useUnlinkDevice`, `useTraffic`, `formatBytes` (задача 11); специализированную `SubscriptionCard`.
+- `PlanCard` из задачи 12 здесь намеренно не используется: текущий API подписки не содержит достоверного immutable snapshot цены, описания и полного срока тарифа. Подставлять текущий каталог или выдуманные значения нельзя — они могут не совпасть с условиями уже купленной подписки.
 - Зависимость `qrcode` уже установлена ведущим.
 
 - [ ] **Шаг 1: Написать падающий тест**

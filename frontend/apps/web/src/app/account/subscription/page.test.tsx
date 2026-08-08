@@ -97,7 +97,43 @@ describe('подписка в кабинете', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Скопировано')
   })
 
+  it.each([
+    ['не поддерживается', undefined],
+    ['отказывает', vi.fn(async () => Promise.reject(new Error('clipboard denied')))],
+  ])('объясняет ошибку, когда clipboard %s', async (_case, writeText) => {
+    vi.stubGlobal('navigator', {
+      language: navigator.language,
+      languages: navigator.languages,
+      clipboard: writeText === undefined ? undefined : { writeText },
+    })
+    renderWithProviders(<Page />, { handlers: fullHandlers() })
+
+    const subscription = await screen.findByRole('region', { name: 'Месяц' })
+    await userEvent.click(within(subscription).getByRole('button', { name: 'Скопировать' }))
+
+    expect(await within(subscription).findByRole('alert')).toHaveTextContent('Что-то пошло не так')
+  })
+
+  it('объясняет отказ генерации QR и оставляет ссылку доступной', async () => {
+    const url = `https://panel.example.org/sub/${'a'.repeat(5000)}`
+    renderWithProviders(<Page />, {
+      handlers: fullHandlers({
+        '/api/me/subscription': {
+          subscription: { ...ACTIVE.subscription, subscription_url: url },
+          trial_available: false,
+        },
+      }),
+    })
+
+    const subscription = await screen.findByRole('region', { name: 'Месяц' })
+    expect(await within(subscription).findByRole('alert')).toHaveTextContent(
+      'Не удалось создать QR-код. Скопируйте ссылку подключения.',
+    )
+    expect(within(subscription).getByRole('link', { name: url })).toBeVisible()
+  })
+
   it('объясняет ожидание вместо пустого экрана', async () => {
+    const panelRequests: string[] = []
     renderWithProviders(<Page />, {
       handlers: fullHandlers({
         '/api/me/subscription': {
@@ -108,12 +144,23 @@ describe('подписка в кабинете', () => {
           },
           trial_available: false,
         },
+        '/api/me/devices': (request: Request) => {
+          panelRequests.push(request.url)
+          return DEVICES
+        },
+        '/api/me/traffic': (request: Request) => {
+          panelRequests.push(request.url)
+          return TRAFFIC
+        },
       }),
     })
 
     expect(await screen.findByText('Выдаём доступ')).toBeVisible()
     expect(screen.getByText('Доступ появится через несколько минут')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Скопировать' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Трафик' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Устройства' })).not.toBeInTheDocument()
+    expect(panelRequests).toHaveLength(0)
   })
 
   it.each([
@@ -152,14 +199,26 @@ describe('подписка в кабинете', () => {
   })
 
   it('не предлагает триал, если право уже использовано', async () => {
+    const panelRequests: string[] = []
     renderWithProviders(<Page />, {
       handlers: fullHandlers({
         '/api/me/subscription': { subscription: null, trial_available: false },
+        '/api/me/devices': (request: Request) => {
+          panelRequests.push(request.url)
+          return DEVICES
+        },
+        '/api/me/traffic': (request: Request) => {
+          panelRequests.push(request.url)
+          return TRAFFIC
+        },
       }),
     })
 
     expect(await screen.findByText('Подписки пока нет')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Попробовать бесплатно' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Трафик' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Устройства' })).not.toBeInTheDocument()
+    expect(panelRequests).toHaveLength(0)
   })
 
   it('сохраняет подписку и трафик, когда устройства недоступны', async () => {
@@ -173,7 +232,7 @@ describe('подписка в кабинете', () => {
     })
 
     expect(await screen.findByText('Месяц')).toBeVisible()
-    expect(screen.getByText('Использовано')).toBeVisible()
+    expect(await screen.findByText('Использовано')).toBeVisible()
     const devices = screen.getByRole('region', { name: 'Устройства' })
     expect(within(devices).getByRole('alert')).toHaveTextContent(
       'Панель устройств сейчас недоступна',
@@ -191,7 +250,7 @@ describe('подписка в кабинете', () => {
     })
 
     expect(await screen.findByText('Месяц')).toBeVisible()
-    expect(screen.getByText('iPhone 15')).toBeVisible()
+    expect(await screen.findByText('iPhone 15')).toBeVisible()
     const traffic = screen.getByRole('region', { name: 'Трафик' })
     expect(within(traffic).getByRole('alert')).toHaveTextContent(
       'Панель устройств сейчас недоступна',
@@ -229,6 +288,23 @@ describe('подписка в кабинете', () => {
 
     expect(await screen.findByText('Устройств пока нет')).toBeVisible()
     expect(screen.getByText(/Безлимитный/)).toBeVisible()
+  })
+
+  it('объясняет пустую историю трафика без пустого блока', async () => {
+    renderWithProviders(<Page />, {
+      handlers: fullHandlers({
+        '/api/me/traffic': {
+          used_bytes: 0,
+          lifetime_bytes: 0,
+          limit_bytes: TRAFFIC.limit_bytes,
+          days: [],
+        },
+      }),
+    })
+
+    const traffic = await screen.findByRole('region', { name: 'Трафик' })
+    expect(await within(traffic).findByText('Трафик пока не использован')).toBeVisible()
+    expect(within(traffic).getByText(/0 Б \/ 10 ГБ/)).toBeVisible()
   })
 
   it('показывает загрузку, а отказ подписки — как доступную ошибку', async () => {

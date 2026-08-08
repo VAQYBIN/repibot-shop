@@ -21,6 +21,8 @@ interface SubscriptionCardProps {
   language: Language
 }
 
+type QrState = { status: 'loading' } | { status: 'ready'; svg: string } | { status: 'error' }
+
 function planName(subscription: Subscription, language: Language): string {
   return (
     subscription.plan_name[language] ??
@@ -52,18 +54,23 @@ function isUsable(status: string): boolean {
 }
 
 export function SubscriptionCard({ subscription, language }: SubscriptionCardProps) {
-  const [qr, setQr] = useState<string | null>(null)
+  const [qr, setQr] = useState<QrState>({ status: 'loading' })
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const url = isUsable(subscription.status) ? subscription.subscription_url : null
 
   useEffect(() => {
     let current = true
-    setQr(null)
+    setQr({ status: 'loading' })
 
     if (url !== null) {
-      QRCode.toString(url, { type: 'svg', margin: 1 }).then((svg) => {
-        if (current) setQr(svg)
-      })
+      QRCode.toString(url, { type: 'svg', margin: 1 }).then(
+        (svg) => {
+          if (current) setQr({ status: 'ready', svg })
+        },
+        () => {
+          if (current) setQr({ status: 'error' })
+        },
+      )
     }
 
     return () => {
@@ -139,19 +146,25 @@ export function SubscriptionCard({ subscription, language }: SubscriptionCardPro
             </div>
           </div>
 
-          {qr === null ? (
+          {qr.status === 'loading' ? (
             <div
               role="status"
               aria-label={translate(language, 'subscription.qr')}
               className="aspect-square rounded-md bg-surface-sunken"
             />
+          ) : qr.status === 'error' ? (
+            <p role="alert" className="rounded-md bg-surface-sunken p-3 text-sm text-danger">
+              {language === 'ru'
+                ? 'Не удалось создать QR-код. Скопируйте ссылку подключения.'
+                : 'Could not create the QR code. Copy the connection link instead.'}
+            </p>
           ) : (
             <div
               role="img"
               aria-label={translate(language, 'subscription.qr')}
               className="aspect-square overflow-hidden rounded-md bg-white p-2 [&_svg]:h-full [&_svg]:w-full"
               // biome-ignore lint/security/noDangerouslySetInnerHtml: qrcode создаёт SVG локально из экранированной строки URL.
-              dangerouslySetInnerHTML={{ __html: qr }}
+              dangerouslySetInnerHTML={{ __html: qr.svg }}
             />
           )}
         </div>

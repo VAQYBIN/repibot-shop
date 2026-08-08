@@ -59,6 +59,12 @@ export function TrafficBar({ language }: TrafficBarProps) {
             </div>
           )}
 
+          {traffic.data.used_bytes === 0 && traffic.data.days.length === 0 ? (
+            <p className="mt-4 text-sm text-text-secondary">
+              {language === 'ru' ? 'Трафик пока не использован' : 'No traffic used yet'}
+            </p>
+          ) : null}
+
           {traffic.data.days.length === 0 ? null : (
             <div className="mt-5 border-t border-border-subtle pt-4">
               <p className="text-xs text-text-secondary">

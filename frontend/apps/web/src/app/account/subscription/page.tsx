@@ -13,6 +13,11 @@ export default function SubscriptionPage() {
   const t = useTranslate(language)
   const subscription = useSubscription()
   const trial = useActivateTrial(language)
+  const current = subscription.data?.subscription
+  // В публичном ответе нет remnawave_id. Единственный доступный клиенту
+  // признак незавершённого provisioning — сам статус pending_provision.
+  const panelAvailable =
+    current !== undefined && current !== null && current.status !== 'pending_provision'
 
   return (
     <main className="flex flex-col gap-4">
@@ -47,8 +52,12 @@ export default function SubscriptionPage() {
         </p>
       )}
 
-      <TrafficBar language={language} />
-      <DeviceList language={language} />
+      {panelAvailable ? (
+        <>
+          <TrafficBar language={language} />
+          <DeviceList language={language} />
+        </>
+      ) : null}
     </main>
   )
 }
