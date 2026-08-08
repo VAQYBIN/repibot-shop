@@ -17,6 +17,7 @@ from repibot_api.routers.admin import router as admin_router
 from repibot_api.routers.auth import router as auth_router
 from repibot_api.routers.me import router as me_router
 from repibot_api.routers.subscription import router as subscription_router
+from repibot_api.routers.webhooks import router as webhooks_router
 from repibot_core.logging import configure_logging
 from repibot_core.queue import broker
 from repibot_core.settings import get_settings
@@ -63,6 +64,7 @@ def create_app() -> FastAPI:
     app.include_router(me_router)
     app.include_router(subscription_router)
     app.include_router(admin_router)
+    app.include_router(webhooks_router)
     return app
 
 

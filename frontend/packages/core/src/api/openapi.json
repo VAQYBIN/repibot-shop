@@ -1269,6 +1269,20 @@
           }
         }
       }
+    },
+    "/webhook/remnawave": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Remnawave Webhook",
+        "operationId": "remnawave_webhook_webhook_remnawave_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
     }
   },
   "components": {

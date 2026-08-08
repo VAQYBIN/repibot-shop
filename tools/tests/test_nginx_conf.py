@@ -40,7 +40,13 @@ def locations(conf: str) -> dict[str, str]:
 
 @pytest.mark.parametrize(
     ("location", "upstream"),
-    [("/api", "api"), ("/app/", None), ("= /webhook/telegram", "bot"), ("/", "web")],
+    [
+        ("/api", "api"),
+        ("/app/", None),
+        ("= /webhook/telegram", "bot"),
+        ("= /webhook/remnawave", "api"),
+        ("/", "web"),
+    ],
 )
 def test_routes_are_declared(
     locations: dict[str, str], conf: str, location: str, upstream: str | None
