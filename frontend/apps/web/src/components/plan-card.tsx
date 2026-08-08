@@ -46,6 +46,17 @@ function rublePrice(value: string, language: Language): string {
   return new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(number)
 }
 
+const STAR_LABELS: Record<Language, Partial<Record<Intl.LDMLPluralRule, string>>> = {
+  ru: { one: 'звезда', few: 'звезды', many: 'звёзд', other: 'звёзд' },
+  en: { one: 'star', other: 'stars' },
+}
+
+function starsPrice(value: number, language: Language): string {
+  const category = new Intl.PluralRules(language).select(value)
+  const label = STAR_LABELS[language][category] ?? STAR_LABELS[language].other
+  return `${new Intl.NumberFormat(language).format(value)} ${label}`
+}
+
 export function PlanCard({ plan, language }: PlanCardProps) {
   const name = localizedText(plan.name, language, plan.code)
   const description =
@@ -86,9 +97,7 @@ export function PlanCard({ plan, language }: PlanCardProps) {
             <p className="text-3xl font-semibold tracking-[-0.02em] text-text">
               {rublePrice(plan.price_rub, language)} {translate(language, 'plans.price_rub')}
             </p>
-            <p className="text-sm text-text-secondary">
-              {plan.price_stars} {translate(language, 'plans.price_stars')}
-            </p>
+            <p className="text-sm text-text-secondary">{starsPrice(plan.price_stars, language)}</p>
           </div>
         )}
       </div>
