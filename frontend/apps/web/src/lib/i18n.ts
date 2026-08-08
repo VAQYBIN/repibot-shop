@@ -40,7 +40,11 @@ export function useProfileLanguage(): Language {
 
 function useDocumentLanguage(language: Language): void {
   useEffect(() => {
+    const previous = document.documentElement.lang || 'ru'
     document.documentElement.lang = language
+    return () => {
+      document.documentElement.lang = previous
+    }
   }, [language])
 }
 

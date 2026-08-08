@@ -1,7 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/providers'
+import HomePage from '../page'
 import Page from './page'
 
 const paidPlan = {
@@ -29,6 +31,20 @@ const trialPlan = {
   hwid_device_limit: 1,
   is_trial: true,
 } as const
+
+function RouteSequence() {
+  const [route, setRoute] = useState<'plans' | 'home'>('plans')
+  return route === 'plans' ? (
+    <>
+      <Page />
+      <button type="button" onClick={() => setRoute('home')}>
+        На главную
+      </button>
+    </>
+  ) : (
+    <HomePage />
+  )
+}
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -123,5 +139,23 @@ describe('витрина тарифов', () => {
 
     expect(await screen.findByRole('heading', { name: 'Plans' })).toBeVisible()
     await waitFor(() => expect(document.documentElement.lang).toBe('en'))
+  })
+
+  it('возвращает русский язык документа после ухода с английской витрины', async () => {
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      languages: ['en-US', 'en'],
+      language: 'en-US',
+    })
+    document.documentElement.lang = 'ru'
+
+    renderWithProviders(<RouteSequence />, { handlers: { '/api/plans': [] } })
+    expect(await screen.findByRole('heading', { name: 'Plans' })).toBeVisible()
+    await waitFor(() => expect(document.documentElement.lang).toBe('en'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'На главную' }))
+
+    expect(await screen.findByText('Магазин ещё готовится')).toBeVisible()
+    expect(document.documentElement.lang).toBe('ru')
   })
 })

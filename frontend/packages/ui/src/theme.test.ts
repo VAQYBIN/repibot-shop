@@ -65,6 +65,30 @@ function block(selector: string): string {
   return match?.[1] ?? ''
 }
 
+function blockAfter(marker: string, selector: string): string {
+  const markerIndex = css.indexOf(marker)
+  expect(markerIndex, `в theme.css нет ${marker}`).toBeGreaterThanOrEqual(0)
+  const selectorIndex = css.indexOf(`${selector} {`, markerIndex)
+  expect(selectorIndex, `после ${marker} нет блока ${selector}`).toBeGreaterThanOrEqual(0)
+  const opening = css.indexOf('{', selectorIndex)
+  let depth = 1
+  for (let index = opening + 1; index < css.length; index += 1) {
+    if (css[index] === '{') depth += 1
+    if (css[index] === '}') depth -= 1
+    if (depth === 0) return css.slice(opening + 1, index)
+  }
+  throw new Error(`блок ${selector} не закрыт`)
+}
+
+function tokens(source: string): Record<string, string> {
+  return Object.fromEntries(
+    [...source.matchAll(/(--rp-[\w-]+):\s*([^;]+);/g)].map((match) => [
+      match[1] ?? '',
+      (match[2] ?? '').trim().toLowerCase(),
+    ]),
+  )
+}
+
 describe('токены бренда', () => {
   // Регистр hex не сверяем: форматтер Biome приводит его к нижнему, а бренд-бук
   // записан в верхнем. Значимо само значение цвета, а не его написание.
@@ -86,6 +110,11 @@ describe('токены бренда', () => {
   it('вариант dark объявлен через атрибут data-theme, а не класс', () => {
     expect(css).toContain('@custom-variant dark')
     expect(css).toContain('[data-theme="dark"]')
+  })
+
+  it('до гидратации системная dark-тема получает тот же набор токенов', () => {
+    const fallback = blockAfter('@media (prefers-color-scheme: dark)', ':root:not([data-theme])')
+    expect(tokens(fallback)).toEqual(tokens(block('[data-theme="dark"]')))
   })
 
   it('токены Tailwind ссылаются на переменные, а не на значения', () => {

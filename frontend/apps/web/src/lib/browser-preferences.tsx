@@ -6,6 +6,7 @@ import {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -23,9 +24,10 @@ interface BrowserPreferences {
 const BrowserPreferencesContext = createContext<BrowserPreferences | null>(null)
 
 export function BrowserPreferencesProvider({ children }: { children: ReactNode }) {
-  // Серверный fallback совпадает с атрибутами root layout и первым кадром.
+  // До определения JS тема остаётся без атрибута: первый paint выбирает CSS
+  // media fallback, поэтому dark-система не получает промежуточный light-кадр.
   const [language, setLanguage] = useState<Language>('ru')
-  const [theme, setTheme] = useState<Theme>('light')
+  const [resolvedTheme, setResolvedTheme] = useState<Theme | null>(null)
 
   useEffect(() => {
     setLanguage(detectLanguage(navigator.languages ?? [navigator.language]))
@@ -35,17 +37,24 @@ export function BrowserPreferencesProvider({ children }: { children: ReactNode }
     const preference = window.matchMedia?.('(prefers-color-scheme: dark)')
     if (preference === undefined) return
 
-    const syncTheme = () => setTheme(preference.matches ? 'dark' : 'light')
+    const syncTheme = () => setResolvedTheme(preference.matches ? 'dark' : 'light')
     syncTheme()
     preference.addEventListener('change', syncTheme)
     return () => preference.removeEventListener('change', syncTheme)
   }, [])
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
-  }, [theme])
+    if (resolvedTheme !== null) document.documentElement.dataset.theme = resolvedTheme
+  }, [resolvedTheme])
 
-  const value = useMemo(() => ({ language, theme, setTheme }), [language, theme])
+  const setTheme: Dispatch<SetStateAction<Theme>> = useCallback((next) => {
+    setResolvedTheme((current) => {
+      const theme = current ?? 'light'
+      return typeof next === 'function' ? next(theme) : next
+    })
+  }, [])
+  const theme = resolvedTheme ?? 'light'
+  const value = useMemo(() => ({ language, theme, setTheme }), [language, setTheme, theme])
   return (
     <BrowserPreferencesContext.Provider value={value}>
       {children}
