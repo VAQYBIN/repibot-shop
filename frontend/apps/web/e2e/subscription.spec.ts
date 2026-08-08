@@ -109,7 +109,13 @@ test('активная подписка показывает доступ, тр�
 
   await expect(page.getByRole('link', { name: panelUser.subscriptionUrl })).toBeVisible()
   await expect(page.getByText('Pixel 9')).toBeVisible()
-  await expect(page.getByText('2 КБ / 100 ГБ')).toBeVisible()
+  const traffic = page.getByRole('region', { name: 'Трафик' })
+  await expect(traffic.getByText('2 КБ / 100 ГБ', { exact: true })).toBeVisible()
+  await expect(traffic.getByText('За последние дни', { exact: true })).toBeVisible()
+  await expect(traffic.getByText('7 авг. 2026 г.', { exact: true })).toBeVisible()
+  await expect(traffic.getByText('512 Б', { exact: true })).toBeVisible()
+  await expect(traffic.getByText('8 авг. 2026 г.', { exact: true })).toBeVisible()
+  await expect(traffic.getByText('1,5 КБ', { exact: true })).toBeVisible()
   await captureVisualVariants(page, 'subscription')
 
   await page.getByRole('button', { name: 'Отвязать Pixel 9', exact: true }).click()
