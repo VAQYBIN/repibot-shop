@@ -54,6 +54,8 @@ ON CONFLICT (code) DO UPDATE SET
 `
 
 const SUBSCRIPTION_SQL = `
+BEGIN;
+
 SELECT 1 / CASE WHEN count(*) = 1 THEN 1 ELSE 0 END
 FROM users
 WHERE email = :'email';
@@ -83,6 +85,8 @@ ON CONFLICT (user_id) DO UPDATE SET
   auto_renew_enabled = EXCLUDED.auto_renew_enabled,
   source = EXCLUDED.source,
   updated_at = now();
+
+COMMIT;
 `
 
 /**

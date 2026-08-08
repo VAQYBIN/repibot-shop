@@ -65,10 +65,17 @@ async def test_seeded_user_exposes_device_traffic_and_delete_contract() -> None:
     assert response.status_code == 201
     seeded = response.json()["response"]
     assert seeded["username"] == "rp_42"
+    assert seeded["userTraffic"]["usedTrafficBytes"] == 2_048
+    assert seeded["userTraffic"]["lifetimeUsedTrafficBytes"] == 8_192
 
     panel_client = _client(app)
     devices = PanelDevices(panel_client)
     stats = PanelStats(panel_client)
+
+    found_user = await PanelUsers(panel_client).get(seeded["id"])
+    assert found_user is not None
+    assert found_user.userTraffic.usedTrafficBytes == 2_048
+    assert found_user.userTraffic.lifetimeUsedTrafficBytes == 8_192
 
     found_devices = await devices.list(seeded["id"])
     assert [(device.hwid, device.platform, device.deviceModel) for device in found_devices] == [

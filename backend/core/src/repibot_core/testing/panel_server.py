@@ -43,8 +43,10 @@ def create_panel_app() -> Starlette:
         if created.status_code >= 400:
             return _response(created)
 
-        user = created.json()["response"]
-        panel_id = int(user["id"])
+        panel_id = int(created.json()["response"]["id"])
+        # httpx.Response.json() возвращает копию: изменять нужно объект,
+        # который FakePanel затем отдаст через GET /api/users/{id}.
+        user = panel.users[panel_id]
         if device is not None:
             panel.add_device(
                 panel_id,
