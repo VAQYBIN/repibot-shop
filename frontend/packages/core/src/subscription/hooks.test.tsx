@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -123,27 +123,30 @@ describe('хуки подписки', () => {
   ] as const)(
     'опрашивает подписку %s только пока выдаётся доступ',
     async (_status, response, calls) => {
-      const requestedAt: number[] = []
       const fetchMock = vi.fn(async (_request: Request) => {
-        requestedAt.push(performance.now())
         return Response.json(response)
       })
       vi.stubGlobal('fetch', fetchMock)
+      vi.useFakeTimers()
       const { Wrapper } = createWrapper()
       const { result } = renderHook(useSubscription, { wrapper: Wrapper })
 
-      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(result.current.isSuccess).toBe(true)
       if (calls === 2) {
-        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2), { timeout: 3500 })
-        const firstRequestAt = requestedAt[0]
-        const secondRequestAt = requestedAt[1]
-        if (firstRequestAt === undefined || secondRequestAt === undefined)
-          throw new Error('нет повторного запроса pending-подписки')
-        const interval = secondRequestAt - firstRequestAt
-        expect(interval).toBeGreaterThanOrEqual(2800)
-        expect(interval).toBeLessThan(3500)
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2999)
+        })
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1)
+        })
       } else {
-        await new Promise<void>((resolve) => setTimeout(resolve, 3100))
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(6000)
+        })
       }
 
       expect(fetchMock).toHaveBeenCalledTimes(calls)
