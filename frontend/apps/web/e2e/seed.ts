@@ -109,16 +109,35 @@ export function seed(subscription?: SeededSubscription): void {
   })
 }
 
+/**
+ * Начать группу сценариев регистрации с чистым тестовым лимитом.
+ *
+ * Все браузеры отдельного compose-проекта приходят в nginx с одного адреса,
+ * поэтому семь независимых E2E-регистраций исчерпывают продуктовый лимит в
+ * пять попыток. Очищается только этот ключ и только внутри `repibot-e2e`:
+ * сессии, письма, кэши и стек разработчика не затрагиваются.
+ */
+export function resetRegistrationRateLimit(): void {
+  const script = [
+    "local keys = redis.call('keys', ARGV[1])",
+    "for _, key in ipairs(keys) do redis.call('del', key) end",
+    'return #keys',
+  ].join('; ')
+  runComposeCommand([
+    'exec',
+    '--no-TTY',
+    'valkey',
+    'valkey-cli',
+    '--raw',
+    'EVAL',
+    script,
+    '0',
+    'ratelimit:register:ip:*',
+  ])
+}
+
 function runSql(sql: string, variables: Record<string, string> = {}): void {
   const command = [
-    'compose',
-    '--project-name',
-    PROJECT,
-    '--env-file',
-    ENV_FILE,
-    ...FILES.flatMap((file) => ['--file', file]),
-    '--profile',
-    'dev',
     'exec',
     '--no-TTY',
     'postgres',
@@ -133,10 +152,25 @@ function runSql(sql: string, variables: Record<string, string> = {}): void {
     'ON_ERROR_STOP=1',
     ...Object.entries(variables).flatMap(([key, value]) => ['--set', `${key}=${value}`]),
   ]
+  runComposeCommand(command, sql)
+}
+
+function runComposeCommand(args: string[], input?: string): void {
+  const command = [
+    'compose',
+    '--project-name',
+    PROJECT,
+    '--env-file',
+    ENV_FILE,
+    ...FILES.flatMap((file) => ['--file', file]),
+    '--profile',
+    'dev',
+    ...args,
+  ]
   try {
     execFileSync('docker', command, {
       cwd: ROOT,
-      input: sql,
+      input,
       stdio: ['pipe', 'inherit', 'inherit'],
     })
   } catch (error) {
@@ -144,6 +178,6 @@ function runSql(sql: string, variables: Record<string, string> = {}): void {
     if (code === 'ENOENT') {
       throw new Error('посеву сквозных тестов нужен Docker: команда docker не найдена')
     }
-    throw new Error('не удалось заполнить базу сквозного стека')
+    throw new Error('команда сквозного compose-стека завершилась с ошибкой')
   }
 }
