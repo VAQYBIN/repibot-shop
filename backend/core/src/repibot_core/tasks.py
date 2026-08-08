@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -63,6 +64,28 @@ async def expire_subscriptions() -> dict[str, int]:
         await engine.dispose()
 
     return {"expired": expired}
+
+
+@broker.task(schedule=[{"cron": f"17 */{get_settings().reconcile_interval_hours} * * *"}])
+async def reconcile_panel() -> dict[str, int]:
+    """Периодически приводит панель к нашему состоянию и записывает отличия."""
+    engine = create_engine(get_settings().database_url)
+    panel = _panel_client()
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            from repibot_core.integrations.remnawave.users import PanelUsers
+            from repibot_core.services.provisioning import ProvisioningService
+            from repibot_core.services.reconciliation import ReconciliationService
+
+            written = await ReconciliationService(
+                session, ProvisioningService(session, PanelUsers(panel))
+            ).run(run_id=str(uuid4()))
+    finally:
+        await panel.aclose()
+        await engine.dispose()
+
+    return {"written": written}
 
 
 def _panel_client() -> RemnawaveClient:

@@ -38,10 +38,21 @@ _ALLOWED = (SubscriptionState.trial, SubscriptionState.active)
 
 
 @dataclass(frozen=True, slots=True)
+class Difference:
+    """Одно расхождение: что разошлось и каким было с обеих сторон."""
+
+    field: str
+    ours: str
+    theirs: str
+
+
+@dataclass(frozen=True, slots=True)
 class PanelState:
     panel_id: int
     short_uuid: str
     subscription_url: str
+    differences: tuple[Difference, ...] = ()
+    skipped: bool = False
 
 
 class ProvisioningService:
@@ -86,8 +97,8 @@ class ProvisioningService:
         }
 
         existing = await self._find(user.remnawave_id, username)
-        panel_user = (
-            await self._create(username, user.telegram_id, user.email, desired)
+        panel_user, differences, skipped = (
+            (await self._create(username, user.telegram_id, user.email, desired), (), False)
             if existing is None
             else await self._update_if_needed(existing, desired)
         )
@@ -101,6 +112,8 @@ class ProvisioningService:
             panel_id=int(panel_user.id),
             short_uuid=panel_user.shortUuid,
             subscription_url=panel_user.subscriptionUrl,
+            differences=differences,
+            skipped=skipped,
         )
 
     async def _find(self, panel_id: int | None, username: str) -> PanelUser | None:
@@ -132,19 +145,11 @@ class ProvisioningService:
         )
         return await self._panel.create(body)
 
-    async def _update_if_needed(self, existing: PanelUser, desired: dict[str, Any]) -> PanelUser:
-        """Пишет в панель только при расхождении.
-
-        Пустой PATCH стоит нам запроса, а панели — записи в журнал изменений
-        и события вебхука, на которое мы же и отреагируем.
-        """
-        if existing.tag != PANEL_TAG:
-            logger.warning(
-                "пользователь панели заведён мимо нас, правка пропущена",
-                extra={"panel_user_id": existing.id, "panel_tag": existing.tag},
-            )
-            return existing
-
+    @staticmethod
+    def _compare(
+        existing: PanelUser, desired: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Подготавливает оба состояния к сравнению в единственном месте."""
         current: dict[str, Any] = {
             "status": existing.status.value,
             # До секунды: панель хранит дату с миллисекундами, у нас в базе
@@ -162,13 +167,42 @@ class ProvisioningService:
         wanted["expireAt"] = desired["expireAt"].replace(microsecond=0)
         wanted["trafficLimitBytes"] = float(desired["trafficLimitBytes"])
         wanted["activeInternalSquads"] = sorted(desired["activeInternalSquads"])
+        return current, wanted
 
-        if current == wanted:
-            return existing
+    @staticmethod
+    def _diff(current: dict[str, Any], wanted: dict[str, Any]) -> tuple[Difference, ...]:
+        """Расхождения между панелью и нашим состоянием для читаемого отчёта."""
+        return tuple(
+            Difference(field=field, ours=str(wanted[field]), theirs=str(value))
+            for field, value in current.items()
+            if value != wanted[field]
+        )
+
+    async def _update_if_needed(
+        self, existing: PanelUser, desired: dict[str, Any]
+    ) -> tuple[PanelUser, tuple[Difference, ...], bool]:
+        """Пишет в панель только при расхождении.
+
+        Пустой PATCH стоит нам запроса, а панели — записи в журнал изменений
+        и события вебхука, на которое мы же и отреагируем.
+        """
+        current, wanted = self._compare(existing, desired)
+        differences = self._diff(current, wanted)
+
+        if existing.tag != PANEL_TAG:
+            logger.warning(
+                "пользователь панели заведён мимо нас, правка пропущена",
+                extra={"panel_user_id": existing.id, "tag": existing.tag},
+            )
+            return existing, differences, True
+
+        if not differences:
+            return existing, (), False
 
         # Панели уходят все поля желаемого состояния: фасад отправляет только
         # явно заданные, и частичное тело оставило бы расхождение неисправленным.
-        return await self._panel.update(UpdateUserBody(id=int(existing.id), **desired))
+        updated = await self._panel.update(UpdateUserBody(id=int(existing.id), **desired))
+        return updated, differences, False
 
 
 def build_provision_handler(
