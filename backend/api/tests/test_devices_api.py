@@ -15,7 +15,9 @@ pytestmark = pytest.mark.docker
 
 def _panel_user_id(panel: FakePanel) -> int:
     """Триал завёл ровно одного пользователя в тестовой панели."""
-    return next(iter(panel.users))
+    user_id = next(iter(panel.users))
+    assert isinstance(user_id, int)
+    return user_id
 
 
 async def test_devices_need_subscription(
