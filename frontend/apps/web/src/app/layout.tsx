@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
 import { AuthProvider } from '@/components/auth-provider'
+import { BrowserPreferencesProvider } from '@/lib/browser-preferences'
 
 import './globals.css'
 
@@ -22,11 +23,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ru" data-theme="light">
+    <html lang="ru">
       <body>
-        {/* Провайдер стоит в корне: форма входа обращается к тому же клиенту
-            API, что и кабинет, а токен живёт в памяти одного экземпляра. */}
-        <AuthProvider>{children}</AuthProvider>
+        {/* Browser preferences определяют язык и тему после гидратации;
+            API-клиент и его токен остаются одним экземпляром. */}
+        <BrowserPreferencesProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </BrowserPreferencesProvider>
       </body>
     </html>
   )

@@ -1,16 +1,15 @@
 'use client'
 
 import {
-  detectLanguage,
   errorMessageKey,
   type Language,
   type TranslationKey,
   translate,
   useMe,
 } from '@repibot/core'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 
-const FALLBACK: Language = 'ru'
+import { useBrowserPreferences } from './browser-preferences'
 
 /**
  * Язык интерфейса до входа: профиля ещё нет, брать его неоткуда, кроме
@@ -22,12 +21,8 @@ const FALLBACK: Language = 'ru'
  * Поэтому первый кадр всегда русский, как и `lang` в корневой разметке.
  */
 export function useBrowserLanguage(): Language {
-  const [language, setLanguage] = useState<Language>(FALLBACK)
-
-  useEffect(() => {
-    setLanguage(detectLanguage(navigator.languages ?? [navigator.language]))
-  }, [])
-
+  const { language } = useBrowserPreferences()
+  useDocumentLanguage(language)
   return language
 }
 
@@ -36,9 +31,17 @@ export function useBrowserLanguage(): Language {
  * Пока профиль не загрузился, подписи берутся по языку браузера.
  */
 export function useProfileLanguage(): Language {
-  const browser = useBrowserLanguage()
+  const { language: browser } = useBrowserPreferences()
   const me = useMe()
-  return me.data?.language ?? browser
+  const language = me.data?.language ?? browser
+  useDocumentLanguage(language)
+  return language
+}
+
+function useDocumentLanguage(language: Language): void {
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
 }
 
 export type Translate = (key: TranslationKey) => string

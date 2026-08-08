@@ -1,14 +1,31 @@
 import { AuthProvider, createQueryClient } from '@repibot/core'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { type RenderResult, render } from '@testing-library/react'
-import type { ReactElement } from 'react'
+import { type ReactElement, type ReactNode, useEffect } from 'react'
 import { vi } from 'vitest'
+
+import { BrowserPreferencesProvider } from '@/lib/browser-preferences'
 
 type HandlerResult = Response | unknown
 type Handler = HandlerResult | ((request: Request) => HandlerResult | Promise<HandlerResult>)
 
+interface StructuredResponse {
+  status: number
+  body: unknown
+}
+
 interface RenderWithProvidersOptions {
   handlers?: Record<string, Handler>
+}
+
+function isStructuredResponse(value: unknown): value is StructuredResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'status' in value &&
+    typeof value.status === 'number' &&
+    'body' in value
+  )
 }
 
 function renderWithQueryClient(ui: ReactElement, retry: boolean): RenderResult {
@@ -16,10 +33,22 @@ function renderWithQueryClient(ui: ReactElement, retry: boolean): RenderResult {
   queries.setDefaultOptions({ queries: { retry } })
 
   return render(
-    <QueryClientProvider client={queries}>
-      <AuthProvider baseUrl="http://api.test">{ui}</AuthProvider>
-    </QueryClientProvider>,
+    <BrowserPreferencesProvider>
+      <QueryClientProvider client={queries}>
+        <AuthProvider baseUrl="http://api.test">{ui}</AuthProvider>
+      </QueryClientProvider>
+    </BrowserPreferencesProvider>,
   )
+}
+
+function RestoreFetch({ children, previous }: { children: ReactNode; previous: typeof fetch }) {
+  useEffect(
+    () => () => {
+      globalThis.fetch = previous
+    },
+    [previous],
+  )
+  return children
 }
 
 /**
@@ -44,6 +73,7 @@ export function renderWithProviders(
   ui: ReactElement,
   { handlers = {} }: RenderWithProvidersOptions = {},
 ): RenderResult {
+  const previousFetch = globalThis.fetch
   vi.stubGlobal(
     'fetch',
     vi.fn(async (request: Request) => {
@@ -51,9 +81,15 @@ export function renderWithProviders(
       if (handler === undefined) return new Response(null, { status: 404 })
 
       const result = typeof handler === 'function' ? await handler(request) : handler
-      return result instanceof Response ? result : Response.json(result)
+      if (result instanceof Response) return result
+      if (isStructuredResponse(result)) {
+        return result.body === undefined || result.status === 204
+          ? new Response(null, { status: result.status })
+          : Response.json(result.body, { status: result.status })
+      }
+      return Response.json(result)
     }),
   )
 
-  return renderWithQueryClient(ui, false)
+  return renderWithQueryClient(<RestoreFetch previous={previousFetch}>{ui}</RestoreFetch>, false)
 }

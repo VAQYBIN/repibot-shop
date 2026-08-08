@@ -99,13 +99,13 @@ export function PlanCard({ plan, language }: PlanCardProps) {
         }
       >
         <div>
-          <dt className="text-xs text-text-muted">{translate(language, 'plans.traffic')}</dt>
+          <dt className="text-xs text-text-secondary">{translate(language, 'plans.traffic')}</dt>
           <dd className="mt-1 text-lg font-medium tabular-nums text-text">
             {formatBytes(plan.traffic_limit_bytes, language, { zeroIsUnlimited: true })}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-muted">{translate(language, 'plans.devices')}</dt>
+          <dt className="text-xs text-text-secondary">{translate(language, 'plans.devices')}</dt>
           <dd className="mt-1 text-lg font-medium tabular-nums text-text">
             {plan.hwid_device_limit}
           </dd>

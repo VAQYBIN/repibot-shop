@@ -1,5 +1,5 @@
-import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/providers'
 import Page from './page'
@@ -30,6 +30,12 @@ const trialPlan = {
   is_trial: true,
 } as const
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+  document.documentElement.lang = 'ru'
+  document.documentElement.dataset.theme = 'light'
+})
+
 describe('витрина тарифов', () => {
   it('показывает цену, срок и лимиты платного тарифа', async () => {
     renderWithProviders(<Page />, { handlers: { '/api/plans': [paidPlan] } })
@@ -45,6 +51,8 @@ describe('витрина тарифов', () => {
     // Ноль означает безлимит, а не «нисколько трафика».
     expect(plan.getByText('∞')).toBeVisible()
     expect(plan.getByText('3')).toBeVisible()
+    expect(plan.getByText('Трафик')).toHaveClass('text-text-secondary')
+    expect(plan.getByText('Устройства')).toHaveClass('text-text-secondary')
   })
 
   it('помечает пробный тариф и не показывает у него цену', async () => {
@@ -75,10 +83,45 @@ describe('витрина тарифов', () => {
   it('объясняет ошибку запроса и предлагает повторить', async () => {
     renderWithProviders(<Page />, {
       handlers: {
-        '/api/plans': new Response(null, { status: 500 }),
+        '/api/plans': { status: 500, body: null },
       },
     })
     expect(await screen.findByRole('alert')).toHaveTextContent('Что-то пошло не так')
     expect(screen.getByRole('button', { name: 'Повторить' })).toBeVisible()
+  })
+
+  it('применяет тёмную тему из системных настроек', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({
+        matches: true,
+        media: '(prefers-color-scheme: dark)',
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    )
+    document.documentElement.dataset.theme = 'light'
+
+    renderWithProviders(<Page />, { handlers: { '/api/plans': [] } })
+
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
+  })
+
+  it('синхронизирует язык документа с языком витрины', async () => {
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      languages: ['en-US', 'en'],
+      language: 'en-US',
+    })
+    document.documentElement.lang = 'ru'
+
+    renderWithProviders(<Page />, { handlers: { '/api/plans': [] } })
+
+    expect(await screen.findByRole('heading', { name: 'Plans' })).toBeVisible()
+    await waitFor(() => expect(document.documentElement.lang).toBe('en'))
   })
 })

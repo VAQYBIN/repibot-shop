@@ -1,4 +1,9 @@
 import '@testing-library/jest-dom/vitest'
+import { afterEach, vi } from 'vitest'
+
+// Даже если рендер упал до React cleanup, глобальные HTTP/browser doubles не
+// переходят в следующий тест и не делают результат зависимым от порядка.
+afterEach(() => vi.unstubAllGlobals())
 
 /**
  * Язык интерфейса до входа берётся из настроек браузера, а jsdom сообщает

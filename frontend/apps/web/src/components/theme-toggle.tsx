@@ -1,16 +1,11 @@
 'use client'
 
 import { Button } from '@repibot/ui'
-import { useEffect, useState } from 'react'
 
-type Theme = 'light' | 'dark'
+import { useBrowserPreferences } from '@/lib/browser-preferences'
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('light')
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-  }, [theme])
+  const { theme, setTheme } = useBrowserPreferences()
 
   return (
     <Button
