@@ -28,6 +28,10 @@ class SubscriptionRepository:
         statement = select(Subscription).where(Subscription.user_id == user_id)
         return (await self._session.execute(statement)).scalar_one_or_none()
 
+    async def get_for_user_for_update(self, user_id: int) -> Subscription | None:
+        statement = select(Subscription).where(Subscription.user_id == user_id).with_for_update()
+        return (await self._session.execute(statement)).scalar_one_or_none()
+
     async def create(self, **fields: Any) -> Subscription:
         subscription = Subscription(**fields)
         self._session.add(subscription)

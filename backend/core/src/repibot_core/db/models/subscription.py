@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from repibot_core.db.base import Base, TimestampMixin
@@ -58,6 +59,11 @@ class Subscription(TimestampMixin, Base):
     source: Mapped[SubscriptionSource] = mapped_column(
         Enum(SubscriptionSource, name="subscription_source", native_enum=True)
     )
+    # Цена и срок того права, которое уже лежит на аккаунте. При переходе на
+    # другой платный тариф остаток переводится по этой зафиксированной цене,
+    # а не по сегодняшней цене старого Plan.
+    entitlement_price_rub: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
+    entitlement_duration_days: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class SubscriptionEvent(Base):
@@ -71,7 +77,15 @@ class SubscriptionEvent(Base):
     __tablename__ = "subscription_events"
     # Разбор случая — это «покажи историю пользователя по времени»: индекс
     # повторяет порядок такого запроса.
-    __table_args__ = (Index("ix_subscription_events_user_id", "user_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_subscription_events_user_id", "user_id", "created_at"),
+        Index(
+            "uq_subscription_events_origin_attempt_id",
+            "origin_attempt_id",
+            unique=True,
+            postgresql_where=text("origin_attempt_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
@@ -84,6 +98,9 @@ class SubscriptionEvent(Base):
         Enum(SubscriptionActor, name="subscription_actor", native_enum=True)
     )
     actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    origin_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("payment_attempts.id", ondelete="SET NULL")
+    )
     comment: Mapped[str | None] = mapped_column(String(512))
     # created_at объявлен явно, без TimestampMixin: у журнальной записи нет
     # момента изменения, а updated_at в неизменяемой таблице только вводит в

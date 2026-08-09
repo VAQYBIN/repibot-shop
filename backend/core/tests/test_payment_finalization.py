@@ -1,0 +1,199 @@
+"""Атомарная финализация проверенных платежей."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+
+import pytest
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from repibot_core.db.engine import create_session_factory
+from repibot_core.db.models import (
+    OrderPurpose,
+    OutboxMessage,
+    PaymentProvider,
+    PaymentStatus,
+    Plan,
+    Subscription,
+    SubscriptionEvent,
+    TrafficResetStrategy,
+    User,
+)
+from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
+from repibot_core.db.repositories.plans import PlanRepository
+from repibot_core.services.payments import PaymentService
+from repibot_core.services.provisioning import TOPIC_PROVISION
+
+pytestmark = pytest.mark.docker
+
+SQUAD = "11111111-1111-4111-8111-111111111111"
+
+
+async def _plan(session: AsyncSession, code: str, **overrides: object) -> Plan:
+    fields: dict[str, object] = {
+        "code": code,
+        "name": {"ru": code, "en": code},
+        "description": None,
+        "duration_days": 30,
+        "price_rub": Decimal("300.00"),
+        "price_stars": 199,
+        "traffic_limit_bytes": 0,
+        "traffic_reset_strategy": TrafficResetStrategy.NO_RESET,
+        "hwid_device_limit": 3,
+        "internal_squad_uuids": [SQUAD],
+        "is_trial": False,
+        "is_active": True,
+        "is_visible": True,
+        "sort_order": 0,
+    }
+    fields.update(overrides)
+    return await PlanRepository(session).create(**fields)
+
+
+async def _user(session: AsyncSession, code: str, *, referred_by_id: int | None = None) -> User:
+    user = User(
+        email=f"{code}@example.org",
+        referral_code=code,
+        referred_by_id=referred_by_id,
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+async def _verified_attempt(
+    session: AsyncSession,
+    *,
+    user: User,
+    plan: Plan,
+    key: str,
+    purpose: OrderPurpose = OrderPurpose.purchase,
+) -> int:
+    order = await OrderRepository(session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key=f"order-{key}",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+        purpose=purpose,
+    )
+    attempt = await PaymentAttemptRepository(session).get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key=f"payment-{key}",
+        status=PaymentStatus.succeeded,
+        verified_payload={"amount": str(order.amount_due_rub), "currency": "RUB"},
+        verified_at=datetime.now(UTC),
+    )
+    await session.commit()
+    return attempt.id
+
+
+async def _finalize(factory: object, attempt_id: int) -> object:
+    async with factory() as session:  # type: ignore[operator]
+        return await PaymentService(session).finalize_success(attempt_id)
+
+
+async def test_two_finalizers_credit_days_and_outbox_once(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Удаление блокировки заказа вернуло бы двойное начисление при webhook retry."""
+    plan = await _plan(db_session, "month")
+    user = await _user(db_session, "pay00001")
+    attempt_id = await _verified_attempt(db_session, user=user, plan=plan, key="race")
+    factory = create_session_factory(engine)
+
+    results = await asyncio.gather(
+        _finalize(factory, attempt_id), _finalize(factory, attempt_id)
+    )
+
+    assert sorted(result.already_finalized for result in results) == [False, True]
+    events = await db_session.execute(
+        select(func.count()).select_from(SubscriptionEvent).where(
+            SubscriptionEvent.origin_attempt_id == attempt_id
+        )
+    )
+    assert events.scalar_one() == 1
+    queued = await db_session.execute(
+        select(func.count())
+        .select_from(OutboxMessage)
+        .where(OutboxMessage.topic == TOPIC_PROVISION)
+    )
+    assert queued.scalar_one() == 1
+
+
+async def test_manual_same_plan_renewal_adds_purchased_days(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Если renewal не продлевает срок, повторная ручная оплата теряет купленные дни."""
+    plan = await _plan(db_session, "month")
+    user = await _user(db_session, "pay00002")
+    first_attempt = await _verified_attempt(db_session, user=user, plan=plan, key="first")
+    factory = create_session_factory(engine)
+    await _finalize(factory, first_attempt)
+
+    before = await db_session.scalar(select(Subscription).where(Subscription.user_id == user.id))
+    assert before is not None
+    expires_before = before.expires_at
+    renew_attempt = await _verified_attempt(
+        db_session, user=user, plan=plan, key="renew", purpose=OrderPurpose.renew
+    )
+
+    result = await _finalize(factory, renew_attempt)
+    await db_session.refresh(before)
+
+    assert result.already_finalized is False
+    assert before.expires_at - expires_before == timedelta(days=30)
+
+
+async def test_paid_plan_switch_uses_saved_previous_entitlement_value(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Изменение цены старого тарифа не должно переписать уже купленный остаток."""
+    old_plan = await _plan(db_session, "old", price_rub=Decimal("300.00"), duration_days=30)
+    new_plan = await _plan(db_session, "new", price_rub=Decimal("600.00"), duration_days=30)
+    user = await _user(db_session, "pay00003")
+    factory = create_session_factory(engine)
+    first_attempt = await _verified_attempt(db_session, user=user, plan=old_plan, key="old")
+    await _finalize(factory, first_attempt)
+    subscription = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    assert subscription is not None
+    subscription.expires_at = datetime.now(UTC) + timedelta(days=20, minutes=1)
+    old_plan.price_rub = Decimal("1200.00")
+    await db_session.commit()
+
+    switch_attempt = await _verified_attempt(db_session, user=user, plan=new_plan, key="switch")
+    await _finalize(factory, switch_attempt)
+    await db_session.refresh(subscription)
+
+    remaining = subscription.expires_at - datetime.now(UTC)
+    # 20 дней старого тарифа по 10 ₽/день = 10 дней нового по 20 ₽/день,
+    # после чего добавляются 30 оплаченных дней. Цена, поднятая до 1200 ₽,
+    # дала бы около 70 дней и нарушила бы это условие.
+    assert timedelta(days=39) < remaining <= timedelta(days=40)
+
+
+async def test_referral_bonus_is_added_after_purchased_duration(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Перестановка начислений не должна подменить базу для referral bonus."""
+    plan = await _plan(db_session, "month")
+    referrer = await _user(db_session, "pay00004")
+    referee = await _user(db_session, "pay00005", referred_by_id=referrer.id)
+    factory = create_session_factory(engine)
+    attempt_id = await _verified_attempt(db_session, user=referee, plan=plan, key="reward")
+
+    await _finalize(factory, attempt_id)
+
+    reward = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == referrer.id)
+    )
+    assert reward is not None
+    remaining = reward.expires_at - datetime.now(UTC)
+    # 10% от оплаченных 30 дней, то есть ровно три бонусных дня.
+    assert timedelta(days=2) < remaining <= timedelta(days=3)

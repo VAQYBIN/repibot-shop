@@ -54,7 +54,7 @@ class SubscriptionService:
         self,
         session: AsyncSession,
         settings: Settings,
-        provisioning: ProvisioningService,
+        provisioning: ProvisioningService | None,
     ) -> None:
         self._session = session
         self._settings = settings
@@ -144,13 +144,45 @@ class SubscriptionService:
         Ноль дней допустим и означает перевод на другой тариф без начисления —
         так выглядит смена тарифа, у которой не осталось оплаченного остатка.
         """
+        subscription = await self.apply_entitlement(
+            user_id,
+            plan,
+            days,
+            source=source,
+            event_type=event_type,
+            actor=actor,
+            origin_attempt_id=None,
+            actor_user_id=actor_user_id,
+            comment=comment,
+        )
+        message = await self._outbox.add(topic=TOPIC_PROVISION, payload={"user_id": user_id})
+        await self._session.commit()
+
+        url = await self._provision(user_id, plan, message)
+        return _view(subscription, plan, url)
+
+    async def apply_entitlement(
+        self,
+        user_id: int,
+        plan: Plan,
+        days: int,
+        *,
+        source: SubscriptionSource,
+        event_type: SubscriptionEventType,
+        actor: SubscriptionActor,
+        origin_attempt_id: int | None,
+        actor_user_id: int | None = None,
+        comment: str | None = None,
+    ) -> Subscription:
+        """Меняет подписку и пишет журнал без commit и сетевых вызовов."""
         now = datetime.now(UTC)
         subscription = await self._subscriptions.get_for_user(user_id)
         current_expires_at = subscription.expires_at if subscription is not None else None
-        if days == 0:
-            expires_at = current_expires_at if current_expires_at is not None else now
-        else:
-            expires_at = extend(current_expires_at, now, days)
+        expires_at = (
+            current_expires_at if days == 0 and current_expires_at is not None else now
+            if days == 0
+            else extend(current_expires_at, now, days)
+        )
 
         if subscription is None:
             subscription = await self._subscriptions.create(
@@ -160,13 +192,15 @@ class SubscriptionService:
                 started_at=now,
                 expires_at=expires_at,
                 source=source,
+                entitlement_price_rub=plan.price_rub,
+                entitlement_duration_days=plan.duration_days,
             )
         else:
             subscription.plan_id = plan.id
             subscription.expires_at = expires_at
-            # Пока панель не приведена к новому состоянию, подписка честно
-            # называется невыданной: рабочий статус ставит только примирение.
             subscription.status = SubscriptionState.pending_provision
+            subscription.entitlement_price_rub = plan.price_rub
+            subscription.entitlement_duration_days = plan.duration_days
 
         await self._subscriptions.add_event(
             user_id=user_id,
@@ -175,14 +209,11 @@ class SubscriptionService:
             plan_id=plan.id,
             actor=actor,
             actor_user_id=actor_user_id,
+            origin_attempt_id=origin_attempt_id,
             comment=comment,
             created_at=now,
         )
-        message = await self._outbox.add(topic=TOPIC_PROVISION, payload={"user_id": user_id})
-        await self._session.commit()
-
-        url = await self._provision(user_id, plan, message)
-        return _view(subscription, plan, url)
+        return subscription
 
     async def change_plan(
         self,
@@ -259,6 +290,9 @@ class SubscriptionService:
         Вне транзакции намеренно: медленная панель иначе держит блокировки
         строк, а её отказ откатывал бы уже принятое решение о начислении.
         """
+        if self._provisioning is None:  # pragma: no cover — только finalizer без сети
+            msg = "сервис выдачи не настроен"
+            raise RuntimeError(msg)
         subscription = await self._subscriptions.get_for_user(user_id)
         if subscription is None:  # pragma: no cover — строку записали строкой выше
             return None

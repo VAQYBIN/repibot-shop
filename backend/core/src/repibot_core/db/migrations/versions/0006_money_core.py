@@ -178,6 +178,39 @@ def upgrade() -> None:
         sa.UniqueConstraint("order_id", "kind", "channel", name="uq_notification_deliveries_dedup"),
     )
 
+    # Финализация одного provider attempt вправе записать в журнал только
+    # одно начисление. NULL оставляет старые ручные/админские события без
+    # искусственного общего ключа.
+    op.add_column(
+        "subscription_events",
+        sa.Column(
+            "origin_attempt_id",
+            sa.Integer(),
+            sa.ForeignKey("payment_attempts.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    op.create_index(
+        "uq_subscription_events_origin_attempt_id",
+        "subscription_events",
+        ["origin_attempt_id"],
+        unique=True,
+        postgresql_where=sa.text("origin_attempt_id IS NOT NULL"),
+    )
+    op.add_column(
+        "subscriptions",
+        sa.Column(
+            "entitlement_price_rub",
+            sa.Numeric(10, 2),
+            nullable=False,
+            server_default="0.00",
+        ),
+    )
+    op.add_column(
+        "subscriptions",
+        sa.Column("entitlement_duration_days", sa.Integer(), nullable=False, server_default="0"),
+    )
+
     # Нельзя допустить, чтобы обработчик позднее дочитал изменившийся тариф
     # вместо согласованного покупателем снимка. CHECK не умеет сравнивать OLD
     # и NEW, поэтому неизменность гарантирует короткий серверный триггер.
@@ -214,6 +247,10 @@ def downgrade() -> None:
     op.execute("DROP TRIGGER orders_reject_snapshot_mutation_trigger ON orders")
     op.execute("DROP FUNCTION orders_reject_snapshot_mutation")
     op.drop_table("notification_deliveries")
+    op.drop_column("subscriptions", "entitlement_duration_days")
+    op.drop_column("subscriptions", "entitlement_price_rub")
+    op.drop_index("uq_subscription_events_origin_attempt_id", table_name="subscription_events")
+    op.drop_column("subscription_events", "origin_attempt_id")
     op.drop_table("referral_rewards")
     op.drop_table("gift_vouchers")
     op.drop_table("promo_reservations")

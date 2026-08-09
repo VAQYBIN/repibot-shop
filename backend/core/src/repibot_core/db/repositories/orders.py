@@ -99,3 +99,7 @@ class PaymentAttemptRepository:
             return existing
         msg = "не удалось создать или найти платёжную попытку"
         raise RuntimeError(msg)
+
+    async def get_for_update(self, attempt_id: int) -> PaymentAttempt | None:
+        statement = select(PaymentAttempt).where(PaymentAttempt.id == attempt_id).with_for_update()
+        return (await self._session.execute(statement)).scalar_one_or_none()
