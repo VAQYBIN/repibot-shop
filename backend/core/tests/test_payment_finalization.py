@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -12,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from repibot_core.db.engine import create_session_factory
 from repibot_core.db.models import (
+    Order,
     OrderPurpose,
+    OrderStatus,
     OutboxMessage,
     PaymentProvider,
     PaymentStatus,
@@ -24,6 +27,7 @@ from repibot_core.db.models import (
 )
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 from repibot_core.db.repositories.plans import PlanRepository
+from repibot_core.db.repositories.subscriptions import SubscriptionRepository
 from repibot_core.services.payments import PaymentService
 from repibot_core.services.provisioning import TOPIC_PROVISION
 
@@ -149,6 +153,52 @@ async def test_manual_same_plan_renewal_adds_purchased_days(
     assert before.expires_at - expires_before == timedelta(days=30)
 
 
+async def test_different_orders_for_new_user_finalize_without_subscription_race(
+    db_session: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Два первых заказа не должны падать на unique subscriptions.user_id."""
+    plan = await _plan(db_session, "month")
+    user = await _user(db_session, "pay00006")
+    first_attempt = await _verified_attempt(db_session, user=user, plan=plan, key="first-race")
+    second_attempt = await _verified_attempt(db_session, user=user, plan=plan, key="second-race")
+    factory = create_session_factory(engine)
+    barrier = asyncio.Barrier(2)
+    original = SubscriptionRepository.get_for_user_for_update
+
+    async def synchronized_absent_lookup(
+        repository: SubscriptionRepository, user_id: int
+    ) -> Subscription | None:
+        subscription = await original(repository, user_id)
+        if subscription is None:
+            with suppress(TimeoutError):
+                await asyncio.wait_for(barrier.wait(), timeout=0.1)
+            # После исправления второй finalizer ждёт advisory lock и не
+            # дойдёт до lookup, пока первый не создаст подписку.
+        return subscription
+
+    monkeypatch.setattr(
+        SubscriptionRepository, "get_for_user_for_update", synchronized_absent_lookup
+    )
+
+    results = await asyncio.gather(
+        _finalize(factory, first_attempt), _finalize(factory, second_attempt)
+    )
+
+    assert [result.already_finalized for result in results] == [False, False]
+    fulfilled = await db_session.scalar(
+        select(func.count())
+        .select_from(Order)
+        .where(Order.user_id == user.id, Order.status == OrderStatus.fulfilled)
+    )
+    assert fulfilled == 2
+    subscription = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    assert subscription is not None
+    remaining = subscription.expires_at - datetime.now(UTC)
+    assert timedelta(days=59) < remaining <= timedelta(days=60)
+
+
 async def test_paid_plan_switch_uses_saved_previous_entitlement_value(
     db_session: AsyncSession, engine: AsyncEngine
 ) -> None:
@@ -197,3 +247,9 @@ async def test_referral_bonus_is_added_after_purchased_duration(
     remaining = reward.expires_at - datetime.now(UTC)
     # 10% от оплаченных 30 дней, то есть ровно три бонусных дня.
     assert timedelta(days=2) < remaining <= timedelta(days=3)
+    provisioning = await db_session.scalar(
+        select(func.count())
+        .select_from(OutboxMessage)
+        .where(OutboxMessage.topic == TOPIC_PROVISION)
+    )
+    assert provisioning == 1

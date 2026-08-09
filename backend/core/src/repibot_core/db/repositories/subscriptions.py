@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import Subscription, SubscriptionEvent
@@ -31,6 +31,15 @@ class SubscriptionRepository:
     async def get_for_user_for_update(self, user_id: int) -> Subscription | None:
         statement = select(Subscription).where(Subscription.user_id == user_id).with_for_update()
         return (await self._session.execute(statement)).scalar_one_or_none()
+
+    async def lock_user_for_entitlement(self, user_id: int) -> None:
+        """Сериализует создание первой подписки в текущей транзакции.
+
+        `FOR UPDATE` защищает существующую строку, но не её отсутствие.
+        Advisory lock привязан к transaction и снимается вместе с commit/
+        rollback, поэтому не добавляет отдельного жизненного цикла блокировок.
+        """
+        await self._session.execute(select(func.pg_advisory_xact_lock(user_id)))
 
     async def create(self, **fields: Any) -> Subscription:
         subscription = Subscription(**fields)

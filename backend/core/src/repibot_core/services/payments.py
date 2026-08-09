@@ -90,10 +90,12 @@ class PaymentService:
             subscription_users = {order.user_id}
             if purchaser.referred_by_id is not None:
                 subscription_users.add(purchaser.referred_by_id)
-            locked_subscriptions = {
-                user_id: await self._subscriptions.get_for_user_for_update(user_id)
-                for user_id in sorted(subscription_users)
-            }
+            locked_subscriptions: dict[int, Subscription | None] = {}
+            for user_id in sorted(subscription_users):
+                await self._subscriptions.lock_user_for_entitlement(user_id)
+                locked_subscriptions[user_id] = await self._subscriptions.get_for_user_for_update(
+                    user_id
+                )
 
             # Последующие сущности всегда запрашиваются после subscriptions,
             # даже если соответствующая строка ещё не создана: это сохраняет
@@ -267,4 +269,3 @@ class PaymentService:
             origin_attempt_id=None,
             comment="реферальная награда за оплату",
         )
-        await self._outbox.add(TOPIC_PROVISION, {"user_id": purchaser.referred_by_id})
