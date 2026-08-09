@@ -38,14 +38,18 @@ class YooKassaClient:
         return_url: str,
         description: str,
         save_payment_method: bool,
+        payment_method_id: str | None = None,
     ) -> YooKassaPayment:
         amount = amount_rub.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         payload: dict[str, object] = {
             "amount": {"value": format(amount, ".2f"), "currency": "RUB"},
             "capture": True,
-            "confirmation": {"type": "redirect", "return_url": return_url},
             "description": description,
         }
+        if payment_method_id is None:
+            payload["confirmation"] = {"type": "redirect", "return_url": return_url}
+        else:
+            payload["payment_method_id"] = payment_method_id
         if save_payment_method:
             payload["save_payment_method"] = True
         response = await self._http.post(
@@ -70,6 +74,7 @@ class YooKassaClient:
             raise YooKassaError("YooKassa вернула не объект платежа")
         amount = payload.get("amount")
         confirmation = payload.get("confirmation")
+        payment_method = payload.get("payment_method")
         try:
             payment_id = str(payload["id"])
             status = YooKassaPaymentStatus(str(payload["status"]))
@@ -90,6 +95,11 @@ class YooKassaClient:
             amount_rub=amount_rub,
             currency=currency,
             confirmation_url=confirmation_url,
+            payment_method_id=(
+                str(payment_method["id"])
+                if isinstance(payment_method, dict) and payment_method.get("id") is not None
+                else None
+            ),
         )
 
 

@@ -182,6 +182,27 @@ async def reconcile_pending_payments() -> dict[str, int]:
     return {"checked": checked, "fulfilled": fulfilled}
 
 
+@broker.task(schedule=[{"cron": "*/10 * * * *"}])
+async def attempt_auto_renewals() -> dict[str, int]:
+    """Attempts due YooKassa renewal cycles; every cycle is locally idempotent."""
+    from repibot_core.services.payment_notifications import AutoRenewalService
+
+    engine = create_engine(get_settings().database_url)
+    client = None
+    try:
+        client = create_yookassa_client()
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            attempted = await AutoRenewalService(session, client, get_settings()).run(
+                now=datetime.now(UTC)
+            )
+    finally:
+        if client is not None:
+            await client.aclose()
+        await engine.dispose()
+    return {"attempted": attempted}
+
+
 _PAYMENT_POLL_LOCK_NAMESPACE = 91_003
 
 

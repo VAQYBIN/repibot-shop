@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import (
     GiftVoucher,
-    NotificationDelivery,
     Order,
     OrderPurpose,
     OrderStatus,
@@ -38,6 +37,7 @@ from repibot_core.domain.payments import referral_reward_days
 from repibot_core.domain.subscriptions import convert_remainder
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.services.errors import ServiceError
+from repibot_core.services.payment_notifications import NotificationService
 from repibot_core.services.promotions import PromotionService
 from repibot_core.services.provisioning import TOPIC_PROVISION
 from repibot_core.services.subscriptions import SubscriptionService
@@ -64,6 +64,7 @@ class YooKassaCreator(Protocol):
         return_url: str,
         description: str,
         save_payment_method: bool,
+        payment_method_id: str | None = None,
     ) -> YooKassaPayment: ...
 
 
@@ -506,6 +507,9 @@ class PaymentService:
                 verified_yookassa_payment.status is not YooKassaPaymentStatus.succeeded
                 or not self._yookassa_amount_matches(order, verified_yookassa_payment)
             ):
+                await NotificationService(self._session).enqueue_payment_event(
+                    order.id, "payment_failed"
+                )
                 return None
             self._validate_verified_attempt(order, attempt)
 
@@ -605,13 +609,8 @@ class PaymentService:
                     else None
                 ),
             )
-            self._session.add(
-                NotificationDelivery(
-                    order_id=order.id,
-                    user_id=order.user_id,
-                    kind="payment_succeeded",
-                    channel="in_app",
-                )
+            await NotificationService(self._session).enqueue_payment_event(
+                order.id, "payment_succeeded"
             )
             order.status = OrderStatus.fulfilled
             order.fulfilled_at = datetime.now(UTC)
@@ -681,6 +680,7 @@ class PaymentService:
             "amount": format(payment.amount_rub, ".2f"),
             "currency": payment.currency,
             "status": payment.status.value,
+            "payment_method_id": payment.payment_method_id,
         }
         attempt.verified_at = datetime.now(UTC)
 

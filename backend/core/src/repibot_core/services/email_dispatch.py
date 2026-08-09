@@ -13,9 +13,11 @@ from repibot_core.integrations.email.sender import EmailSender, build_sender
 from repibot_core.integrations.email.templates import (
     render_email_change,
     render_password_reset,
+    render_payment_notification,
     render_verification,
 )
 from repibot_core.services.outbox import OutboxDispatcher
+from repibot_core.services.payment_notifications import TOPIC_PAYMENT_EMAIL
 from repibot_core.settings import get_settings
 
 TOPIC_EMAIL_VERIFY = "email.verify"
@@ -46,5 +48,17 @@ def build_dispatcher(sender: EmailSender | None = None) -> OutboxDispatcher:
             await resolved.send(message)
 
         dispatcher.register(topic, handle)
+
+    async def handle_payment(payload: dict[str, Any]) -> None:
+        message = render_payment_notification(
+            payload["language"],
+            link=get_settings().public_app_url,
+            to=payload["recipient"],
+            kind=payload["kind"],
+            plan=payload["plan"],
+        )
+        await resolved.send(message)
+
+    dispatcher.register(TOPIC_PAYMENT_EMAIL, handle_payment)
 
     return dispatcher

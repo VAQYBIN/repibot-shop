@@ -21,3 +21,4 @@ class YooKassaPayment:
     amount_rub: Decimal
     currency: str
     confirmation_url: str | None
+    payment_method_id: str | None = None

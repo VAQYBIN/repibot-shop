@@ -13,6 +13,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from repibot_core.db.models import NotificationDelivery
 from repibot_core.db.repositories.outbox import OutboxRepository
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,9 @@ class OutboxDispatcher:
                     # ошибкой: висящая вечно строка мешает разбирать остальные.
                     message.last_error = str(error)[:1000]
                     message.attempts = attempt + 1
+                    await _mark_delivery(
+                        session, message.payload, status="failed", error=message.last_error
+                    )
                     await repository.mark_processed(message)
                     logger.error(
                         "сообщение outbox отброшено после %s попыток",
@@ -82,8 +86,25 @@ class OutboxDispatcher:
                     )
                 continue
 
+            await _mark_delivery(session, message.payload, status="sent", error=None)
             await repository.mark_processed(message)
             delivered += 1
 
         await session.commit()
         return delivered
+
+
+async def _mark_delivery(
+    session: AsyncSession, payload: dict[str, Any], *, status: str, error: str | None
+) -> None:
+    """Reflect an outbox terminal result in the independently queryable delivery row."""
+    delivery_id = payload.get("delivery_id")
+    if type(delivery_id) is not int:
+        return
+    delivery = await session.get(NotificationDelivery, delivery_id)
+    if delivery is None:
+        return
+    delivery.status = status
+    delivery.error = error
+    if status == "sent":
+        delivery.sent_at = datetime.now(UTC)

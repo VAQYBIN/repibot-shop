@@ -48,3 +48,20 @@ class BotApi:
 
         await self._redis.set(CACHE_KEY, name, ex=CACHE_TTL_SECONDS)
         return name
+
+    async def send_message(self, chat_id: int, text: str) -> None:
+        """Sends a plain localized notification to a linked Telegram account."""
+        token = self._settings.bot_token.get_secret_value()
+        try:
+            response = await self._client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": text},
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as error:
+            raise AuthError("telegram_unavailable", "Telegram не принял уведомление") from error
+        if response.json().get("ok") is not True:
+            raise AuthError("telegram_unavailable", "Telegram отверг уведомление")
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
