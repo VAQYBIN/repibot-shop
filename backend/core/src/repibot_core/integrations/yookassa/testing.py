@@ -11,9 +11,7 @@ class FakeYooKassa:
     def __init__(self) -> None:
         self._payments: dict[str, YooKassaPayment] = {}
 
-    def set_payment(
-        self, payment_id: str, *, status: str, amount: str, currency: str
-    ) -> None:
+    def set_payment(self, payment_id: str, *, status: str, amount: str, currency: str) -> None:
         self._payments[payment_id] = YooKassaPayment(
             id=payment_id,
             status=YooKassaPaymentStatus(status),

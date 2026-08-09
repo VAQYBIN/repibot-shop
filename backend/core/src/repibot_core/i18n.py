@@ -30,9 +30,13 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "payment.succeeded.subject": "Оплата получена",
         "payment.succeeded.body": "Оплата тарифа «{plan}» получена. Подписка продлена.",
         "payment.failed.subject": "Не удалось продлить подписку",
-        "payment.failed.body": "Не удалось автоматически продлить тариф «{plan}». Проверьте способ оплаты.",
+        "payment.failed.body": (
+            "Не удалось автоматически продлить тариф «{plan}». Проверьте способ оплаты."
+        ),
         "payment.succeeded.bot": "Оплата тарифа «{plan}» получена. Подписка продлена.",
-        "payment.failed.bot": "Не удалось автоматически продлить тариф «{plan}». Проверьте способ оплаты.",
+        "payment.failed.bot": (
+            "Не удалось автоматически продлить тариф «{plan}». Проверьте способ оплаты."
+        ),
         "bot.start.greeting": "Здравствуйте, {name}. Это Re:Pibot.",
         "bot.start.open_app": "Открыть приложение",
         "bot.language.choose": "Выберите язык",
@@ -66,11 +70,19 @@ _MESSAGES: dict[str, dict[str, str]] = {
             "{link}\n\nThe link is valid for one hour."
         ),
         "payment.succeeded.subject": "Payment received",
-        "payment.succeeded.body": "Payment for the {plan} plan was received. Your subscription was extended.",
+        "payment.succeeded.body": (
+            "Payment for the {plan} plan was received. Your subscription was extended."
+        ),
         "payment.failed.subject": "Subscription renewal failed",
-        "payment.failed.body": "We could not automatically renew the {plan} plan. Check your payment method.",
-        "payment.succeeded.bot": "Payment for the {plan} plan was received. Your subscription was extended.",
-        "payment.failed.bot": "We could not automatically renew the {plan} plan. Check your payment method.",
+        "payment.failed.body": (
+            "We could not automatically renew the {plan} plan. Check your payment method."
+        ),
+        "payment.succeeded.bot": (
+            "Payment for the {plan} plan was received. Your subscription was extended."
+        ),
+        "payment.failed.bot": (
+            "We could not automatically renew the {plan} plan. Check your payment method."
+        ),
         "bot.start.greeting": "Hello, {name}. This is Re:Pibot.",
         "bot.start.open_app": "Open the app",
         "bot.language.choose": "Choose a language",

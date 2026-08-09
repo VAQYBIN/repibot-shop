@@ -80,7 +80,10 @@ class RecordingSession(BaseSession):
         return None
 
     async def make_request(
-        self, bot: Bot, method: Any, timeout: int | None = None  # noqa: ASYNC109
+        self,
+        bot: Bot,
+        method: Any,
+        timeout: int | None = None,  # noqa: ASYNC109
     ) -> Any:
         self.methods.append(method)
         return True

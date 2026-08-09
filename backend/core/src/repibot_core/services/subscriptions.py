@@ -207,7 +207,9 @@ class SubscriptionService:
         subscription = await self._subscriptions.get_for_user(user_id)
         current_expires_at = subscription.expires_at if subscription is not None else None
         expires_at = (
-            current_expires_at if days == 0 and current_expires_at is not None else now
+            current_expires_at
+            if days == 0 and current_expires_at is not None
+            else now
             if days == 0
             else extend(current_expires_at, now, days)
         )

@@ -92,6 +92,7 @@ async def test_redeeming_gift_into_other_active_plan_keeps_current_plan_and_conv
         .with_only_columns(Subscription.expires_at)
         .where(Subscription.user_id == recipient.id)
     )
+    assert original_expiry is not None
     view = await GiftService(db_session).redeem(voucher.code, recipient.id)
 
     assert view.plan_code == "current-plan"

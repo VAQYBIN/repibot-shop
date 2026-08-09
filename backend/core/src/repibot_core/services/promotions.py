@@ -252,15 +252,16 @@ class GiftService:
             voucher.redeemed_by_user_id, voucher.redeemed_at = recipient_user_id, now
             await self._outbox.add(TOPIC_PROVISION, {"user_id": recipient_user_id})
         return SubscriptionView(
-            target.code,
-            target.name,
-            applied.status,
-            applied.started_at,
-            applied.expires_at,
-            None,
-            target.traffic_limit_bytes,
-            target.hwid_device_limit,
-            target.is_trial,
+            plan_code=target.code,
+            plan_name=target.name,
+            status=applied.status,
+            started_at=applied.started_at,
+            expires_at=applied.expires_at,
+            subscription_url=None,
+            traffic_limit_bytes=target.traffic_limit_bytes,
+            hwid_device_limit=target.hwid_device_limit,
+            is_trial=target.is_trial,
+            auto_renew_enabled=applied.auto_renew_enabled,
         )
 
     async def list_for_user(self, user_id: int) -> list[GiftVoucherView]:

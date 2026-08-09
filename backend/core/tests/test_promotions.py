@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from repibot_core.db.engine import create_session_factory
@@ -135,7 +135,7 @@ async def test_only_pending_expired_reservation_is_released(db_session: AsyncSes
     await service.reserve(order=used, user_id=user.id, code=promo.code)
     await service.consume(order_id=used.id)
     await db_session.execute(
-        PromoReservation.__table__.update()
+        update(PromoReservation)
         .where(PromoReservation.order_id == pending.id)
         .values(expires_at=datetime.now(UTC) - timedelta(seconds=1))
     )

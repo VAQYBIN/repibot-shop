@@ -101,4 +101,6 @@ def render_payment_notification(
         jade=JADE,
         jade_deep=JADE_DEEP,
     )
-    return EmailMessage(to=to, subject=translate(language, f"{prefix}.subject"), text=text, html=html)
+    return EmailMessage(
+        to=to, subject=translate(language, f"{prefix}.subject"), text=text, html=html
+    )

@@ -27,15 +27,29 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("starts_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.UniqueConstraint("code", name="uq_promo_codes_code"),
-        sa.CheckConstraint("percent_off >= 0 AND percent_off <= 100", name="ck_promos_percent_range"),
+        sa.CheckConstraint(
+            "percent_off >= 0 AND percent_off <= 100", name="ck_promos_percent_range"
+        ),
         sa.CheckConstraint("bonus_days >= 0", name="ck_promos_bonus_nonnegative"),
         sa.CheckConstraint("max_uses IS NULL OR max_uses > 0", name="ck_promos_max_uses_positive"),
-        sa.CheckConstraint("per_user_limit IS NULL OR per_user_limit > 0", name="ck_promos_user_limit_positive"),
+        sa.CheckConstraint(
+            "per_user_limit IS NULL OR per_user_limit > 0", name="ck_promos_user_limit_positive"
+        ),
     )
-    op.create_foreign_key("fk_promo_reservations_promo_code", "promo_reservations", "promo_codes", ["promo_code_id"], ["id"])
+    op.create_foreign_key(
+        "fk_promo_reservations_promo_code",
+        "promo_reservations",
+        "promo_codes",
+        ["promo_code_id"],
+        ["id"],
+    )
 
 
 def downgrade() -> None:

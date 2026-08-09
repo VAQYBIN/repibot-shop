@@ -18,6 +18,7 @@ from repibot_core.db.models import (
     PaymentProvider,
     PaymentStatus,
     Plan,
+    PromoCode,
     PromoReservation,
     TrafficResetStrategy,
     User,
@@ -67,10 +68,13 @@ async def _pending_attempt(engine: AsyncEngine, *, expired: bool = False) -> tup
             provider_payment_id="payment-1",
         )
         if expired:
+            promo = PromoCode(code="expired-order")
+            session.add(promo)
+            await session.flush()
             session.add(
                 PromoReservation(
                     order_id=order.id,
-                    promo_code_id=1,
+                    promo_code_id=promo.id,
                     user_id=user.id,
                     expires_at=datetime.now(UTC) + timedelta(minutes=30),
                 )
@@ -165,6 +169,7 @@ async def test_duplicate_webhook_is_deduplicated_by_verified_provider_state(
     assert attempt.verified_payload == {
         "amount": "254.15",
         "currency": "RUB",
+        "payment_method_id": None,
         "status": "succeeded",
     }
 

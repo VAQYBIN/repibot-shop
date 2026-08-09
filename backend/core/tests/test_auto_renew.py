@@ -35,18 +35,58 @@ class FailingYooKassa:
     def __init__(self) -> None:
         self._number = 0
 
-    async def create_payment(self, **_: object) -> YooKassaPayment:
+    async def create_payment(
+        self,
+        *,
+        idempotence_key: str,
+        amount_rub: Decimal,
+        return_url: str,
+        description: str,
+        save_payment_method: bool,
+        payment_method_id: str | None = None,
+    ) -> YooKassaPayment:
+        _ = (
+            idempotence_key,
+            amount_rub,
+            return_url,
+            description,
+            save_payment_method,
+            payment_method_id,
+        )
         self._number += 1
         return _payment(f"failed-{self._number}", YooKassaPaymentStatus.canceled)
+
+    async def get_payment(self, payment_id: str) -> YooKassaPayment:
+        raise AssertionError(f"provider must not fetch {payment_id}")
 
 
 class RecordingYooKassa:
     def __init__(self) -> None:
         self.calls = 0
 
-    async def create_payment(self, **_: object) -> object:
+    async def create_payment(
+        self,
+        *,
+        idempotence_key: str,
+        amount_rub: Decimal,
+        return_url: str,
+        description: str,
+        save_payment_method: bool,
+        payment_method_id: str | None = None,
+    ) -> YooKassaPayment:
+        _ = (
+            idempotence_key,
+            amount_rub,
+            return_url,
+            description,
+            save_payment_method,
+            payment_method_id,
+        )
         self.calls += 1
         raise AssertionError("provider must not be called")
+
+    async def get_payment(self, payment_id: str) -> YooKassaPayment:
+        raise AssertionError(f"provider must not fetch {payment_id}")
 
 
 class ScriptedYooKassa:
@@ -55,7 +95,17 @@ class ScriptedYooKassa:
         self.keys: list[str] = []
         self.payments: dict[str, YooKassaPayment] = {}
 
-    async def create_payment(self, *, idempotence_key: str, **_: object) -> YooKassaPayment:
+    async def create_payment(
+        self,
+        *,
+        idempotence_key: str,
+        amount_rub: Decimal,
+        return_url: str,
+        description: str,
+        save_payment_method: bool,
+        payment_method_id: str | None = None,
+    ) -> YooKassaPayment:
+        _ = amount_rub, return_url, description, save_payment_method, payment_method_id
         self.keys.append(idempotence_key)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
@@ -228,14 +278,28 @@ async def test_success_after_manual_renewal_is_recorded_and_fulfilled(
     subscription, anchor = await _subscription(db_session)
 
     class ManualDuringRequest(ScriptedYooKassa):
-        async def create_payment(self, **kwargs: object) -> YooKassaPayment:
+        async def create_payment(
+            self,
+            *,
+            idempotence_key: str,
+            amount_rub: Decimal,
+            return_url: str,
+            description: str,
+            save_payment_method: bool,
+            payment_method_id: str | None = None,
+        ) -> YooKassaPayment:
             subscription.expires_at = anchor + timedelta(days=30)
             await db_session.commit()
-            return await super().create_payment(**kwargs)
+            return await super().create_payment(
+                idempotence_key=idempotence_key,
+                amount_rub=amount_rub,
+                return_url=return_url,
+                description=description,
+                save_payment_method=save_payment_method,
+                payment_method_id=payment_method_id,
+            )
 
-    provider = ManualDuringRequest(
-        [_payment("late-success", YooKassaPaymentStatus.succeeded)]
-    )
+    provider = ManualDuringRequest([_payment("late-success", YooKassaPaymentStatus.succeeded)])
     await AutoRenewalService(db_session, provider, get_settings()).run(
         now=anchor - timedelta(hours=24)
     )
@@ -257,14 +321,28 @@ async def test_stale_confirmed_failure_does_not_disable_or_notify_new_cycle(
     subscription, anchor = await _subscription(db_session)
 
     class ManualDuringRequest(ScriptedYooKassa):
-        async def create_payment(self, **kwargs: object) -> YooKassaPayment:
+        async def create_payment(
+            self,
+            *,
+            idempotence_key: str,
+            amount_rub: Decimal,
+            return_url: str,
+            description: str,
+            save_payment_method: bool,
+            payment_method_id: str | None = None,
+        ) -> YooKassaPayment:
             subscription.expires_at = anchor + timedelta(days=30)
             await db_session.commit()
-            return await super().create_payment(**kwargs)
+            return await super().create_payment(
+                idempotence_key=idempotence_key,
+                amount_rub=amount_rub,
+                return_url=return_url,
+                description=description,
+                save_payment_method=save_payment_method,
+                payment_method_id=payment_method_id,
+            )
 
-    provider = ManualDuringRequest(
-        [_payment("late-cancel", YooKassaPaymentStatus.canceled)]
-    )
+    provider = ManualDuringRequest([_payment("late-cancel", YooKassaPaymentStatus.canceled)])
     await AutoRenewalService(db_session, provider, get_settings()).run(
         now=anchor - timedelta(hours=24)
     )
@@ -298,9 +376,7 @@ async def test_fresh_run_finalizes_recorded_success_after_crash_before_finalizer
     recovered = AutoRenewalService(db_session, RecordingYooKassa(), get_settings())
     await recovered.run(now=anchor - timedelta(hours=1))
 
-    order = await db_session.scalar(
-        select(Order).where(Order.client_key.like("auto-renew:%"))
-    )
+    order = await db_session.scalar(select(Order).where(Order.client_key.like("auto-renew:%")))
     assert order is not None and order.status is OrderStatus.fulfilled
 
 
