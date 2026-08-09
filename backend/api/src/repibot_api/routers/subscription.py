@@ -82,12 +82,20 @@ async def create_order(
     yookassa: Annotated[YooKassaClient, Depends(yookassa_client)],
     redis: Annotated[Redis, Depends(get_redis)],
     ip: Annotated[str | None, Depends(client_ip)],
+    session: Annotated[AsyncSession, Depends(db_session)],
 ) -> OrderResponse:
-    await enforce(redis, f"payment-create:user:{context.principal.user_id}", PAYMENT_CREATE)
-    if ip is not None:
-        await enforce(redis, f"payment-create:ip:{ip}", PAYMENT_CREATE)
     if payload.provider != "yookassa":
         raise ApiError("провайдер недоступен", 503, "provider_unavailable")
+    replay = await session.scalar(
+        select(Order.id).where(
+            Order.user_id == context.principal.user_id,
+            Order.client_key == payload.idempotency_key,
+        )
+    )
+    if replay is None:
+        await enforce(redis, f"payment-create:user:{context.principal.user_id}", PAYMENT_CREATE)
+        if ip is not None:
+            await enforce(redis, f"payment-create:ip:{ip}", PAYMENT_CREATE)
     try:
         created = await payments.create_manual_yookassa_order(
             user_id=context.principal.user_id,

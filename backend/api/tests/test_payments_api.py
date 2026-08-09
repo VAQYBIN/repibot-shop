@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from repibot_core.db.engine import create_session_factory
-from repibot_core.db.models import Plan
+from repibot_core.db.models import Order, OrderStatus, PaymentAttempt, PaymentStatus, Plan
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 
 
@@ -185,6 +186,108 @@ async def test_same_client_key_returns_same_order(
     assert second.json()["id"] == first.json()["id"]
     assert second.json()["confirmation_url"] == first.json()["confirmation_url"]
     assert fake_yookassa.calls == 1
+
+
+async def test_maximum_length_client_key_is_safe_for_provider_idempotency(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    month_plan: int,
+    fake_yookassa: FakeYooKassa,
+) -> None:
+    """Extending an accepted 128-character key must not overflow provider_key."""
+    response = await api_client.post(
+        "/api/me/orders", json=_payload(month_plan, key="k" * 128), headers=user_headers
+    )
+
+    assert response.status_code == 201
+    assert fake_yookassa.calls == 1
+
+
+async def test_concurrent_first_retries_return_the_same_order(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    month_plan: int,
+    fake_yookassa: FakeYooKassa,
+) -> None:
+    """Two concurrent absent-order reads must not surface the unique constraint as 500."""
+    requests = [
+        api_client.post(
+            "/api/me/orders",
+            json=_payload(month_plan, key="concurrent-first-order"),
+            headers=user_headers,
+        )
+        for _ in range(2)
+    ]
+    first, second = await asyncio.gather(*requests, return_exceptions=True)
+
+    assert isinstance(first, Response)
+    assert isinstance(second, Response)
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["id"] == second.json()["id"]
+    assert fake_yookassa.calls == 1
+
+
+async def test_fulfilled_order_replay_never_reopens_provider_payment(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    month_plan: int,
+    fake_yookassa: FakeYooKassa,
+    engine: AsyncEngine,
+) -> None:
+    """A completed order replay must not overwrite callback verification data."""
+    created = await api_client.post(
+        "/api/me/orders", json=_payload(month_plan), headers=user_headers
+    )
+    order_id = created.json()["id"]
+    async with create_session_factory(engine)() as session:
+        await session.execute(
+            update(Order).where(Order.id == order_id).values(status=OrderStatus.fulfilled)
+        )
+        await session.execute(
+            update(PaymentAttempt)
+            .where(PaymentAttempt.order_id == order_id)
+            .values(
+                status=PaymentStatus.succeeded,
+                verified_payload={"amount": "299.00", "currency": "RUB", "status": "succeeded"},
+            )
+        )
+        await session.commit()
+
+    replay = await api_client.post(
+        "/api/me/orders", json=_payload(month_plan), headers=user_headers
+    )
+
+    assert replay.status_code == 201
+    assert replay.json()["id"] == order_id
+    assert replay.json()["confirmation_url"] is None
+    assert fake_yookassa.calls == 1
+
+
+async def test_same_key_replay_is_not_limited_after_unique_creates(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    month_plan: int,
+    fake_yookassa: FakeYooKassa,
+) -> None:
+    """Rate limiting replays would reject a harmless network retry as a new checkout."""
+    first = await api_client.post("/api/me/orders", json=_payload(month_plan), headers=user_headers)
+    for index in range(4):
+        response = await api_client.post(
+            "/api/me/orders",
+            json=_payload(month_plan, key=f"other-create-{index}"),
+            headers=user_headers,
+        )
+        assert response.status_code == 201
+
+    replay = await api_client.post(
+        "/api/me/orders", json=_payload(month_plan), headers=user_headers
+    )
+
+    assert first.status_code == 201
+    assert replay.status_code == 201
+    assert replay.json()["id"] == first.json()["id"]
+    assert fake_yookassa.calls == 5
 
 
 async def test_order_creation_is_limited_by_user_and_ip(

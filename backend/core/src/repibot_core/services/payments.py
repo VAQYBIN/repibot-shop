@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from hashlib import sha256
 from typing import Protocol
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import (
@@ -67,7 +68,7 @@ class YooKassaCreator(Protocol):
 @dataclass(frozen=True, slots=True)
 class CreatedOrder:
     order: Order
-    confirmation_url: str
+    confirmation_url: str | None
 
 
 class PaymentService:
@@ -107,10 +108,13 @@ class PaymentService:
         # read-only one before beginning it.
         if self._session.in_transaction():
             await self._session.commit()
-        provider_key = f"{user_id}:{client_key}"
+        provider_key = self._provider_key(user_id, client_key)
         existing: Order | None = None
         stored_confirmation_url: str | None = None
         async with self._session.begin():
+            await self._session.execute(
+                select(func.pg_advisory_xact_lock(self._order_lock_key(user_id, client_key)))
+            )
             existing = await self._session.scalar(
                 select(Order).where(Order.user_id == user_id, Order.client_key == client_key)
             )
@@ -157,6 +161,8 @@ class PaymentService:
         assert existing is not None  # transaction either created or found an order
         if existing.status is OrderStatus.expired or existing.expires_at <= datetime.now(UTC):
             raise ServiceError("заказ истёк", "order_expired")
+        if existing.status is not OrderStatus.pending:
+            return CreatedOrder(order=existing, confirmation_url=None)
         if stored_confirmation_url is not None:
             return CreatedOrder(order=existing, confirmation_url=stored_confirmation_url)
 
@@ -185,6 +191,17 @@ class PaymentService:
             attempt.verified_payload = {"confirmation_url": payment.confirmation_url}
 
         return CreatedOrder(order=existing, confirmation_url=payment.confirmation_url)
+
+    @staticmethod
+    def _provider_key(user_id: int, client_key: str) -> str:
+        """Stable, provider-safe representation of the user-scoped client key."""
+        return sha256(f"{user_id}:{client_key}".encode()).hexdigest()
+
+    @staticmethod
+    def _order_lock_key(user_id: int, client_key: str) -> int:
+        """Transaction lock serialising the otherwise-unlockable absent order row."""
+        digest = sha256(f"order:{user_id}:{client_key}".encode()).digest()
+        return int.from_bytes(digest[:8], byteorder="big", signed=True)
 
     async def finalize_success(
         self,
