@@ -1,0 +1,129 @@
+"""Заказы и попытки оплаты получают коммерческие снимки и ключи идемпотентности."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+
+import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from repibot_core.db.models import PaymentProvider, Plan, TrafficResetStrategy, User
+from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
+
+pytestmark = pytest.mark.docker
+
+
+async def _plan(session: AsyncSession) -> Plan:
+    plan = Plan(
+        code="month",
+        name={"ru": "Месяц", "en": "Month"},
+        description=None,
+        duration_days=30,
+        price_rub=Decimal("299.00"),
+        price_stars=199,
+        traffic_limit_bytes=0,
+        traffic_reset_strategy=TrafficResetStrategy.NO_RESET,
+        hwid_device_limit=3,
+        internal_squad_uuids=["11111111-1111-4111-8111-111111111111"],
+        is_trial=False,
+        is_active=True,
+        is_visible=True,
+        sort_order=0,
+    )
+    session.add(plan)
+    await session.flush()
+    return plan
+
+
+async def _user(session: AsyncSession, *, code: str = "order001") -> User:
+    user = User(email=f"{code}@example.org", referral_code=code)
+    session.add(user)
+    await session.flush()
+    return user
+
+
+async def test_pending_order_snapshots_plan_and_attempt_is_reused(db_session: AsyncSession) -> None:
+    """Изменение тарифа после старта оплаты не меняет уже выставленный счёт."""
+    plan = await _plan(db_session)
+    user = await _user(db_session)
+    orders = OrderRepository(db_session)
+    attempts = PaymentAttemptRepository(db_session)
+
+    order = await orders.create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key="order-client-key-1",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+    )
+    plan.name = {"ru": "Новый месяц", "en": "New month"}
+    plan.price_rub = Decimal("399.00")
+    first = await attempts.get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key="provider-key-1",
+    )
+    retry = await attempts.get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key="provider-key-1",
+    )
+
+    assert order.plan_code_snapshot == "month"
+    assert order.plan_name_snapshot == {"ru": "Месяц", "en": "Month"}
+    assert order.duration_days_snapshot == 30
+    assert order.gross_rub == Decimal("299.00")
+    assert order.amount_due_rub == Decimal("299.00")
+    assert first.id == retry.id
+
+
+async def test_duplicate_client_key_for_user_is_rejected(db_session: AsyncSession) -> None:
+    """Повторный запрос клиента не должен создать два заказа для одной покупки."""
+    plan = await _plan(db_session)
+    user = await _user(db_session)
+    orders = OrderRepository(db_session)
+    expires_at = datetime.now(UTC) + timedelta(minutes=30)
+
+    await orders.create_pending(
+        user_id=user.id, plan=plan, client_key="same-client-key", expires_at=expires_at
+    )
+    with pytest.raises(IntegrityError):
+        await orders.create_pending(
+            user_id=user.id, plan=plan, client_key="same-client-key", expires_at=expires_at
+        )
+
+
+async def test_duplicate_provider_payment_id_is_rejected(db_session: AsyncSession) -> None:
+    """Один платёж провайдера нельзя связать с двумя попытками оплаты."""
+    plan = await _plan(db_session)
+    user = await _user(db_session)
+    orders = OrderRepository(db_session)
+    attempts = PaymentAttemptRepository(db_session)
+    expires_at = datetime.now(UTC) + timedelta(minutes=30)
+    first_order = await orders.create_pending(
+        user_id=user.id, plan=plan, client_key="first-order-key", expires_at=expires_at
+    )
+    second_order = await orders.create_pending(
+        user_id=user.id, plan=plan, client_key="second-order-key", expires_at=expires_at
+    )
+    first = await attempts.get_or_create(
+        order_id=first_order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key="first-provider-key",
+    )
+    first.provider_payment_id = "provider-payment-1"
+    await db_session.flush()
+
+    duplicate = await attempts.get_or_create(
+        order_id=second_order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key="second-provider-key",
+    )
+    duplicate.provider_payment_id = "provider-payment-1"
+    with pytest.raises(IntegrityError):
+        await db_session.flush()

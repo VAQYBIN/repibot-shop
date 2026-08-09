@@ -74,6 +74,18 @@ class Settings(BaseSettings):
     # после сбоя панели, не превращая сверку в постоянную нагрузку.
     reconcile_interval_hours: int = 6
 
+    # Пустые реквизиты отключают оплату картой на конкретном развёртывании,
+    # но неполная пара всегда означает ошибку конфигурации.
+    yookassa_shop_id: str = ""
+    yookassa_secret_key: SecretStr = SecretStr("")
+    yookassa_api_base_url: str = "https://api.yookassa.ru/v3"
+    referral_reward_percent: int = Field(default=10, ge=0, le=100)
+    referral_reward_mode: Literal["first", "every"] = "first"
+    yookassa_order_ttl_minutes: int = Field(default=30, gt=0)
+    stars_order_ttl_minutes: int = Field(default=15, gt=0)
+    auto_renew_offsets_hours: tuple[int, int, int] = (-24, 6, 12)
+    auto_renew_disable_after_final_failure: bool = True
+
     jwt_secret: SecretStr
     encryption_key: SecretStr
 
@@ -141,6 +153,29 @@ class Settings(BaseSettings):
         if not isinstance(value, str):
             return value
         return tuple(int(part) for part in value.split(",") if part.strip())
+
+    @field_validator("yookassa_api_base_url")
+    @classmethod
+    def _yookassa_api_base_url_is_https(cls, value: str) -> str:
+        if not value.startswith("https://"):
+            msg = "YOOKASSA_API_BASE_URL должен начинаться с https://"
+            raise ValueError(msg)
+        return value.rstrip("/")
+
+    @field_validator("auto_renew_offsets_hours")
+    @classmethod
+    def _auto_renew_offsets_are_ordered(cls, value: tuple[int, int, int]) -> tuple[int, int, int]:
+        if value != tuple(sorted(value)):
+            msg = "AUTO_RENEW_OFFSETS_HOURS должны идти по времени"
+            raise ValueError(msg)
+        return value
+
+    def model_post_init(self, __context: object) -> None:
+        has_shop_id = bool(self.yookassa_shop_id)
+        has_secret = bool(self.yookassa_secret_key.get_secret_value())
+        if has_shop_id != has_secret:
+            msg = "YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY задаются вместе"
+            raise ValueError(msg)
 
 
 @lru_cache(maxsize=1)

@@ -109,6 +109,23 @@ def test_token_lifetimes_have_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.refresh_token_ttl_days == 30
 
 
+def test_commerce_settings_have_safe_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _build(monkeypatch)
+
+    assert settings.yookassa_api_base_url == "https://api.yookassa.ru/v3"
+    assert settings.referral_reward_percent == 10
+    assert settings.referral_reward_mode == "first"
+    assert settings.yookassa_order_ttl_minutes == 30
+    assert settings.stars_order_ttl_minutes == 15
+    assert settings.auto_renew_offsets_hours == (-24, 6, 12)
+    assert settings.auto_renew_disable_after_final_failure is True
+
+
+def test_invalid_referral_reward_settings_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(ValidationError):
+        _build(monkeypatch, REFERRAL_REWARD_PERCENT="-1")
+
+
 @pytest.fixture(autouse=True)
 def _clear_settings_cache() -> Iterator[None]:
     """Настройки кэшируются на процесс, а тесты меняют окружение."""
