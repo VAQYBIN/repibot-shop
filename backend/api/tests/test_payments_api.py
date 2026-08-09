@@ -81,7 +81,14 @@ async def test_create_stars_order_requires_telegram_invoice(
     api_client: AsyncClient,
     telegram_user_headers: dict[str, str],
     month_plan: int,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from repibot_api.routers import subscription as subscription_router
+
+    async def handoff_url(*_args: object) -> str:
+        return "https://t.me/repibot?start=pay"
+
+    monkeypatch.setattr(subscription_router, "stars_handoff_url", handoff_url)
     started = datetime.now(UTC)
     response = await api_client.post(
         "/api/me/orders", json=_stars_payload(month_plan), headers=telegram_user_headers
@@ -91,6 +98,7 @@ async def test_create_stars_order_requires_telegram_invoice(
     body = response.json()
     assert body["telegram_invoice_required"] is True
     assert body["confirmation_url"] is None
+    assert body["telegram_handoff_url"] == "https://t.me/repibot?start=pay"
     assert body["price_stars"] == 199
     expires_at = datetime.fromisoformat(body["expires_at"])
     assert expires_at.tzinfo is not None
@@ -132,6 +140,7 @@ async def test_create_manual_yookassa_order_returns_confirm_url(
         "expires_at",
         "confirmation_url",
         "telegram_invoice_required",
+        "telegram_handoff_url",
     }
 
 

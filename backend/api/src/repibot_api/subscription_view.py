@@ -147,7 +147,11 @@ def subscription_response(view: SubscriptionView) -> SubscriptionResponse:
 
 
 def order_response(
-    order: Order, confirmation_url: str | None, *, telegram_invoice_required: bool = False
+    order: Order,
+    confirmation_url: str | None,
+    *,
+    telegram_invoice_required: bool = False,
+    telegram_handoff_url: str | None = None,
 ) -> OrderResponse:
     return OrderResponse(
         id=order.id,
@@ -165,4 +169,5 @@ def order_response(
         expires_at=order.expires_at,
         confirmation_url=confirmation_url,
         telegram_invoice_required=telegram_invoice_required,
+        telegram_handoff_url=telegram_handoff_url,
     )

@@ -957,6 +957,13 @@ export interface components {
             expires_at: string;
             /** Confirmation Url */
             confirmation_url: string | null;
+            /**
+             * Telegram Invoice Required
+             * @default false
+             */
+            telegram_invoice_required: boolean;
+            /** Telegram Handoff Url */
+            telegram_handoff_url?: string | null;
         };
         /** PasskeyLoginRequest */
         PasskeyLoginRequest: {

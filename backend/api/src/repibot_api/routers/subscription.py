@@ -40,8 +40,11 @@ from repibot_api.subscription_view import (
 )
 from repibot_core.db.models import Order, OrderPurpose, PaymentAttempt, PaymentProvider, User
 from repibot_core.integrations.remnawave.client import RemnawaveUnavailable
+from repibot_core.integrations.telegram.bot_api import TIMEOUT_SECONDS as BOT_TIMEOUT_SECONDS
+from repibot_core.integrations.telegram.bot_api import BotApi
 from repibot_core.integrations.yookassa.client import YooKassaError
 from repibot_core.ratelimit import DEVICE_UNLINK_WINDOW, Rule
+from repibot_core.services.auth.types import AuthError
 from repibot_core.services.devices import DeviceService, DeviceView
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.payments import PaymentService
@@ -51,6 +54,14 @@ from repibot_core.services.traffic import TrafficService
 from repibot_core.settings import get_settings
 
 router = APIRouter(tags=["subscription"])
+
+
+async def stars_handoff_url(redis: Redis) -> str:
+    """Static deep link triggers the bot; no payment identifier crosses the browser boundary."""
+    settings = get_settings()
+    async with httpx.AsyncClient(timeout=BOT_TIMEOUT_SECONDS) as client:
+        username = await BotApi(settings, redis, client=client).username()
+    return f"https://t.me/{username}?start=pay"
 
 
 async def _confirmation_urls(session: AsyncSession, order_ids: list[int]) -> dict[int, str | None]:
@@ -109,6 +120,11 @@ async def create_order(
                 stars_order.order,
                 None,
                 telegram_invoice_required=stars_order.invoice_payload is not None,
+                telegram_handoff_url=(
+                    await stars_handoff_url(redis)
+                    if stars_order.invoice_payload is not None
+                    else None
+                ),
             )
         async for yookassa in yookassa_client():
             yookassa_order = await payments.create_manual_yookassa_order(
@@ -124,6 +140,8 @@ async def create_order(
         raise RuntimeError("YooKassa dependency did not yield a client")
     except ServiceError as error:
         raise api_error_from_service(error) from error
+    except AuthError as error:
+        raise ApiError("Telegram временно недоступен", 503, "telegram_unavailable") from error
     except (httpx.HTTPError, YooKassaError) as error:
         raise ApiError("провайдер недоступен", 503, "provider_unavailable") from error
 

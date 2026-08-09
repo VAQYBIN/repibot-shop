@@ -292,3 +292,4 @@ class OrderResponse(BaseModel):
     expires_at: datetime
     confirmation_url: str | None
     telegram_invoice_required: bool = False
+    telegram_handoff_url: str | None = None

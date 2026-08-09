@@ -1904,6 +1904,22 @@
               }
             ],
             "title": "Confirmation Url"
+          },
+          "telegram_invoice_required": {
+            "type": "boolean",
+            "title": "Telegram Invoice Required",
+            "default": false
+          },
+          "telegram_handoff_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Handoff Url"
           }
         },
         "type": "object",

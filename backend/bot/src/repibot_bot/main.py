@@ -40,9 +40,9 @@ def build_dispatcher(storage: BaseStorage) -> Dispatcher:
     dispatcher.message.middleware(middleware)
     dispatcher.callback_query.middleware(middleware)
     dispatcher.pre_checkout_query.middleware(middleware)
+    dispatcher.include_router(build_payment_router())
     dispatcher.include_router(build_start_router())
     dispatcher.include_router(build_language_router())
-    dispatcher.include_router(build_payment_router())
     return dispatcher
 
 

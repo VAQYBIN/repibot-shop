@@ -6,8 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
-from hmac import compare_digest
-from hmac import new as hmac_new
+from secrets import token_urlsafe
 from typing import Protocol
 
 from sqlalchemy import delete, func, select
@@ -79,6 +78,16 @@ class CreatedStarsOrder:
 
     order: Order
     invoice_payload: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class StarsInvoice:
+    """The server-controlled values sent to Telegram's SendInvoice method."""
+
+    title: str
+    description: str
+    invoice_payload: str
+    price_stars: int
 
 
 class PaymentService:
@@ -214,7 +223,6 @@ class PaymentService:
         """Creates the server-side Stars invoice state without charging in the web app."""
         if self._session.in_transaction():
             await self._session.commit()
-        provider_key = sha256(f"stars:{user_id}:{client_key}".encode()).hexdigest()
         existing: Order | None = None
         attempt: PaymentAttempt | None = None
         async with self._session.begin():
@@ -248,7 +256,7 @@ class PaymentService:
                     order_id=existing.id,
                     provider=PaymentProvider.stars,
                     attempt_no=1,
-                    provider_key=provider_key,
+                    provider_key=token_urlsafe(32),
                 )
             elif existing.status is OrderStatus.pending and existing.expires_at <= datetime.now(
                 UTC
@@ -272,8 +280,39 @@ class PaymentService:
                 "для заказа уже выбран другой способ оплаты", "payment_provider_mismatch"
             )
         return CreatedStarsOrder(
-            order=existing, invoice_payload=self._stars_invoice_payload(attempt.id)
+            order=existing, invoice_payload=self._stars_invoice_payload(attempt.provider_key)
         )
+
+    async def next_stars_invoice(self, user_id: int) -> StarsInvoice | None:
+        """Returns the owner's newest active Stars invoice without exposing it to the web app."""
+        if self._session.in_transaction():
+            await self._session.commit()
+        async with self._session.begin():
+            row = (
+                await self._session.execute(
+                    select(PaymentAttempt, Order)
+                    .join(Order, Order.id == PaymentAttempt.order_id)
+                    .where(
+                        Order.user_id == user_id,
+                        Order.status == OrderStatus.pending,
+                        Order.expires_at > datetime.now(UTC),
+                        PaymentAttempt.provider == PaymentProvider.stars,
+                        PaymentAttempt.status == PaymentStatus.pending,
+                    )
+                    .order_by(PaymentAttempt.id.desc())
+                    .limit(1)
+                )
+            ).one_or_none()
+            if row is None:
+                return None
+            attempt, order = row
+            title = order.plan_name_snapshot.get("ru") or order.plan_code_snapshot
+            return StarsInvoice(
+                title=title,
+                description=f"Re:Pibot: {order.plan_code_snapshot}",
+                invoice_payload=self._stars_invoice_payload(attempt.provider_key),
+                price_stars=order.price_stars_snapshot,
+            )
 
     async def authorize_stars_attempt(
         self, *, invoice_payload: str, user_id: int, total_amount: int
@@ -305,16 +344,24 @@ class PaymentService:
         total_amount: int,
         mark_succeeded: bool,
     ) -> int | None:
-        attempt_id = self._stars_attempt_id(invoice_payload)
-        if attempt_id is None or isinstance(total_amount, bool):
+        reference = self._stars_invoice_reference(invoice_payload)
+        if reference is None or isinstance(total_amount, bool):
             return None
         if self._session.in_transaction():
             await self._session.commit()
         async with self._session.begin():
+            attempt_id = await self._session.scalar(
+                select(PaymentAttempt.id).where(
+                    PaymentAttempt.provider == PaymentProvider.stars,
+                    PaymentAttempt.provider_key == reference,
+                )
+            )
+            if attempt_id is None:
+                return None
             order_id = await self._session.scalar(
                 select(PaymentAttempt.order_id).where(PaymentAttempt.id == attempt_id)
             )
-            if order_id is None:
+            if order_id is None:  # pragma: no cover — selected attempt has a mandatory FK
                 return None
             order = await self._orders.get_for_update(order_id)
             attempt = await self._attempts.get_for_update(attempt_id)
@@ -325,36 +372,35 @@ class PaymentService:
                 return None
             if (
                 attempt.provider is not PaymentProvider.stars
-                or attempt.status is not PaymentStatus.pending
                 or order.status is not OrderStatus.pending
                 or order.user_id != user_id
                 or type(total_amount) is not int
                 or total_amount != order.price_stars_snapshot
             ):
                 return None
-            if mark_succeeded:
+            if attempt.status is PaymentStatus.pending and mark_succeeded:
                 attempt.status = PaymentStatus.succeeded
                 attempt.verified_payload = {"amount": total_amount, "currency": "XTR"}
                 attempt.verified_at = datetime.now(UTC)
+            elif attempt.status is PaymentStatus.succeeded and mark_succeeded:
+                if attempt.verified_payload != {"amount": total_amount, "currency": "XTR"}:
+                    return None
+            elif attempt.status is not PaymentStatus.pending:
+                return None
             return attempt.id
 
-    def _stars_invoice_payload(self, attempt_id: int) -> str:
-        value = str(attempt_id)
-        signature = hmac_new(
-            self._settings.encryption_key.get_secret_value().encode(),
-            f"stars:{value}".encode(),
-            sha256,
-        ).hexdigest()
-        return f"stars.{value}.{signature}"
+    @staticmethod
+    def _stars_invoice_payload(reference: str) -> str:
+        return f"stars.{reference}"
 
-    def _stars_attempt_id(self, payload: str) -> int | None:
-        if payload.count(".") != 2:
+    @staticmethod
+    def _stars_invoice_reference(payload: str) -> str | None:
+        prefix, separator, reference = payload.partition(".")
+        if prefix != "stars" or not separator or not reference:
             return None
-        prefix, value, signature = payload.split(".", maxsplit=2)
-        if prefix != "stars" or not value.isdecimal() or not signature:
+        if len(reference) < 32 or not all(char.isalnum() or char in "-_" for char in reference):
             return None
-        expected = self._stars_invoice_payload(int(value)).rsplit(".", maxsplit=1)[1]
-        return int(value) if compare_digest(signature, expected) else None
+        return reference
 
     @staticmethod
     def _provider_key(user_id: int, client_key: str) -> str:

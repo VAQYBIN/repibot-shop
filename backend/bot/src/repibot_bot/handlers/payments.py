@@ -5,14 +5,24 @@ from __future__ import annotations
 from typing import Protocol
 
 from aiogram import F, Router
-from aiogram.types import Message, PreCheckoutQuery
+from aiogram.filters import CommandStart
+from aiogram.types import LabeledPrice, Message, PreCheckoutQuery
 
 from repibot_core.db.models import User
 
 _INACTIVE_INVOICE = "Счёт больше не активен"
 
 
+class StarsInvoiceView(Protocol):
+    title: str
+    description: str
+    invoice_payload: str
+    price_stars: int
+
+
 class StarsPaymentService(Protocol):
+    async def next_stars_invoice(self, user_id: int) -> StarsInvoiceView | None: ...
+
     async def authorize_stars_attempt(
         self, *, invoice_payload: str, user_id: int, total_amount: int
     ) -> int | None: ...
@@ -55,8 +65,33 @@ async def handle_successful_payment(
         await payment_service.finalize_success(attempt_id)
 
 
+async def handle_stars_handoff(
+    message: Message, user: User, payment_service: StarsPaymentService
+) -> None:
+    """Issues the invoice only in the authenticated Telegram chat of its owner."""
+    if (
+        message.chat.type != "private"
+        or user.telegram_id is None
+        or message.chat.id != user.telegram_id
+    ):
+        return
+    invoice = await payment_service.next_stars_invoice(user.id)
+    if invoice is None:
+        return
+    await message.answer_invoice(
+        title=invoice.title,
+        description=invoice.description,
+        payload=invoice.invoice_payload,
+        currency="XTR",
+        prices=[LabeledPrice(label=invoice.title, amount=invoice.price_stars)],
+    )
+
+
 def build_payment_router() -> Router:
     router = Router(name="payments")
+    router.message.register(
+        handle_stars_handoff, CommandStart(deep_link=True, magic=F.args == "pay")
+    )
     router.pre_checkout_query.register(handle_pre_checkout)
     router.message.register(handle_successful_payment, F.successful_payment)
     return router

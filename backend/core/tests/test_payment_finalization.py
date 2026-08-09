@@ -17,6 +17,7 @@ from repibot_core.db.models import (
     OrderPurpose,
     OrderStatus,
     OutboxMessage,
+    PaymentAttempt,
     PaymentProvider,
     PaymentStatus,
     Plan,
@@ -28,7 +29,7 @@ from repibot_core.db.models import (
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
-from repibot_core.services.payments import PaymentService
+from repibot_core.services.payments import FinalizationResult, PaymentService
 from repibot_core.services.provisioning import TOPIC_PROVISION
 
 pytestmark = pytest.mark.docker
@@ -96,9 +97,11 @@ async def _verified_attempt(
     return attempt.id
 
 
-async def _finalize(factory: object, attempt_id: int) -> object:
+async def _finalize(factory: object, attempt_id: int) -> FinalizationResult:
     async with factory() as session:  # type: ignore[operator]
-        return await PaymentService(session).finalize_success(attempt_id)
+        result = await PaymentService(session).finalize_success(attempt_id)
+        assert result is not None
+        return result
 
 
 async def test_two_finalizers_credit_days_and_outbox_once(
@@ -110,15 +113,13 @@ async def test_two_finalizers_credit_days_and_outbox_once(
     attempt_id = await _verified_attempt(db_session, user=user, plan=plan, key="race")
     factory = create_session_factory(engine)
 
-    results = await asyncio.gather(
-        _finalize(factory, attempt_id), _finalize(factory, attempt_id)
-    )
+    results = await asyncio.gather(_finalize(factory, attempt_id), _finalize(factory, attempt_id))
 
     assert sorted(result.already_finalized for result in results) == [False, True]
     events = await db_session.execute(
-        select(func.count()).select_from(SubscriptionEvent).where(
-            SubscriptionEvent.origin_attempt_id == attempt_id
-        )
+        select(func.count())
+        .select_from(SubscriptionEvent)
+        .where(SubscriptionEvent.origin_attempt_id == attempt_id)
     )
     assert events.scalar_one() == 1
     queued = await db_session.execute(
@@ -127,6 +128,52 @@ async def test_two_finalizers_credit_days_and_outbox_once(
         .where(OutboxMessage.topic == TOPIC_PROVISION)
     )
     assert queued.scalar_one() == 1
+
+
+async def test_stars_success_can_be_recovered_after_recording_before_finalization(
+    db_session: AsyncSession,
+) -> None:
+    """A crash after Telegram proof must leave a retryable, not permanently stuck, order."""
+    plan = await _plan(db_session, "stars-retry")
+    user = await _user(db_session, "stars001")
+    created = await PaymentService(db_session).create_stars_order(
+        user_id=user.id,
+        plan_id=plan.id,
+        purpose=OrderPurpose.purchase,
+        client_key="stars-retry-order",
+        promo_code=None,
+    )
+    assert created.invoice_payload is not None
+
+    first = await PaymentService(db_session).confirm_stars_success(
+        invoice_payload=created.invoice_payload, user_id=user.id, total_amount=199
+    )
+    recovered = await PaymentService(db_session).confirm_stars_success(
+        invoice_payload=created.invoice_payload, user_id=user.id, total_amount=199
+    )
+
+    assert first is not None
+    assert recovered == first
+    result = await PaymentService(db_session).finalize_success(recovered)
+    assert result is not None and result.already_finalized is False
+
+
+async def test_stars_payload_does_not_reveal_attempt_id(db_session: AsyncSession) -> None:
+    plan = await _plan(db_session, "stars-opaque")
+    user = await _user(db_session, "stars002")
+    created = await PaymentService(db_session).create_stars_order(
+        user_id=user.id,
+        plan_id=plan.id,
+        purpose=OrderPurpose.purchase,
+        client_key="stars-opaque-order",
+        promo_code=None,
+    )
+    attempt_id = await db_session.scalar(
+        select(PaymentAttempt.id).where(PaymentAttempt.order_id == created.order.id)
+    )
+
+    assert created.invoice_payload is not None
+    assert created.invoice_payload.split(".", maxsplit=1)[1] != str(attempt_id)
 
 
 async def test_manual_same_plan_renewal_adds_purchased_days(
