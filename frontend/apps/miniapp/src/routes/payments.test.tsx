@@ -21,6 +21,42 @@ const PLAN = {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в Mini App', () => {
+  it('requires confirmation before a Mini App gift sends purpose=gift', async () => {
+    const requests: Request[] = []
+    stubFetch((request) => {
+      const path = new URL(request.url).pathname
+      if (path === '/api/me') return Response.json(PROFILE)
+      if (path === '/api/plans') return Response.json([PLAN])
+      if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
+      if (path === '/api/me/gifts') return Response.json([])
+      if (path === '/api/me/subscription')
+        return Response.json({ subscription: null, trial_available: false })
+      requests.push(request)
+      return Response.json({
+        id: 13,
+        purpose: 'gift',
+        plan_id: 1,
+        plan_code: 'month',
+        plan_name: PLAN.name,
+        duration_days: 30,
+        price_rub: '299',
+        price_stars: 199,
+        gross_rub: '299',
+        discount_rub: '0',
+        amount_due_rub: '299',
+        status: 'pending',
+        expires_at: '2026-08-11T12:00:00Z',
+        confirmation_url: 'https://yookassa.test/gift',
+        telegram_invoice_required: false,
+      })
+    })
+    renderWithProviders(<Payments />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Подарить' }))
+    expect(screen.getByRole('dialog', { name: 'Подтвердить подарок?' })).toBeVisible()
+    expect(requests).toHaveLength(0)
+    await userEvent.click(screen.getByRole('button', { name: 'Продолжить' }))
+    expect(await requests[0]?.json()).toMatchObject({ purpose: 'gift', provider: 'yookassa' })
+  })
   it('hands the server confirmation URL to Telegram for a card order', async () => {
     const openLink = vi.fn()
     vi.stubGlobal('Telegram', { WebApp: { openLink } })

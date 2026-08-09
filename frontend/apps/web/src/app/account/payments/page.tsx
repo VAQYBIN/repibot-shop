@@ -63,14 +63,19 @@ export default function PaymentsPage() {
   ) {
     setStarsHint(false)
     setPromoApplied(false)
-    const order = await createOrder.mutateAsync({
-      plan_id: plan.id,
-      provider,
-      purpose,
-      promo_code: promo || null,
-      save_payment_method: false,
-      idempotency_key: crypto.randomUUID(),
-    })
+    let order
+    try {
+      order = await createOrder.mutateAsync({
+        plan_id: plan.id,
+        provider,
+        purpose,
+        promo_code: promo || null,
+        save_payment_method: false,
+        idempotency_key: crypto.randomUUID(),
+      })
+    } catch {
+      return
+    }
     setPromoApplied(promo !== '')
     if (provider === 'yookassa' && order.confirmation_url !== null)
       window.open(order.confirmation_url, '_blank', 'noopener,noreferrer')

@@ -67,14 +67,19 @@ export function Payments() {
   ) {
     setStars(false)
     setAccepted(false)
-    const created = await createOrder.mutateAsync({
-      plan_id: plan.id,
-      purpose,
-      provider,
-      promo_code: promo || null,
-      save_payment_method: false,
-      idempotency_key: crypto.randomUUID(),
-    })
+    let created
+    try {
+      created = await createOrder.mutateAsync({
+        plan_id: plan.id,
+        purpose,
+        provider,
+        promo_code: promo || null,
+        save_payment_method: false,
+        idempotency_key: crypto.randomUUID(),
+      })
+    } catch {
+      return
+    }
     setAccepted(promo !== '')
     if (provider === 'yookassa' && created.confirmation_url)
       openTelegramUrl(created.confirmation_url)

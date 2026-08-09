@@ -47,6 +47,42 @@ function handlers(extra: Record<string, unknown> = {}) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в кабинете', () => {
+  it('shows a mapped rejected promo error returned by the order endpoint', async () => {
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/me/orders': (request: Request) =>
+          request.method === 'POST'
+            ? { status: 422, body: { error: { code: 'promo_unavailable' } } }
+            : [],
+      }),
+    })
+    await userEvent.type(await screen.findByLabelText('Промокод'), 'NOPE')
+    await userEvent.click(screen.getByRole('button', { name: 'Оплатить картой' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Промокод недоступен')
+  })
+  it('shows loading, real fetch error and retries payment data', async () => {
+    let attempts = 0
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/plans': () => {
+          attempts += 1
+          return attempts === 1
+            ? { status: 503, body: { error: { code: 'plan_inactive' } } }
+            : [PLAN]
+        },
+      }),
+    })
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Этот тариф больше недоступен')
+    await userEvent.click(screen.getByRole('button', { name: 'Повторить' }))
+    expect(await screen.findByRole('button', { name: 'Оплатить картой' })).toBeVisible()
+  })
+  it('uses profile English copy and keeps payment actions available at narrow viewport', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
+    renderWithProviders(<PaymentsPage />, { handlers: handlers({ '/api/me': { language: 'en' } }) })
+    expect(await screen.findByRole('heading', { name: 'Payments and gifts' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Pay by card' })).toBeVisible()
+  })
   it('sends promo, confirmed gift, voucher and auto-renew intents to the server and renders order states', async () => {
     const requests: Request[] = []
     const order = (status: string, id: number) => ({
