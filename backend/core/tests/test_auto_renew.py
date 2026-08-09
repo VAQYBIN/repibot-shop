@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import (
     NotificationDelivery,
+    Order,
+    OrderStatus,
     PaymentAttempt,
     PaymentProvider,
     PaymentStatus,
@@ -22,6 +24,7 @@ from repibot_core.db.models import (
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.domain.subscriptions import SubscriptionState
+from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.services.payment_notifications import AutoRenewalService
 from repibot_core.settings import get_settings
 
@@ -29,8 +32,12 @@ pytestmark = pytest.mark.docker
 
 
 class FailingYooKassa:
-    async def create_payment(self, **_: object) -> object:
-        raise RuntimeError("provider is unavailable")
+    def __init__(self) -> None:
+        self._number = 0
+
+    async def create_payment(self, **_: object) -> YooKassaPayment:
+        self._number += 1
+        return _payment(f"failed-{self._number}", YooKassaPaymentStatus.canceled)
 
 
 class RecordingYooKassa:
@@ -40,6 +47,36 @@ class RecordingYooKassa:
     async def create_payment(self, **_: object) -> object:
         self.calls += 1
         raise AssertionError("provider must not be called")
+
+
+class ScriptedYooKassa:
+    def __init__(self, outcomes: list[object]) -> None:
+        self.outcomes = outcomes
+        self.keys: list[str] = []
+        self.payments: dict[str, YooKassaPayment] = {}
+
+    async def create_payment(self, *, idempotence_key: str, **_: object) -> YooKassaPayment:
+        self.keys.append(idempotence_key)
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        assert isinstance(outcome, YooKassaPayment)
+        self.payments[outcome.id] = outcome
+        return outcome
+
+    async def get_payment(self, payment_id: str) -> YooKassaPayment:
+        return self.payments[payment_id]
+
+
+def _payment(payment_id: str, status: YooKassaPaymentStatus) -> YooKassaPayment:
+    return YooKassaPayment(
+        id=payment_id,
+        status=status,
+        amount_rub=Decimal("300.00"),
+        currency="RUB",
+        confirmation_url=None,
+        payment_method_id="method-1",
+    )
 
 
 async def _subscription(session: AsyncSession) -> tuple[Subscription, datetime]:
@@ -160,3 +197,123 @@ async def test_manual_renewal_makes_old_cycle_a_noop(db_session: AsyncSession) -
 
     assert attempted == 0
     assert provider.calls == 0
+
+
+async def test_timeout_replays_same_durable_cycle_without_creating_second_charge(
+    db_session: AsyncSession,
+) -> None:
+    """Timeout after request start must be recovered with the original idempotence key."""
+    _, anchor = await _subscription(db_session)
+    provider = ScriptedYooKassa(
+        [TimeoutError("lost response"), _payment("recovered", YooKassaPaymentStatus.succeeded)]
+    )
+    service = AutoRenewalService(db_session, provider, get_settings())
+
+    await service.run(now=anchor - timedelta(hours=24))
+    await service.run(now=anchor - timedelta(hours=23))
+
+    renewals = list(
+        (await db_session.scalars(select(Order).where(Order.client_key.like("auto-renew:%")))).all()
+    )
+    assert len(renewals) == 1
+    assert renewals[0].status is OrderStatus.fulfilled
+    assert len(provider.keys) == 2
+    assert provider.keys[0] == provider.keys[1]
+
+
+async def test_success_after_manual_renewal_is_recorded_and_fulfilled(
+    db_session: AsyncSession,
+) -> None:
+    """A charged stale response must never be silently dropped."""
+    subscription, anchor = await _subscription(db_session)
+
+    class ManualDuringRequest(ScriptedYooKassa):
+        async def create_payment(self, **kwargs: object) -> YooKassaPayment:
+            subscription.expires_at = anchor + timedelta(days=30)
+            await db_session.commit()
+            return await super().create_payment(**kwargs)
+
+    provider = ManualDuringRequest(
+        [_payment("late-success", YooKassaPaymentStatus.succeeded)]
+    )
+    await AutoRenewalService(db_session, provider, get_settings()).run(
+        now=anchor - timedelta(hours=24)
+    )
+
+    attempt = await db_session.scalar(
+        select(PaymentAttempt).where(PaymentAttempt.provider_payment_id == "late-success")
+    )
+    assert attempt is not None and attempt.status is PaymentStatus.succeeded
+    assert (
+        await db_session.scalar(select(Order.status).where(Order.id == attempt.order_id))
+        is OrderStatus.fulfilled
+    )
+
+
+async def test_stale_confirmed_failure_does_not_disable_or_notify_new_cycle(
+    db_session: AsyncSession,
+) -> None:
+    """A declined old request is not a reason to turn off auto-renew after manual renewal."""
+    subscription, anchor = await _subscription(db_session)
+
+    class ManualDuringRequest(ScriptedYooKassa):
+        async def create_payment(self, **kwargs: object) -> YooKassaPayment:
+            subscription.expires_at = anchor + timedelta(days=30)
+            await db_session.commit()
+            return await super().create_payment(**kwargs)
+
+    provider = ManualDuringRequest(
+        [_payment("late-cancel", YooKassaPaymentStatus.canceled)]
+    )
+    await AutoRenewalService(db_session, provider, get_settings()).run(
+        now=anchor - timedelta(hours=24)
+    )
+    await db_session.refresh(subscription)
+
+    failures = await db_session.scalar(
+        select(NotificationDelivery.id).where(NotificationDelivery.kind.like("auto_renew_failed%"))
+    )
+    assert subscription.auto_renew_enabled is True
+    assert failures is None
+
+
+async def test_expired_subscription_runs_second_retry_and_overdue_run_catches_up_in_order(
+    db_session: AsyncSession,
+) -> None:
+    """Expiry cron must not suppress +6/+12 retries or collapse missed failure events."""
+    subscription, anchor = await _subscription(db_session)
+    provider = ScriptedYooKassa(
+        [
+            _payment("failed-1", YooKassaPaymentStatus.canceled),
+            _payment("failed-2", YooKassaPaymentStatus.canceled),
+            _payment("failed-3", YooKassaPaymentStatus.canceled),
+        ]
+    )
+    service = AutoRenewalService(db_session, provider, get_settings())
+
+    await service.run(now=anchor - timedelta(hours=24))
+    subscription.status = SubscriptionState.expired
+    await db_session.commit()
+    await service.run(now=anchor + timedelta(hours=12))
+
+    attempts = list(
+        (
+            await db_session.scalars(
+                select(PaymentAttempt).where(PaymentAttempt.provider == PaymentProvider.yookassa)
+            )
+        ).all()
+    )
+    failures = list(
+        (
+            await db_session.scalars(
+                select(NotificationDelivery).where(
+                    NotificationDelivery.kind.like("auto_renew_failed%")
+                )
+            )
+        ).all()
+    )
+    renewal_numbers = [
+        attempt.attempt_no for attempt in attempts if attempt.provider_key != "saved-method-key"
+    ]
+    assert renewal_numbers == [1, 2, 3]
+    assert len(failures) == 3
