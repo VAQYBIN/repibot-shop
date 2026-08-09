@@ -11,6 +11,7 @@ describe('errorMessageKey', () => {
     ['trial_requires_telegram', 'error.trial_requires_telegram'],
     ['trial_disabled', 'error.trial_disabled'],
     ['subscription_exists', 'error.subscription_exists'],
+    ['subscription_not_found', 'payment.error.subscription_not_found'],
   ] as const)('переводит новый код %s в ключ словаря', (code, key) => {
     expect(errorMessageKey(code)).toBe(key)
   })

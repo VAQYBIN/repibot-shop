@@ -33,6 +33,16 @@ export function errorMessageKey(code: string | undefined): TranslationKey {
     trial_requires_telegram: 'error.trial_requires_telegram',
     trial_disabled: 'error.trial_disabled',
     subscription_exists: 'error.subscription_exists',
+    subscription_not_found: 'payment.error.subscription_not_found',
+    provider_unavailable: 'payment.error.provider_unavailable',
+    telegram_required: 'payment.error.telegram_required',
+    order_expired: 'payment.error.order_expired',
+    plan_inactive: 'payment.error.plan_inactive',
+    plan_not_found: 'payment.error.plan_not_found',
+    promo_unavailable: 'payment.error.promo_unavailable',
+    gift_unavailable: 'payment.error.gift_unavailable',
+    payment_not_verified: 'payment.error.payment_not_verified',
+    auto_renew_unavailable: 'payment.auto_renew.unavailable',
   }
   return (code && known[code]) || 'auth.error.unknown'
 }
