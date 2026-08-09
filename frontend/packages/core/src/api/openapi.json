@@ -1094,6 +1094,66 @@
         }
       }
     },
+    "/api/me/subscription/auto-renew": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Get Auto Renew",
+        "operationId": "get_auto_renew_api_me_subscription_auto_renew_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoRenewResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Set Auto Renew",
+        "operationId": "set_auto_renew_api_me_subscription_auto_renew_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoRenewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoRenewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me/subscription/trial": {
       "post": {
         "tags": [
@@ -1692,6 +1752,32 @@
         ],
         "title": "AuthMethodsResponse",
         "description": "Какие способы входа показывать на экране входа.\n\nPasskey поддерживает браузер, а не сервер, поэтому здесь он всегда true:\nрешение принимает клиент. Telegram зависит от настроек развёртывания."
+      },
+      "AutoRenewRequest": {
+        "properties": {
+          "auto_renew_enabled": {
+            "type": "boolean",
+            "title": "Auto Renew Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "auto_renew_enabled"
+        ],
+        "title": "AutoRenewRequest"
+      },
+      "AutoRenewResponse": {
+        "properties": {
+          "auto_renew_enabled": {
+            "type": "boolean",
+            "title": "Auto Renew Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "auto_renew_enabled"
+        ],
+        "title": "AutoRenewResponse"
       },
       "ChangeEmailRequest": {
         "properties": {
@@ -2944,6 +3030,10 @@
           "hwid_device_limit": {
             "type": "integer",
             "title": "Hwid Device Limit"
+          },
+          "auto_renew_enabled": {
+            "type": "boolean",
+            "title": "Auto Renew Enabled"
           }
         },
         "type": "object",
@@ -2955,7 +3045,8 @@
           "expires_at",
           "subscription_url",
           "traffic_limit_bytes",
-          "hwid_device_limit"
+          "hwid_device_limit",
+          "auto_renew_enabled"
         ],
         "title": "SubscriptionResponse"
       },

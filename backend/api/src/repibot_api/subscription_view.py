@@ -143,6 +143,7 @@ def subscription_response(view: SubscriptionView) -> SubscriptionResponse:
         subscription_url=view.subscription_url,
         traffic_limit_bytes=view.traffic_limit_bytes,
         hwid_device_limit=view.hwid_device_limit,
+        auto_renew_enabled=view.auto_renew_enabled,
     )
 
 

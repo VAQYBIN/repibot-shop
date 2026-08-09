@@ -206,6 +206,15 @@ class SubscriptionResponse(BaseModel):
     subscription_url: str | None
     traffic_limit_bytes: int
     hwid_device_limit: int
+    auto_renew_enabled: bool
+
+
+class AutoRenewRequest(BaseModel):
+    auto_renew_enabled: bool
+
+
+class AutoRenewResponse(BaseModel):
+    auto_renew_enabled: bool
 
 
 class AdminSubscriptionRequest(BaseModel):

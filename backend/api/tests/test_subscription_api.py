@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+from repibot_core.db.engine import create_session_factory
+from repibot_core.db.models import Subscription, SubscriptionSource, User
+from repibot_core.domain.subscriptions import SubscriptionState
 
 pytestmark = pytest.mark.docker
 
@@ -74,3 +82,91 @@ async def test_anonymous_cannot_activate_trial(api_client: AsyncClient) -> None:
 async def test_anonymous_cannot_read_subscription(api_client: AsyncClient) -> None:
     response = await api_client.get("/api/me/subscription")
     assert response.status_code == 401
+
+
+async def test_auto_renew_reads_and_updates_only_current_subscription(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    plain_user_id: int,
+    month_plan: int,
+    engine: AsyncEngine,
+) -> None:
+    """Using a client-supplied user id here would let one subscriber change another's billing."""
+    async with create_session_factory(engine)() as session:
+        starts_at = datetime.now(UTC)
+        session.add(
+            Subscription(
+                user_id=plain_user_id,
+                plan_id=month_plan,
+                status=SubscriptionState.active,
+                started_at=starts_at,
+                expires_at=starts_at + timedelta(days=30),
+                auto_renew_enabled=False,
+                source=SubscriptionSource.purchase,
+            )
+        )
+        other = User(email="other-renew@example.org", referral_code="renewoth")
+        session.add(other)
+        await session.flush()
+        session.add(
+            Subscription(
+                user_id=other.id,
+                plan_id=month_plan,
+                status=SubscriptionState.active,
+                started_at=starts_at,
+                expires_at=starts_at + timedelta(days=30),
+                auto_renew_enabled=False,
+                source=SubscriptionSource.purchase,
+            )
+        )
+        await session.commit()
+
+    before = await api_client.get("/api/me/subscription/auto-renew", headers=user_headers)
+    changed = await api_client.put(
+        "/api/me/subscription/auto-renew",
+        headers=user_headers,
+        json={"auto_renew_enabled": True},
+    )
+
+    assert before.status_code == 200
+    assert before.json() == {"auto_renew_enabled": False}
+    assert changed.status_code == 200
+    assert changed.json() == {"auto_renew_enabled": True}
+    subscription = (await api_client.get("/api/me/subscription", headers=user_headers)).json()[
+        "subscription"
+    ]
+    assert subscription["auto_renew_enabled"] is True
+    async with create_session_factory(engine)() as session:
+        other_enabled = await session.scalar(
+            select(Subscription.auto_renew_enabled).where(Subscription.user_id == other.id)
+        )
+    assert other_enabled is False
+
+
+async def test_auto_renew_without_subscription_has_stable_error(
+    api_client: AsyncClient, user_headers: dict[str, str]
+) -> None:
+    response = await api_client.put(
+        "/api/me/subscription/auto-renew",
+        headers=user_headers,
+        json={"auto_renew_enabled": True},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "subscription_not_found"
+
+
+async def test_auto_renew_rejects_trial_subscription(
+    api_client: AsyncClient, telegram_user_headers: dict[str, str], trial_plan: int
+) -> None:
+    activated = await api_client.post("/api/me/subscription/trial", headers=telegram_user_headers)
+    assert activated.status_code == 201
+
+    response = await api_client.put(
+        "/api/me/subscription/auto-renew",
+        headers=telegram_user_headers,
+        json={"auto_renew_enabled": True},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "auto_renew_unavailable"

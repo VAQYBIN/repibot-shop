@@ -567,6 +567,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/subscription/auto-renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Auto Renew */
+        get: operations["get_auto_renew_api_me_subscription_auto_renew_get"];
+        /** Set Auto Renew */
+        put: operations["set_auto_renew_api_me_subscription_auto_renew_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/subscription/trial": {
         parameters: {
             query?: never;
@@ -848,6 +866,16 @@ export interface components {
              * @default true
              */
             passkey: boolean;
+        };
+        /** AutoRenewRequest */
+        AutoRenewRequest: {
+            /** Auto Renew Enabled */
+            auto_renew_enabled: boolean;
+        };
+        /** AutoRenewResponse */
+        AutoRenewResponse: {
+            /** Auto Renew Enabled */
+            auto_renew_enabled: boolean;
         };
         /** ChangeEmailRequest */
         ChangeEmailRequest: {
@@ -1363,6 +1391,8 @@ export interface components {
             traffic_limit_bytes: number;
             /** Hwid Device Limit */
             hwid_device_limit: number;
+            /** Auto Renew Enabled */
+            auto_renew_enabled: boolean;
         };
         /**
          * SubscriptionStateResponse
@@ -2392,6 +2422,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubscriptionStateResponse"];
+                };
+            };
+        };
+    };
+    get_auto_renew_api_me_subscription_auto_renew_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoRenewResponse"];
+                };
+            };
+        };
+    };
+    set_auto_renew_api_me_subscription_auto_renew_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutoRenewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutoRenewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

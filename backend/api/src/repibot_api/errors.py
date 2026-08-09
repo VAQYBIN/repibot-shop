@@ -87,6 +87,8 @@ _SERVICE_STATUS = {
     "plan_code_taken": 409,
     "plan_squads_unknown": 422,
     "subscription_missing": 404,
+    "subscription_not_found": 409,
+    "auto_renew_unavailable": 409,
     "subscription_exists": 409,
     "trial_already_used": 409,
     "trial_requires_telegram": 409,

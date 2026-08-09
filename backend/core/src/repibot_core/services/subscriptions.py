@@ -47,6 +47,7 @@ class SubscriptionView:
     traffic_limit_bytes: int
     hwid_device_limit: int
     is_trial: bool
+    auto_renew_enabled: bool
 
 
 class SubscriptionService:
@@ -75,6 +76,33 @@ class SubscriptionService:
             raise ServiceError(msg, "plan_not_found")
         user = await self._users.get(user_id)
         return _view(subscription, plan, user.remnawave_subscription_url if user else None)
+
+    async def auto_renew_enabled(self, user_id: int) -> bool:
+        """Returns the current user's setting only when recurring renewal is meaningful."""
+        subscription = await self._subscriptions.get_for_user(user_id)
+        self._validate_auto_renew_subscription(subscription)
+        assert subscription is not None
+        return subscription.auto_renew_enabled
+
+    async def set_auto_renew_enabled(self, user_id: int, enabled: bool) -> bool:
+        """Changes exactly one locked subscription, never a caller-supplied account."""
+        if self._session.in_transaction():
+            await self._session.commit()
+        async with self._session.begin():
+            subscription = await self._subscriptions.get_for_user_for_update(user_id)
+            self._validate_auto_renew_subscription(subscription)
+            assert subscription is not None
+            subscription.auto_renew_enabled = enabled
+        return enabled
+
+    @staticmethod
+    def _validate_auto_renew_subscription(subscription: Subscription | None) -> None:
+        if subscription is None:
+            raise ServiceError("подписка не найдена", "subscription_not_found")
+        if subscription.status is not SubscriptionState.active:
+            raise ServiceError(
+                "автопродление недоступно для текущего статуса", "auto_renew_unavailable"
+            )
 
     async def trial_available(self, user_id: int) -> bool:
         user = await self._users.get(user_id)
@@ -366,4 +394,5 @@ def _view(subscription: Subscription, plan: Plan, url: str | None) -> Subscripti
         traffic_limit_bytes=plan.traffic_limit_bytes,
         hwid_device_limit=plan.hwid_device_limit,
         is_trial=plan.is_trial,
+        auto_renew_enabled=subscription.auto_renew_enabled,
     )

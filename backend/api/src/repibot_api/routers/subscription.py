@@ -18,6 +18,8 @@ from repibot_api.deps import AuthContext, client_ip, current_context, db_session
 from repibot_api.errors import ApiError, api_error_from_service
 from repibot_api.limits import PAYMENT_CREATE, enforce
 from repibot_api.schemas import (
+    AutoRenewRequest,
+    AutoRenewResponse,
     CreateOrderRequest,
     DeviceResponse,
     DevicesResponse,
@@ -245,6 +247,33 @@ async def my_subscription(
         subscription=subscription_response(view) if view is not None else None,
         trial_available=await subscriptions.trial_available(context.principal.user_id),
     )
+
+
+@router.get("/api/me/subscription/auto-renew", response_model=AutoRenewResponse)
+async def get_auto_renew(
+    subscriptions: Annotated[SubscriptionService, Depends(subscription_service)],
+    context: Annotated[AuthContext, Depends(current_context)],
+) -> AutoRenewResponse:
+    try:
+        enabled = await subscriptions.auto_renew_enabled(context.principal.user_id)
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+    return AutoRenewResponse(auto_renew_enabled=enabled)
+
+
+@router.put("/api/me/subscription/auto-renew", response_model=AutoRenewResponse)
+async def set_auto_renew(
+    payload: AutoRenewRequest,
+    subscriptions: Annotated[SubscriptionService, Depends(subscription_service)],
+    context: Annotated[AuthContext, Depends(current_context)],
+) -> AutoRenewResponse:
+    try:
+        enabled = await subscriptions.set_auto_renew_enabled(
+            context.principal.user_id, payload.auto_renew_enabled
+        )
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+    return AutoRenewResponse(auto_renew_enabled=enabled)
 
 
 @router.post(
