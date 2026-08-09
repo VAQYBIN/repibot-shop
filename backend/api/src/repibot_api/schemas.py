@@ -227,6 +227,21 @@ class AdminSubscriptionRequest(BaseModel):
     comment: str | None = Field(default=None, max_length=512)
 
 
+class RefundMarkRequest(BaseModel):
+    """Proof that a human completed the provider-side refund first."""
+
+    reference: str = Field(min_length=1, max_length=255)
+    comment: str = Field(min_length=1, max_length=512)
+
+
+class CompensationRequest(BaseModel):
+    """One irreversible, separately approved local correction."""
+
+    action: Literal["revoke_days", "reverse_referral_reward"]
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    comment: str = Field(min_length=1, max_length=512)
+
+
 class SubscriptionStateResponse(BaseModel):
     """Подписка вместе с правом на триал.
 

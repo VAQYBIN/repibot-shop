@@ -20,9 +20,7 @@ from repibot_core.db.models import (
     PaymentAttempt,
     PaymentProvider,
     PaymentStatus,
-    Plan,
     PromoReservation,
-    ReferralReward,
     Subscription,
     SubscriptionActor,
     SubscriptionEventType,
@@ -33,13 +31,13 @@ from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptR
 from repibot_core.db.repositories.outbox import OutboxRepository
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
-from repibot_core.domain.payments import referral_reward_days
 from repibot_core.domain.subscriptions import convert_remainder
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.payment_notifications import NotificationService
 from repibot_core.services.promotions import PromotionService
 from repibot_core.services.provisioning import TOPIC_PROVISION
+from repibot_core.services.referrals import ReferralService
 from repibot_core.services.subscriptions import SubscriptionService
 from repibot_core.settings import Settings, get_settings
 
@@ -544,14 +542,6 @@ class PaymentService:
                     select(GiftVoucher).where(GiftVoucher.order_id == order.id).with_for_update()
                 )
             ).scalar_one_or_none()
-            existing_reward = (
-                await self._session.execute(
-                    select(ReferralReward)
-                    .where(ReferralReward.origin_order_id == order.id)
-                    .with_for_update()
-                )
-            ).scalar_one_or_none()
-
             plan = await self._plans.get(order.plan_id)
             if plan is None:  # pragma: no cover — план не удаляется физически
                 raise ServiceError("тариф заказа не найден", "plan_not_found")
@@ -600,22 +590,15 @@ class PaymentService:
             if reservation is not None:
                 await PromotionService(self._session).consume(order_id=order.id)
 
-            await self._stage_referral_bonus(
-                order=order,
-                purchaser=purchaser,
-                plan=plan,
-                existing_reward=existing_reward,
-                locked_subscription=(
-                    locked_subscriptions[purchaser.referred_by_id]
-                    if purchaser.referred_by_id is not None
-                    else None
-                ),
-            )
+            # The reward service accepts only fulfilled sources. Setting this
+            # before its call remains atomic: an exception rolls the transition
+            # and every entitlement back with the finalizer transaction.
+            order.status = OrderStatus.fulfilled
+            order.fulfilled_at = datetime.now(UTC)
+            await self._stage_referral_bonus(order=order)
             await NotificationService(self._session).enqueue_payment_event(
                 order.id, "payment_succeeded"
             )
-            order.status = OrderStatus.fulfilled
-            order.fulfilled_at = datetime.now(UTC)
 
         return FinalizationResult(order_id=order.id, already_finalized=False)
 
@@ -763,55 +746,6 @@ class PaymentService:
             return SubscriptionEventType.plan_change
         return SubscriptionEventType.purchase
 
-    async def _stage_referral_bonus(
-        self,
-        *,
-        order: Order,
-        purchaser: User,
-        plan: Plan,
-        existing_reward: ReferralReward | None,
-        locked_subscription: Subscription | None,
-    ) -> None:
-        if (
-            purchaser.referred_by_id is None
-            or existing_reward is not None
-            or order.purpose is OrderPurpose.gift
-        ):
-            return
-        days = referral_reward_days(
-            order.duration_days_snapshot, self._settings.referral_reward_percent
-        )
-        if days == 0:
-            return
-        if self._settings.referral_reward_mode == "first":
-            prior = await self._session.scalar(
-                select(ReferralReward.id)
-                .where(ReferralReward.referee_user_id == purchaser.id)
-                .limit(1)
-                .with_for_update()
-            )
-            if prior is not None:
-                return
-        self._session.add(
-            ReferralReward(
-                referrer_user_id=purchaser.referred_by_id,
-                referee_user_id=purchaser.id,
-                origin_order_id=order.id,
-                days=days,
-            )
-        )
-        referrer_plan = plan
-        if locked_subscription is not None:
-            saved_plan = await self._plans.get(locked_subscription.plan_id)
-            if saved_plan is not None:
-                referrer_plan = saved_plan
-        await self._entitlements.apply_entitlement(
-            purchaser.referred_by_id,
-            referrer_plan,
-            days,
-            source=SubscriptionSource.purchase,
-            event_type=SubscriptionEventType.bonus_days,
-            actor=SubscriptionActor.system,
-            origin_attempt_id=None,
-            comment="реферальная награда за оплату",
-        )
+    async def _stage_referral_bonus(self, *, order: Order) -> None:
+        """Compatibility seam for recovery-path tests; rules live in ReferralService."""
+        await ReferralService(self._session, self._settings).credit_for_order(order.id)
