@@ -491,13 +491,15 @@ class PaymentService:
 
             if verified_yookassa_payment is not None:
                 self._record_yookassa_verification(attempt, verified_yookassa_payment)
-            if order.status is OrderStatus.expired:
-                return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
             paid_stars = self._is_recorded_stars_success(order, attempt)
+            paid_yookassa = self._is_recorded_yookassa_success(order, attempt)
+            if order.status is OrderStatus.expired and not (paid_stars or paid_yookassa):
+                return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
             if (
                 order.status is OrderStatus.pending
                 and order.expires_at <= datetime.now(UTC)
                 and not paid_stars
+                and not paid_yookassa
             ):
                 await self._expire_locked_order(order)
                 return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
@@ -665,6 +667,21 @@ class PaymentService:
             and payload.get("currency") == "XTR"
             and payload.get("amount") == order.price_stars_snapshot
         )
+
+    @staticmethod
+    def _is_recorded_yookassa_success(order: Order, attempt: PaymentAttempt) -> bool:
+        """Only an exact, already persisted provider truth may outlive local order TTL."""
+        payload = attempt.verified_payload or {}
+        if (
+            attempt.provider is not PaymentProvider.yookassa
+            or attempt.status is not PaymentStatus.succeeded
+            or payload.get("currency") != "RUB"
+        ):
+            return False
+        try:
+            return Decimal(str(payload.get("amount"))) == order.amount_due_rub
+        except (InvalidOperation, ValueError):
+            return False
 
     @staticmethod
     def _record_yookassa_verification(attempt: PaymentAttempt, payment: YooKassaPayment) -> None:

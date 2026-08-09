@@ -304,6 +304,36 @@ async def test_fresh_run_finalizes_recorded_success_after_crash_before_finalizer
     assert order is not None and order.status is OrderStatus.fulfilled
 
 
+async def test_fresh_run_fulfills_recorded_success_after_local_ttl_expired(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Confirmed YooKassa truth must win over an expired local renewal order."""
+    subscription, anchor = await _subscription(db_session)
+    provider = ScriptedYooKassa([_payment("ttl-success", YooKassaPaymentStatus.succeeded)])
+    interrupted = AutoRenewalService(db_session, provider, get_settings())
+
+    async def crash(_: int) -> None:
+        raise RuntimeError("worker crashed after durable provider record")
+
+    monkeypatch.setattr(interrupted, "_finalize", crash)
+    with pytest.raises(RuntimeError, match="worker crashed"):
+        await interrupted.run(now=anchor - timedelta(hours=24))
+
+    order = await db_session.scalar(select(Order).where(Order.client_key.like("auto-renew:%")))
+    assert order is not None
+    order.status = OrderStatus.expired
+    order.expires_at = anchor - timedelta(days=8)
+    subscription.expires_at = anchor + timedelta(days=30)
+    await db_session.commit()
+
+    await AutoRenewalService(db_session, RecordingYooKassa(), get_settings()).run(
+        now=anchor + timedelta(days=8)
+    )
+    await db_session.refresh(order)
+
+    assert order.status is OrderStatus.fulfilled
+
+
 async def test_expired_subscription_runs_second_retry_and_overdue_run_catches_up_in_order(
     db_session: AsyncSession,
 ) -> None:

@@ -391,7 +391,7 @@ class AutoRenewalService:
                     .join(Order, Order.id == PaymentAttempt.order_id)
                     .where(
                         Order.client_key.like("auto-renew:%"),
-                        Order.status == OrderStatus.pending,
+                        Order.status.in_([OrderStatus.pending, OrderStatus.expired]),
                         PaymentAttempt.provider == PaymentProvider.yookassa,
                         PaymentAttempt.status == PaymentStatus.succeeded,
                     )
