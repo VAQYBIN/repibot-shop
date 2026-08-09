@@ -259,3 +259,35 @@ class TrafficResponse(BaseModel):
     lifetime_bytes: int
     limit_bytes: int
     days: list[TrafficDayResponse]
+
+
+class CreateOrderRequest(BaseModel):
+    """Только намерение покупателя; тариф и сумма всегда читаются сервером."""
+
+    plan_id: int = Field(gt=0)
+    purpose: Literal["purchase", "renew", "gift"]
+    # Stars намеренно остаётся значением контракта: сервер возвращает
+    # стабильный provider_unavailable, пока ручной маршрут обслуживает YooKassa.
+    provider: Literal["yookassa", "stars"]
+    promo_code: str | None = Field(default=None, min_length=1, max_length=64)
+    idempotency_key: str = Field(min_length=1, max_length=128)
+    save_payment_method: bool = False
+
+
+class OrderResponse(BaseModel):
+    """Без provider payload: клиенту достаточно снимка заказа и URL оплаты."""
+
+    id: int
+    purpose: str
+    plan_id: int
+    plan_code: str
+    plan_name: dict[str, str]
+    duration_days: int
+    price_rub: Decimal
+    price_stars: int
+    gross_rub: Decimal
+    discount_rub: Decimal
+    amount_due_rub: Decimal
+    status: str
+    expires_at: datetime
+    confirmation_url: str | None

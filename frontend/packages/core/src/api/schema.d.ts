@@ -455,6 +455,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Orders */
+        get: operations["list_orders_api_me_orders_get"];
+        put?: never;
+        /** Create Order */
+        post: operations["create_order_api_me_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Order */
+        get: operations["get_order_api_me_orders__order_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plans": {
         parameters: {
             query?: never;
@@ -670,6 +705,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/webhook/yookassa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Yookassa Webhook
+         * @description Принимает только идентификатор hint и сверяет платёж у YooKassa.
+         */
+        post: operations["yookassa_webhook_webhook_yookassa_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhook/remnawave": {
         parameters: {
             query?: never;
@@ -731,6 +786,33 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /**
+         * CreateOrderRequest
+         * @description Только намерение покупателя; тариф и сумма всегда читаются сервером.
+         */
+        CreateOrderRequest: {
+            /** Plan Id */
+            plan_id: number;
+            /**
+             * Purpose
+             * @enum {string}
+             */
+            purpose: "purchase" | "renew" | "gift";
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "yookassa" | "stars";
+            /** Promo Code */
+            promo_code?: string | null;
+            /** Idempotency Key */
+            idempotency_key: string;
+            /**
+             * Save Payment Method
+             * @default false
+             */
+            save_payment_method: boolean;
         };
         /** DeviceResponse */
         DeviceResponse: {
@@ -836,6 +918,45 @@ export interface components {
         MiniAppLoginRequest: {
             /** Init Data */
             init_data: string;
+        };
+        /**
+         * OrderResponse
+         * @description Без provider payload: клиенту достаточно снимка заказа и URL оплаты.
+         */
+        OrderResponse: {
+            /** Id */
+            id: number;
+            /** Purpose */
+            purpose: string;
+            /** Plan Id */
+            plan_id: number;
+            /** Plan Code */
+            plan_code: string;
+            /** Plan Name */
+            plan_name: {
+                [key: string]: string;
+            };
+            /** Duration Days */
+            duration_days: number;
+            /** Price Rub */
+            price_rub: string;
+            /** Price Stars */
+            price_stars: number;
+            /** Gross Rub */
+            gross_rub: string;
+            /** Discount Rub */
+            discount_rub: string;
+            /** Amount Due Rub */
+            amount_due_rub: string;
+            /** Status */
+            status: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Confirmation Url */
+            confirmation_url: string | null;
         };
         /** PasskeyLoginRequest */
         PasskeyLoginRequest: {
@@ -1946,6 +2067,90 @@ export interface operations {
             };
         };
     };
+    list_orders_api_me_orders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"][];
+                };
+            };
+        };
+    };
+    create_order_api_me_orders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_order_api_me_orders__order_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_plans_api_plans_get: {
         parameters: {
             query?: never;
@@ -2266,6 +2471,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    yookassa_webhook_webhook_yookassa_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

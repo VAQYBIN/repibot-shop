@@ -8,15 +8,20 @@ from __future__ import annotations
 
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, status
 from redis.asyncio import Redis
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from repibot_api.deps import AuthContext, current_context, get_redis
+from repibot_api.deps import AuthContext, client_ip, current_context, db_session, get_redis
 from repibot_api.errors import ApiError, api_error_from_service
-from repibot_api.limits import enforce
+from repibot_api.limits import PAYMENT_CREATE, enforce
 from repibot_api.schemas import (
+    CreateOrderRequest,
     DeviceResponse,
     DevicesResponse,
+    OrderResponse,
     PublicPlanResponse,
     SubscriptionStateResponse,
     TrafficDayResponse,
@@ -25,21 +30,112 @@ from repibot_api.schemas import (
 )
 from repibot_api.subscription_view import (
     device_service,
+    order_response,
+    payment_service,
     plan_service,
     subscription_response,
     subscription_service,
     traffic_service,
+    yookassa_client,
 )
+from repibot_core.db.models import Order, OrderPurpose, PaymentAttempt, PaymentProvider
 from repibot_core.integrations.remnawave.client import RemnawaveUnavailable
+from repibot_core.integrations.yookassa.client import YooKassaClient, YooKassaError
 from repibot_core.ratelimit import DEVICE_UNLINK_WINDOW, Rule
 from repibot_core.services.devices import DeviceService, DeviceView
 from repibot_core.services.errors import ServiceError
+from repibot_core.services.payments import PaymentService
 from repibot_core.services.plans import PlanService
 from repibot_core.services.subscriptions import SubscriptionService
 from repibot_core.services.traffic import TrafficService
 from repibot_core.settings import get_settings
 
 router = APIRouter(tags=["subscription"])
+
+
+async def _confirmation_urls(session: AsyncSession, order_ids: list[int]) -> dict[int, str | None]:
+    if not order_ids:
+        return {}
+    attempts = list(
+        (
+            await session.scalars(
+                select(PaymentAttempt).where(
+                    PaymentAttempt.order_id.in_(order_ids),
+                    PaymentAttempt.provider == PaymentProvider.yookassa,
+                )
+            )
+        ).all()
+    )
+    urls: dict[int, str | None] = {}
+    for attempt in attempts:
+        payload = attempt.verified_payload or {}
+        value = payload.get("confirmation_url")
+        urls[attempt.order_id] = value if isinstance(value, str) else None
+    return urls
+
+
+@router.post("/api/me/orders", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
+async def create_order(
+    payload: CreateOrderRequest,
+    context: Annotated[AuthContext, Depends(current_context)],
+    payments: Annotated[PaymentService, Depends(payment_service)],
+    yookassa: Annotated[YooKassaClient, Depends(yookassa_client)],
+    redis: Annotated[Redis, Depends(get_redis)],
+    ip: Annotated[str | None, Depends(client_ip)],
+) -> OrderResponse:
+    await enforce(redis, f"payment-create:user:{context.principal.user_id}", PAYMENT_CREATE)
+    if ip is not None:
+        await enforce(redis, f"payment-create:ip:{ip}", PAYMENT_CREATE)
+    if payload.provider != "yookassa":
+        raise ApiError("провайдер недоступен", 503, "provider_unavailable")
+    try:
+        created = await payments.create_manual_yookassa_order(
+            user_id=context.principal.user_id,
+            plan_id=payload.plan_id,
+            purpose=OrderPurpose(payload.purpose),
+            client_key=payload.idempotency_key,
+            promo_code=payload.promo_code,
+            save_payment_method=payload.save_payment_method,
+            yookassa=yookassa,
+        )
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+    except (httpx.HTTPError, YooKassaError) as error:
+        raise ApiError("провайдер недоступен", 503, "provider_unavailable") from error
+    return order_response(created.order, created.confirmation_url)
+
+
+@router.get("/api/me/orders", response_model=list[OrderResponse])
+async def list_orders(
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> list[OrderResponse]:
+    orders = list(
+        (
+            await session.scalars(
+                select(Order)
+                .where(Order.user_id == context.principal.user_id)
+                .order_by(Order.id.desc())
+            )
+        ).all()
+    )
+    urls = await _confirmation_urls(session, [order.id for order in orders])
+    return [order_response(order, urls.get(order.id)) for order in orders]
+
+
+@router.get("/api/me/orders/{order_id}", response_model=OrderResponse)
+async def get_order(
+    order_id: int,
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> OrderResponse:
+    order = await session.scalar(
+        select(Order).where(Order.id == order_id, Order.user_id == context.principal.user_id)
+    )
+    if order is None:
+        raise ApiError("заказ не найден", 404, "not_found")
+    urls = await _confirmation_urls(session, [order.id])
+    return order_response(order, urls.get(order.id))
 
 
 @router.get("/api/plans", response_model=list[PublicPlanResponse])

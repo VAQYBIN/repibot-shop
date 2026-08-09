@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from fastapi import status
 from redis.asyncio import Redis
 
 from repibot_api.errors import ApiError
 from repibot_core.ratelimit import RateLimiter, Rule
+
+# Оплата создаёт запись в нашей БД и запрос в стороннем провайдере. Пять
+# попыток за минуту покрывают повтор после сетевой ошибки, но не бесконечный
+# кликер формы; правило применяется и к user, и к IP.
+PAYMENT_CREATE = Rule(limit=5, window=timedelta(minutes=1))
 
 
 async def enforce(redis: Redis, key: str, rule: Rule) -> None:

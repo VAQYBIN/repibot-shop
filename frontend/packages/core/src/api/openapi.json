@@ -874,6 +874,112 @@
         }
       }
     },
+    "/api/me/orders": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "List Orders",
+        "operationId": "list_orders_api_me_orders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrderResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Orders Api Me Orders Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Create Order",
+        "operationId": "create_order_api_me_orders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/orders/{order_id}": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Get Order",
+        "operationId": "get_order_api_me_orders__order_id__get",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plans": {
       "get": {
         "tags": [
@@ -1270,6 +1376,21 @@
         }
       }
     },
+    "/webhook/yookassa": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Yookassa Webhook",
+        "description": "Принимает только идентификатор hint и сверяет платёж у YooKassa.",
+        "operationId": "yookassa_webhook_webhook_yookassa_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
     "/webhook/remnawave": {
       "post": {
         "tags": [
@@ -1370,6 +1491,65 @@
           "email"
         ],
         "title": "ChangeEmailRequest"
+      },
+      "CreateOrderRequest": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Plan Id"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "purchase",
+              "renew",
+              "gift"
+            ],
+            "title": "Purpose"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "yookassa",
+              "stars"
+            ],
+            "title": "Provider"
+          },
+          "promo_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promo Code"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Idempotency Key"
+          },
+          "save_payment_method": {
+            "type": "boolean",
+            "title": "Save Payment Method",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan_id",
+          "purpose",
+          "provider",
+          "idempotency_key"
+        ],
+        "title": "CreateOrderRequest",
+        "description": "Только намерение покупателя; тариф и сумма всегда читаются сервером."
       },
       "DeviceResponse": {
         "properties": {
@@ -1651,6 +1831,100 @@
           "init_data"
         ],
         "title": "MiniAppLoginRequest"
+      },
+      "OrderResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "plan_code": {
+            "type": "string",
+            "title": "Plan Code"
+          },
+          "plan_name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Plan Name"
+          },
+          "duration_days": {
+            "type": "integer",
+            "title": "Duration Days"
+          },
+          "price_rub": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price Rub"
+          },
+          "price_stars": {
+            "type": "integer",
+            "title": "Price Stars"
+          },
+          "gross_rub": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Gross Rub"
+          },
+          "discount_rub": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Discount Rub"
+          },
+          "amount_due_rub": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount Due Rub"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "confirmation_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "purpose",
+          "plan_id",
+          "plan_code",
+          "plan_name",
+          "duration_days",
+          "price_rub",
+          "price_stars",
+          "gross_rub",
+          "discount_rub",
+          "amount_due_rub",
+          "status",
+          "expires_at",
+          "confirmation_url"
+        ],
+        "title": "OrderResponse",
+        "description": "Без provider payload: клиенту достаточно снимка заказа и URL оплаты."
       },
       "PasskeyLoginRequest": {
         "properties": {

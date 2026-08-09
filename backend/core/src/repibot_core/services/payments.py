@@ -52,6 +52,24 @@ class YooKassaVerifier(Protocol):
     async def get_payment(self, payment_id: str) -> YooKassaPayment: ...
 
 
+class YooKassaCreator(Protocol):
+    async def create_payment(
+        self,
+        *,
+        idempotence_key: str,
+        amount_rub: Decimal,
+        return_url: str,
+        description: str,
+        save_payment_method: bool,
+    ) -> YooKassaPayment: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CreatedOrder:
+    order: Order
+    confirmation_url: str
+
+
 class PaymentService:
     """Ставит все локальные последствия платежа до единственного commit."""
 
@@ -66,6 +84,107 @@ class PaymentService:
         # apply_entitlement намеренно не использует provisioning: финализация
         # не имеет права открывать HTTP-клиент при удержании row locks.
         self._entitlements = SubscriptionService(session, self._settings, provisioning=None)
+
+    async def create_manual_yookassa_order(
+        self,
+        *,
+        user_id: int,
+        plan_id: int,
+        purpose: OrderPurpose,
+        client_key: str,
+        promo_code: str | None,
+        save_payment_method: bool,
+        yookassa: YooKassaCreator,
+    ) -> CreatedOrder:
+        """Создаёт ровно один серверный снимок и YooKassa-платёж для него.
+
+        Клиентский ключ сначала фиксируется локально. Повтор затем безопасно
+        отправить и провайдеру: ключ там привязан к пользователю, поэтому два
+        разных покупателя с одинаковым UUID не разделят платёж.
+        """
+        # SQLAlchemy opens a read-only transaction during API authentication.
+        # This service owns the following commercial transaction, so close the
+        # read-only one before beginning it.
+        if self._session.in_transaction():
+            await self._session.commit()
+        provider_key = f"{user_id}:{client_key}"
+        existing: Order | None = None
+        stored_confirmation_url: str | None = None
+        async with self._session.begin():
+            existing = await self._session.scalar(
+                select(Order).where(Order.user_id == user_id, Order.client_key == client_key)
+            )
+            if existing is None:
+                plan = await self._plans.get(plan_id)
+                if plan is None:
+                    raise ServiceError("тариф не найден", "plan_inactive")
+                if not plan.is_active or not plan.is_visible or plan.is_trial:
+                    raise ServiceError("тариф недоступен", "plan_inactive")
+                if purpose is OrderPurpose.gift and not promo_code:
+                    raise ServiceError("для подарка нужен промокод", "promo_unavailable")
+                if promo_code:
+                    raise ServiceError("промокод недоступен", "promo_unavailable")
+                existing = await self._orders.create_pending(
+                    user_id=user_id,
+                    plan=plan,
+                    client_key=client_key,
+                    expires_at=datetime.now(UTC)
+                    + timedelta(minutes=self._settings.yookassa_order_ttl_minutes),
+                    purpose=purpose,
+                )
+                await self._attempts.get_or_create(
+                    order_id=existing.id,
+                    provider=PaymentProvider.yookassa,
+                    attempt_no=1,
+                    provider_key=provider_key,
+                )
+            elif existing.status is OrderStatus.pending and existing.expires_at <= datetime.now(
+                UTC
+            ):
+                await self._expire_locked_order(existing)
+            elif existing.status is OrderStatus.pending:
+                attempt = await self._session.scalar(
+                    select(PaymentAttempt).where(
+                        PaymentAttempt.order_id == existing.id,
+                        PaymentAttempt.provider == PaymentProvider.yookassa,
+                    )
+                )
+                if attempt is not None and attempt.verified_payload is not None:
+                    value = attempt.verified_payload.get("confirmation_url")
+                    if isinstance(value, str):
+                        stored_confirmation_url = value
+
+        assert existing is not None  # transaction either created or found an order
+        if existing.status is OrderStatus.expired or existing.expires_at <= datetime.now(UTC):
+            raise ServiceError("заказ истёк", "order_expired")
+        if stored_confirmation_url is not None:
+            return CreatedOrder(order=existing, confirmation_url=stored_confirmation_url)
+
+        payment = await yookassa.create_payment(
+            idempotence_key=provider_key,
+            amount_rub=existing.amount_due_rub,
+            return_url=self._settings.public_app_url,
+            description=f"Re:Pibot: {existing.plan_code_snapshot}",
+            save_payment_method=save_payment_method,
+        )
+        if payment.currency != "RUB" or payment.amount_rub != existing.amount_due_rub:
+            raise ServiceError("провайдер вернул неверную сумму", "provider_unavailable")
+        if payment.confirmation_url is None:
+            raise ServiceError("провайдер не вернул ссылку оплаты", "provider_unavailable")
+
+        async with self._session.begin():
+            attempt = await self._attempts.get_or_create(
+                order_id=existing.id,
+                provider=PaymentProvider.yookassa,
+                attempt_no=1,
+                provider_key=provider_key,
+            )
+            attempt.provider_payment_id = payment.id
+            # Это единственный нужный публичному повтору фрагмент ответа
+            # провайдера; секреты и оригинальное тело никогда не сохраняются.
+            attempt.verified_payload = {"confirmation_url": payment.confirmation_url}
+
+        return CreatedOrder(order=existing, confirmation_url=payment.confirmation_url)
 
     async def finalize_success(
         self,
