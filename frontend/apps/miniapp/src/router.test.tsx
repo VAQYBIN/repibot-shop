@@ -56,6 +56,9 @@ describe('защищённые маршруты MiniApp', () => {
         }
         if (url.pathname === '/api/me') return Response.json(PROFILE)
         if (url.pathname === '/api/me/subscription') return Response.json(ACTIVE)
+        if (url.pathname === '/api/plans') return Response.json([])
+        if (url.pathname === '/api/me/orders') return Response.json([])
+        if (url.pathname === '/api/me/gifts') return Response.json([])
         throw new Error(`unexpected request ${url.pathname}`)
       }),
     )
@@ -91,6 +94,10 @@ describe('защищённые маршруты MiniApp', () => {
       '/app/subscription',
     )
     expect(screen.getByRole('link', { name: 'Устройства' })).toHaveAttribute('href', '/app/devices')
+    expect(screen.getByRole('link', { name: 'Оплата и подарки' })).toHaveAttribute(
+      'href',
+      '/app/payments',
+    )
     view.unmount()
   })
 })
