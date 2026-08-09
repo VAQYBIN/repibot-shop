@@ -40,11 +40,16 @@ class AuditRepository:
 
     async def compensation_with_key(self, order_id: int, idempotency_key: str) -> AuditLog | None:
         """Find a prior compensation while its order row is locked by the caller."""
-        statement = select(AuditLog).where(
-            AuditLog.action == "order.compensation",
-            AuditLog.entity == "order",
-            AuditLog.entity_id == str(order_id),
-            AuditLog.after["idempotency_key"].astext == idempotency_key,
+        statement = (
+            select(AuditLog)
+            .where(
+                AuditLog.action == "order.compensation",
+                AuditLog.entity == "order",
+                AuditLog.entity_id == str(order_id),
+                AuditLog.after["idempotency_key"].astext == idempotency_key,
+            )
+            .order_by(AuditLog.id)
+            .limit(1)
         )
         return (await self._session.execute(statement)).scalar_one_or_none()
 
@@ -54,10 +59,15 @@ class AuditRepository:
         The caller holds the order row lock, which serializes absent-row checks
         and inserts without relying on an application-only race-prone lookup.
         """
-        statement = select(AuditLog).where(
-            AuditLog.action == "order.compensation",
-            AuditLog.entity == "order",
-            AuditLog.entity_id == str(order_id),
-            AuditLog.after["action"].astext == action,
+        statement = (
+            select(AuditLog)
+            .where(
+                AuditLog.action == "order.compensation",
+                AuditLog.entity == "order",
+                AuditLog.entity_id == str(order_id),
+                AuditLog.after["action"].astext == action,
+            )
+            .order_by(AuditLog.id)
+            .limit(1)
         )
         return (await self._session.execute(statement)).scalar_one_or_none()

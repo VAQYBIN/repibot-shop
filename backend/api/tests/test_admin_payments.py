@@ -336,3 +336,49 @@ async def test_payment_admin_state_errors_are_stable_4xx(
         404,
         "reward_missing",
     )
+
+
+async def test_historical_duplicate_compensation_actions_are_a_safe_conflict(
+    api_client: AsyncClient,
+    admin_headers: dict[str, str],
+    month_plan: int,
+    plain_user_id: int,
+    engine: AsyncEngine,
+) -> None:
+    order = await _fulfilled_order(engine, user_id=plain_user_id, plan_id=month_plan)
+    async with create_session_factory(engine)() as session:
+        for key in ("historic-revoke-one", "historic-revoke-two"):
+            session.add(
+                AuditLog(
+                    action="order.compensation",
+                    entity="order",
+                    entity_id=str(order.id),
+                    after={"action": "revoke_days", "idempotency_key": key},
+                )
+            )
+        await session.commit()
+
+    response = await api_client.post(
+        f"/api/admin/orders/{order.id}/compensations",
+        json={
+            "action": "revoke_days",
+            "idempotency_key": "new-revoke-key",
+            "comment": "separate approved compensation",
+        },
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "compensation_already_applied"
+    async with create_session_factory(engine)() as session:
+        records = list(
+            (
+                await session.scalars(
+                    select(AuditLog).where(
+                        AuditLog.action == "order.compensation",
+                        AuditLog.entity_id == str(order.id),
+                    )
+                )
+            ).all()
+        )
+    assert len(records) == 2
