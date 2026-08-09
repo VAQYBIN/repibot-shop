@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from repibot_core.db.engine import create_session_factory
 from repibot_core.db.models import PaymentProvider, Plan, TrafficResetStrategy, User
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 
@@ -126,4 +129,72 @@ async def test_duplicate_provider_payment_id_is_rejected(db_session: AsyncSessio
     )
     duplicate.provider_payment_id = "provider-payment-1"
     with pytest.raises(IntegrityError):
+        await db_session.flush()
+
+
+async def test_concurrent_retry_returns_one_existing_provider_attempt(
+    db_session: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Гонка двух одинаковых retry не должна отдавать одному клиенту IntegrityError."""
+    plan = await _plan(db_session)
+    user = await _user(db_session)
+    order = await OrderRepository(db_session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key="concurrent-order-key",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+    )
+    await db_session.commit()
+
+    barrier = asyncio.Barrier(2)
+    lock = asyncio.Lock()
+    gated_queries = 0
+    original_execute = AsyncSession.execute
+
+    async def gate_initial_lookup(
+        session: AsyncSession, statement: Any, *args: Any, **kwargs: Any
+    ) -> Any:
+        nonlocal gated_queries
+        should_wait = False
+        if "INSERT INTO payment_attempts" in str(statement):
+            async with lock:
+                if gated_queries < 2:
+                    gated_queries += 1
+                    should_wait = True
+        if should_wait:
+            await barrier.wait()
+        return await original_execute(session, statement, *args, **kwargs)
+
+    monkeypatch.setattr(AsyncSession, "execute", gate_initial_lookup)
+    factory = create_session_factory(engine)
+
+    async def retry() -> int:
+        async with factory() as session:
+            attempt = await PaymentAttemptRepository(session).get_or_create(
+                order_id=order.id,
+                provider=PaymentProvider.yookassa,
+                attempt_no=1,
+                provider_key="concurrent-provider-key",
+            )
+            await session.commit()
+            return attempt.id
+
+    first_id, second_id = await asyncio.gather(retry(), retry())
+
+    assert first_id == second_id
+
+
+async def test_order_snapshot_fields_cannot_be_mutated(db_session: AsyncSession) -> None:
+    """Изменение снимка цены после создания заказа не должно пройти серверный trigger."""
+    plan = await _plan(db_session)
+    user = await _user(db_session)
+    order = await OrderRepository(db_session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key="immutable-order-key",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+    )
+
+    order.price_rub_snapshot = Decimal("1.00")
+    with pytest.raises(DBAPIError, match="order commercial snapshot is immutable"):
         await db_session.flush()

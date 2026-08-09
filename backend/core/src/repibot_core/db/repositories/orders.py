@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import Order, OrderPurpose, OrderStatus, PaymentAttempt, PaymentProvider
@@ -72,20 +73,29 @@ class PaymentAttemptRepository:
         **fields: Any,
     ) -> PaymentAttempt:
         """Возвращает уже созданную попытку по стабильному ключу повтора."""
-        statement = select(PaymentAttempt).where(
+        insert_statement = (
+            insert(PaymentAttempt)
+            .values(
+                order_id=order_id,
+                provider=provider,
+                attempt_no=attempt_no,
+                provider_key=provider_key,
+                **fields,
+            )
+            .on_conflict_do_nothing(index_elements=["provider", "provider_key"])
+            .returning(PaymentAttempt.id)
+        )
+        attempt_id = (await self._session.execute(insert_statement)).scalar_one_or_none()
+        if attempt_id is not None:
+            attempt = await self._session.get(PaymentAttempt, attempt_id)
+            if attempt is not None:
+                return attempt
+
+        lookup_statement = select(PaymentAttempt).where(
             PaymentAttempt.provider == provider, PaymentAttempt.provider_key == provider_key
         )
-        existing = (await self._session.execute(statement)).scalar_one_or_none()
+        existing = (await self._session.execute(lookup_statement)).scalar_one_or_none()
         if existing is not None:
             return existing
-
-        attempt = PaymentAttempt(
-            order_id=order_id,
-            provider=provider,
-            attempt_no=attempt_no,
-            provider_key=provider_key,
-            **fields,
-        )
-        self._session.add(attempt)
-        await self._session.flush()
-        return attempt
+        msg = "не удалось создать или найти платёжную попытку"
+        raise RuntimeError(msg)
