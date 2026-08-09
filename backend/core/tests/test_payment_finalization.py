@@ -30,6 +30,7 @@ from repibot_core.db.models import (
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
+from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.services.payments import FinalizationResult, PaymentService
 from repibot_core.services.promotions import PromotionInput, PromotionService
 from repibot_core.services.provisioning import TOPIC_PROVISION
@@ -193,6 +194,47 @@ async def test_stars_success_can_be_recovered_after_recording_before_finalizatio
     assert recovered == first
     result = await PaymentService(db_session).finalize_success(recovered)
     assert result is not None and result.already_finalized is False
+
+
+async def test_late_yookassa_success_cannot_become_ttl_bypass_proof(
+    db_session: AsyncSession,
+) -> None:
+    """Recording a late callback before the TTL gate would wrongly grant entitlement."""
+    plan = await _plan(db_session, "yookassa-late-callback")
+    user = await _user(db_session, "yooka001")
+    order = await OrderRepository(db_session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key="yookassa-late-callback-order",
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
+    attempt = await PaymentAttemptRepository(db_session).get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key="yookassa-late-callback-key",
+        provider_payment_id="yookassa-late-callback-payment",
+    )
+    await db_session.commit()
+
+    result = await PaymentService(db_session).finalize_success(
+        verified_yookassa_payment=YooKassaPayment(
+            id="yookassa-late-callback-payment",
+            status=YooKassaPaymentStatus.succeeded,
+            amount_rub=Decimal("300.00"),
+            currency="RUB",
+            confirmation_url=None,
+        )
+    )
+
+    await db_session.refresh(order)
+    await db_session.refresh(attempt)
+
+    assert result == FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
+    assert order.status is OrderStatus.expired
+    assert attempt.status is PaymentStatus.pending
+    assert attempt.verified_payload is None
+    assert attempt.verified_at is None
 
 
 async def test_stars_payload_does_not_reveal_attempt_id(db_session: AsyncSession) -> None:

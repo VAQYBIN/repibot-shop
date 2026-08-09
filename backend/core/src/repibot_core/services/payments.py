@@ -489,8 +489,6 @@ class PaymentService:
             if attempt is None or attempt.order_id != order.id:  # pragma: no cover
                 raise ServiceError("платёжная попытка не найдена", "payment_attempt_not_found")
 
-            if verified_yookassa_payment is not None:
-                self._record_yookassa_verification(attempt, verified_yookassa_payment)
             paid_stars = self._is_recorded_stars_success(order, attempt)
             paid_yookassa = self._is_recorded_yookassa_success(order, attempt)
             if order.status is OrderStatus.expired and not (paid_stars or paid_yookassa):
@@ -503,6 +501,8 @@ class PaymentService:
             ):
                 await self._expire_locked_order(order)
                 return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
+            if verified_yookassa_payment is not None:
+                self._record_yookassa_verification(attempt, verified_yookassa_payment)
             if order.status is OrderStatus.fulfilled:
                 return FinalizationResult(order_id=order.id, already_finalized=True)
             if verified_yookassa_payment is not None and (
