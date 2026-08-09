@@ -3,14 +3,21 @@ import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
 
 import { useLanguage } from '../api'
 import { useAuthState } from '../auth'
+import { AuthFallback } from '../auth-fallback'
 
 function Navigation() {
   const language = useLanguage()
 
   return (
-    <nav className="mx-auto mb-4 flex max-w-md gap-4 text-sm">
+    <nav className="mx-auto mb-4 flex max-w-md flex-wrap gap-x-4 gap-y-2 text-sm">
       <Link to="/" className="text-text-accent">
         {translate(language, 'miniapp.nav.home')}
+      </Link>
+      <Link to="/subscription" className="text-text-accent">
+        {translate(language, 'subscription.title')}
+      </Link>
+      <Link to="/devices" className="text-text-accent">
+        {translate(language, 'devices.title')}
       </Link>
       <Link to="/profile" className="text-text-accent">
         {translate(language, 'account.title')}
@@ -22,11 +29,17 @@ function Navigation() {
 function Layout() {
   const state = useAuthState((store) => store.state)
 
+  if (state !== 'ready') {
+    return (
+      <div className="min-h-dvh bg-bg p-4 text-text">
+        <AuthFallback state={state} />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-dvh bg-bg p-4 text-text">
-      {/* Навигация появляется только после входа: до него единственный
-          осмысленный экран — сообщение о том, что делать дальше. */}
-      {state === 'ready' && <Navigation />}
+      <Navigation />
       <Outlet />
     </div>
   )

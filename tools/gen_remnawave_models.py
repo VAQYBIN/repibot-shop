@@ -1,6 +1,6 @@
 """Генерация Pydantic-моделей панели Remnawave.
 
-Схема панели — 142 эндпоинта и полтора мегабайта JSON. Генерировать всё
+Схема панели — 146 эндпоинтов и полтора мегабайта JSON. Генерировать всё
 целиком значит принести в репозиторий десятки тысяч строк, которые никто не
 читает. Генерируем только нужные корневые схемы и всё, на что они ссылаются;
 список растёт по мере появления методов клиента.
@@ -18,7 +18,16 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "docs" / "remnawave-api" / "api-1.json"
 TARGET = ROOT / "backend/core/src/repibot_core/integrations/remnawave/models.py"
 
-ROOT_SCHEMAS: tuple[str, ...] = ("GetUserByUuidResponseDto",)
+ROOT_SCHEMAS: tuple[str, ...] = (
+    "CreateUserBodyDto",
+    "DeleteUserHwidDeviceBodyDto",
+    "GetInternalSquadsResponseDto",
+    "GetStatsUserUsageResponseDto",
+    "GetUserHwidDevicesResponseDto",
+    "ResolveUserBodyDto",
+    "UpdateUserBodyDto",
+    "UserResponseDto",
+)
 
 
 def _refs_in(node: object) -> list[str]:
@@ -85,6 +94,15 @@ def main() -> int:
                 "3.13",
                 "--use-standard-collections",
                 "--use-union-operator",
+                # Без этого флага поле с "nullable": true генерируется обязательным
+                # и разбор ответа падает на первом же пользователе панели без тега.
+                "--strict-nullable",
+                # Флага --use-annotated здесь намеренно нет. Он переносит
+                # ограничения схемы в Annotated, и тогда pattern из описания
+                # даты применяется к полю типа AwareDatetime как строковый —
+                # разбор любого ответа панели падает на expireAt. Слепоту mypy
+                # к позиционному Field(None, ...) лечит плагин pydantic.mypy,
+                # подключённый в pyproject.toml.
                 "--disable-timestamp",
                 "--custom-file-header",
                 "# Сгенерировано tools/gen_remnawave_models.py. Не редактировать вручную.",

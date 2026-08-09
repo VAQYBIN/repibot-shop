@@ -1,9 +1,9 @@
 export { createApiClient } from './api/client'
 export { type AuthClientOptions, createAuthClient } from './auth/client'
+export { errorMessageKey } from './auth/errors'
 export {
   AuthProvider,
   type AuthProviderProps,
-  errorMessageKey,
   useAuthClient,
   useLogin,
   useLogout,
@@ -33,3 +33,12 @@ export {
   translate,
 } from './i18n/index'
 export { createQueryClient } from './query'
+export { formatBytes, formatDate } from './subscription/format'
+export {
+  useActivateTrial,
+  useDevices,
+  usePlans,
+  useSubscription,
+  useTraffic,
+  useUnlinkDevice,
+} from './subscription/hooks'

@@ -22,8 +22,8 @@ if (!container) throw new Error('в разметке нет элемента #ro
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={createQueryClient()}>
-      {/* Хранилище передаётся готовым: токен в нём уже лежит после обмена
-          initData, который прошёл до отрисовки. */}
+      {/* Хранилище общее для exchange и API-клиента. Root layout не
+          монтирует Outlet, пока exchange не запишет токен и state не станет ready. */}
       <AuthProvider baseUrl={API_BASE_URL} store={tokenStore}>
         <RouterProvider router={router} />
       </AuthProvider>

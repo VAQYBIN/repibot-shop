@@ -874,6 +874,151 @@
         }
       }
     },
+    "/api/plans": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "List Plans",
+        "description": "Витрина открыта без входа: до регистрации человеку не на что смотреть.",
+        "operationId": "list_plans_api_plans_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublicPlanResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Plans Api Plans Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/subscription": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "My Subscription",
+        "description": "Подписки может не быть, и это не ошибка.\n\nПустой ответ со статусом 200 фронтенд отличает от отказа; 404 он вынужден\nбыл бы разбирать по коду, чтобы понять, показывать витрину или сообщение.",
+        "operationId": "my_subscription_api_me_subscription_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/subscription/trial": {
+      "post": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Activate Trial",
+        "operationId": "activate_trial_api_me_subscription_trial_post",
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/devices": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "My Devices",
+        "operationId": "my_devices_api_me_devices_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/devices/unlink": {
+      "post": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Unlink Device",
+        "operationId": "unlink_device_api_me_devices_unlink_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnlinkDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/traffic": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "My Traffic",
+        "operationId": "my_traffic_api_me_traffic_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrafficResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/whoami": {
       "get": {
         "tags": [
@@ -894,6 +1039,250 @@
           }
         }
       }
+    },
+    "/api/admin/plans": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Plans",
+        "description": "Все тарифы, включая скрытые и архивные: админ управляет и ими тоже.",
+        "operationId": "list_plans_api_admin_plans_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlanResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Plans Api Admin Plans Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create Plan",
+        "operationId": "create_plan_api_admin_plans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/plans/{plan_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Plan",
+        "operationId": "update_plan_api_admin_plans__plan_id__patch",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Archive Plan",
+        "description": "Архивация, а не удаление: на тариф ссылаются подписки и журнал.",
+        "operationId": "archive_plan_api_admin_plans__plan_id__delete",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/remnawave/squads": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Squads",
+        "description": "Сквады читаются из панели, а не хранятся у нас: их состав меняет админ панели.",
+        "operationId": "list_squads_api_admin_remnawave_squads_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SquadResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Squads Api Admin Remnawave Squads Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/subscription": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Grant Subscription",
+        "description": "Начисление дней и смена тарифа руками админа.\n\nТело без days означает смену тарифа с конвертацией оплаченного остатка, с\ndays — начисление указанного числа дней по этому тарифу. Разные действия\nразными полями, а не двумя маршрутами: решение принимает один и тот же\nчеловек в одной и той же форме.",
+        "operationId": "grant_subscription_api_admin_users__user_id__subscription_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminSubscriptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhook/remnawave": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Remnawave Webhook",
+        "operationId": "remnawave_webhook_webhook_remnawave_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -910,6 +1299,44 @@
           "status"
         ],
         "title": "AcceptedResponse"
+      },
+      "AdminSubscriptionRequest": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan_id"
+        ],
+        "title": "AdminSubscriptionRequest",
+        "description": "Начисление дней или смена тарифа админом."
       },
       "AuthMethodsResponse": {
         "properties": {
@@ -943,6 +1370,87 @@
           "email"
         ],
         "title": "ChangeEmailRequest"
+      },
+      "DeviceResponse": {
+        "properties": {
+          "hwid": {
+            "type": "string",
+            "title": "Hwid"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "device_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Model"
+          },
+          "os_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hwid",
+          "platform",
+          "device_model",
+          "os_version",
+          "created_at"
+        ],
+        "title": "DeviceResponse"
+      },
+      "DevicesResponse": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceResponse"
+            },
+            "type": "array",
+            "title": "Devices"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "used": {
+            "type": "integer",
+            "title": "Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "devices",
+          "limit",
+          "used"
+        ],
+        "title": "DevicesResponse"
       },
       "EmailRequest": {
         "properties": {
@@ -1250,6 +1758,293 @@
         ],
         "title": "PasswordResetRequest"
       },
+      "PlanRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 2,
+            "title": "Code"
+          },
+          "name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "duration_days": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Days"
+          },
+          "price_rub": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              }
+            ],
+            "title": "Price Rub"
+          },
+          "price_stars": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Price Stars"
+          },
+          "traffic_limit_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Traffic Limit Bytes"
+          },
+          "traffic_reset_strategy": {
+            "type": "string",
+            "enum": [
+              "NO_RESET",
+              "DAY",
+              "WEEK",
+              "MONTH",
+              "MONTH_ROLLING"
+            ],
+            "title": "Traffic Reset Strategy"
+          },
+          "hwid_device_limit": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Hwid Device Limit"
+          },
+          "internal_squad_uuids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Internal Squad Uuids"
+          },
+          "is_trial": {
+            "type": "boolean",
+            "title": "Is Trial",
+            "default": false
+          },
+          "is_visible": {
+            "type": "boolean",
+            "title": "Is Visible",
+            "default": true
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "duration_days",
+          "price_rub",
+          "price_stars",
+          "traffic_limit_bytes",
+          "traffic_reset_strategy",
+          "hwid_device_limit",
+          "internal_squad_uuids"
+        ],
+        "title": "PlanRequest",
+        "description": "Тариф, каким его заводит администратор.\n\nПризнака is_active здесь нет: тариф снимается с продажи архивацией через\nDELETE, а не переключением поля в форме редактирования."
+      },
+      "PlanResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "duration_days": {
+            "type": "integer",
+            "title": "Duration Days"
+          },
+          "price_rub": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price Rub"
+          },
+          "price_stars": {
+            "type": "integer",
+            "title": "Price Stars"
+          },
+          "traffic_limit_bytes": {
+            "type": "integer",
+            "title": "Traffic Limit Bytes"
+          },
+          "traffic_reset_strategy": {
+            "type": "string",
+            "title": "Traffic Reset Strategy"
+          },
+          "hwid_device_limit": {
+            "type": "integer",
+            "title": "Hwid Device Limit"
+          },
+          "internal_squad_uuids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Internal Squad Uuids"
+          },
+          "is_trial": {
+            "type": "boolean",
+            "title": "Is Trial"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "is_visible": {
+            "type": "boolean",
+            "title": "Is Visible"
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "duration_days",
+          "price_rub",
+          "price_stars",
+          "traffic_limit_bytes",
+          "traffic_reset_strategy",
+          "hwid_device_limit",
+          "internal_squad_uuids",
+          "is_trial",
+          "is_active",
+          "is_visible",
+          "sort_order"
+        ],
+        "title": "PlanResponse"
+      },
+      "PublicPlanResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "duration_days": {
+            "type": "integer",
+            "title": "Duration Days"
+          },
+          "price_rub": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price Rub"
+          },
+          "price_stars": {
+            "type": "integer",
+            "title": "Price Stars"
+          },
+          "traffic_limit_bytes": {
+            "type": "integer",
+            "title": "Traffic Limit Bytes"
+          },
+          "hwid_device_limit": {
+            "type": "integer",
+            "title": "Hwid Device Limit"
+          },
+          "is_trial": {
+            "type": "boolean",
+            "title": "Is Trial"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "duration_days",
+          "price_rub",
+          "price_stars",
+          "traffic_limit_bytes",
+          "hwid_device_limit",
+          "is_trial"
+        ],
+        "title": "PublicPlanResponse",
+        "description": "Тариф в витрине. Внутренние поля наружу не уезжают.\n\ninternal_squad_uuids не отдаётся: состав локаций — наша кухня, а не то,\nчто клиент должен видеть в ответе API."
+      },
       "RegisterRequest": {
         "properties": {
           "email": {
@@ -1353,6 +2148,110 @@
         ],
         "title": "SetPasswordRequest"
       },
+      "SquadResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Uuid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uuid",
+          "name"
+        ],
+        "title": "SquadResponse"
+      },
+      "SubscriptionResponse": {
+        "properties": {
+          "plan_code": {
+            "type": "string",
+            "title": "Plan Code"
+          },
+          "plan_name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Plan Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "subscription_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Url"
+          },
+          "traffic_limit_bytes": {
+            "type": "integer",
+            "title": "Traffic Limit Bytes"
+          },
+          "hwid_device_limit": {
+            "type": "integer",
+            "title": "Hwid Device Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan_code",
+          "plan_name",
+          "status",
+          "started_at",
+          "expires_at",
+          "subscription_url",
+          "traffic_limit_bytes",
+          "hwid_device_limit"
+        ],
+        "title": "SubscriptionResponse"
+      },
+      "SubscriptionStateResponse": {
+        "properties": {
+          "subscription": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trial_available": {
+            "type": "boolean",
+            "title": "Trial Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscription",
+          "trial_available"
+        ],
+        "title": "SubscriptionStateResponse",
+        "description": "Подписка вместе с правом на триал.\n\nОдним ответом, а не двумя запросами: экран подписки решает по обоим полям\nсразу, показать срок или кнопку триала."
+      },
       "TokenRequest": {
         "properties": {
           "token": {
@@ -1384,6 +2283,71 @@
           "expires_in"
         ],
         "title": "TokenResponse"
+      },
+      "TrafficDayResponse": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "used_bytes"
+        ],
+        "title": "TrafficDayResponse"
+      },
+      "TrafficResponse": {
+        "properties": {
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes"
+          },
+          "lifetime_bytes": {
+            "type": "integer",
+            "title": "Lifetime Bytes"
+          },
+          "limit_bytes": {
+            "type": "integer",
+            "title": "Limit Bytes"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TrafficDayResponse"
+            },
+            "type": "array",
+            "title": "Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "used_bytes",
+          "lifetime_bytes",
+          "limit_bytes",
+          "days"
+        ],
+        "title": "TrafficResponse"
+      },
+      "UnlinkDeviceRequest": {
+        "properties": {
+          "hwid": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Hwid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hwid"
+        ],
+        "title": "UnlinkDeviceRequest"
       },
       "UpdateMeRequest": {
         "properties": {

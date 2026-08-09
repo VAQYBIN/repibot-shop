@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field
@@ -128,3 +129,133 @@ class LinkCodeResponse(BaseModel):
     code: str
     url: str
     expires_in: int
+
+
+class PlanRequest(BaseModel):
+    """Тариф, каким его заводит администратор.
+
+    Признака is_active здесь нет: тариф снимается с продажи архивацией через
+    DELETE, а не переключением поля в форме редактирования.
+    """
+
+    code: str = Field(min_length=2, max_length=32)
+    name: dict[str, str]
+    description: dict[str, str] | None = None
+    duration_days: int = Field(gt=0)
+    # Строкой, а не float: цена уходит в YooKassa в виде «299.00», и двоичная
+    # дробь превращается в расхождение с чеком.
+    price_rub: Decimal = Field(ge=0, decimal_places=2)
+    price_stars: int = Field(ge=0)
+    traffic_limit_bytes: int = Field(ge=0)
+    traffic_reset_strategy: Literal["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"]
+    hwid_device_limit: int = Field(ge=0)
+    internal_squad_uuids: list[UUID] = Field(min_length=1)
+    is_trial: bool = False
+    is_visible: bool = True
+    sort_order: int = 0
+
+
+class PlanResponse(BaseModel):
+    id: int
+    code: str
+    name: dict[str, str]
+    description: dict[str, str] | None
+    duration_days: int
+    price_rub: Decimal
+    price_stars: int
+    traffic_limit_bytes: int
+    traffic_reset_strategy: str
+    hwid_device_limit: int
+    internal_squad_uuids: list[UUID]
+    is_trial: bool
+    is_active: bool
+    is_visible: bool
+    sort_order: int
+
+
+class SquadResponse(BaseModel):
+    uuid: UUID
+    name: str
+
+
+class PublicPlanResponse(BaseModel):
+    """Тариф в витрине. Внутренние поля наружу не уезжают.
+
+    internal_squad_uuids не отдаётся: состав локаций — наша кухня, а не то,
+    что клиент должен видеть в ответе API.
+    """
+
+    id: int
+    code: str
+    name: dict[str, str]
+    description: dict[str, str] | None
+    duration_days: int
+    price_rub: Decimal
+    price_stars: int
+    traffic_limit_bytes: int
+    hwid_device_limit: int
+    is_trial: bool
+
+
+class SubscriptionResponse(BaseModel):
+    plan_code: str
+    plan_name: dict[str, str]
+    status: str
+    started_at: datetime
+    expires_at: datetime
+    subscription_url: str | None
+    traffic_limit_bytes: int
+    hwid_device_limit: int
+
+
+class AdminSubscriptionRequest(BaseModel):
+    """Начисление дней или смена тарифа админом."""
+
+    plan_id: int
+    # Пустое значение означает смену тарифа с конвертацией остатка, а не
+    # начисление нуля дней: у этих двух действий разный смысл.
+    days: int | None = Field(default=None, gt=0)
+    comment: str | None = Field(default=None, max_length=512)
+
+
+class SubscriptionStateResponse(BaseModel):
+    """Подписка вместе с правом на триал.
+
+    Одним ответом, а не двумя запросами: экран подписки решает по обоим полям
+    сразу, показать срок или кнопку триала.
+    """
+
+    subscription: SubscriptionResponse | None
+    trial_available: bool
+
+
+class DeviceResponse(BaseModel):
+    hwid: str
+    platform: str | None
+    device_model: str | None
+    os_version: str | None
+    created_at: datetime
+
+
+class DevicesResponse(BaseModel):
+    devices: list[DeviceResponse]
+    limit: int
+    used: int
+
+
+class UnlinkDeviceRequest(BaseModel):
+    # В теле, а не в пути: hwid приходит от клиента произвольной строкой и в
+    # сегменте адреса ломается.
+    hwid: str = Field(min_length=1, max_length=255)
+
+
+class TrafficDayResponse(BaseModel):
+    day: date
+    used_bytes: int
+
+
+class TrafficResponse(BaseModel):
+    used_bytes: int
+    lifetime_bytes: int
+    limit_bytes: int
+    days: list[TrafficDayResponse]

@@ -12,6 +12,9 @@ import { WEB_URL } from './e2e/stack'
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/stack.ts',
+  // База, Valkey, Mailpit и FakePanel общие для всего изолированного стека.
+  // Один worker делает порядок работы с этим состоянием воспроизводимым.
+  workers: 1,
   // Сценарий ждёт письмо через очередь: тридцати секунд на тест мало.
   timeout: 90_000,
   use: {

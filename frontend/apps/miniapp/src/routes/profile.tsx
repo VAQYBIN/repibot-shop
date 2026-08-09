@@ -3,7 +3,7 @@ import { Button, Card } from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
 
 import { useLanguage } from '../api'
-import { Loading, Retry } from './index'
+import { Loading, Retry } from '../auth-fallback'
 import { rootRoute } from './root'
 
 /** Язык подписывается на своём языке: перевод названия читателю не помогает. */

@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from uuid import UUID
 
 from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID as PgUUID  # noqa: N811 — не путать с uuid.UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from repibot_core.db.base import Base, TimestampMixin
@@ -52,5 +50,12 @@ class User(TimestampMixin, Base):
     referral_code: Mapped[str] = mapped_column(String(16), unique=True)
     referred_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
-    remnawave_uuid: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True))
+    # Панель 3.2.1 адресует пользователя числом; поля uuid у него больше нет.
+    # BigInteger с запасом: идентификатор растёт с каждым созданным в панели
+    # пользователем, включая заведённых мимо нас.
+    remnawave_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
     remnawave_short_uuid: Mapped[str | None] = mapped_column(String(64))
+    # Ссылка подписки приходит из панели и обновляется на каждом примирении.
+    # Собирать её из REMNAWAVE_BASE_URL нельзя: публичный домен подписки
+    # настраивается в панели отдельно, а revoke меняет shortUuid.
+    remnawave_subscription_url: Mapped[str | None] = mapped_column(String(512))

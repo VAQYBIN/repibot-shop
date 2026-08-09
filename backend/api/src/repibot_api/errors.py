@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from repibot_api.middleware import HEADER, request_id_of
 from repibot_core.services.auth.types import AuthError
+from repibot_core.services.errors import ServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,30 @@ _AUTH_STATUS = {
 
 def api_error_from(error: AuthError) -> ApiError:
     return ApiError(str(error), _AUTH_STATUS.get(error.code, 400), error.code)
+
+
+# Ошибки предметных сервисов переводятся в HTTP по тому же правилу, что и
+# ошибки входа: код называет событие, статус выбирает слой API.
+_SERVICE_STATUS = {
+    "not_found": 404,
+    "plan_not_found": 404,
+    "plan_inactive": 409,
+    "plan_code_taken": 409,
+    "plan_squads_unknown": 422,
+    "subscription_missing": 404,
+    "subscription_exists": 409,
+    "trial_already_used": 409,
+    "trial_requires_telegram": 409,
+    "trial_disabled": 409,
+    "device_not_found": 404,
+    # Не наша поломка, а недоступность панели: человеку нужно повторить
+    # позже, а не искать ошибку у себя.
+    "panel_unavailable": 503,
+}
+
+
+def api_error_from_service(error: ServiceError) -> ApiError:
+    return ApiError(str(error), _SERVICE_STATUS.get(error.code, 400), error.code)
 
 
 def _error_response(

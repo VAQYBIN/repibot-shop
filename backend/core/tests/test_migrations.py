@@ -64,8 +64,9 @@ async def test_identity_columns_exist(postgres_url: str, engine: AsyncEngine) ->
         "status",
         "referral_code",
         "referred_by_id",
-        "remnawave_uuid",
+        "remnawave_id",
         "remnawave_short_uuid",
+        "remnawave_subscription_url",
     } <= columns
 
 

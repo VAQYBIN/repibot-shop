@@ -12,6 +12,8 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "alembic>=1.14",
     "httpx>=0.28",
+    # HTTP-обёртка FakePanel запускается отдельным ASGI-сервисом в e2e-стеке.
+    "starlette>=0.47",
     "tenacity>=9.0",
     # Пароли, токены доступа и подписи одноразовых ссылок.
     "argon2-cffi>=23.1",

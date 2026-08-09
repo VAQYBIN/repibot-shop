@@ -68,6 +68,11 @@ python_version = "3.13"
 strict = true
 files = ["backend", "tools", "conftest.py"]
 exclude = "(migrations|integrations/remnawave/models\\.py)"
+# Без плагина mypy читает модели pydantic через dataclass_transform и
+# распознаёт только именованный default. Генератор моделей панели пишет его
+# позиционным — Field(None, ...), — и тогда каждое незаполненное поле тела
+# запроса выглядит обязательным аргументом.
+plugins = ["pydantic.mypy"]
 
 # Ни fontTools, ни uharfbuzz не поставляют разметку типов.
 [[tool.mypy.overrides]]

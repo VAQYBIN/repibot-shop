@@ -86,6 +86,44 @@
   --rp-overlay: rgb(0 0 0 / 0.65);
 }
 
+/* До гидратации атрибута темы ещё нет. Системная dark preference должна
+   получить канонические dark-токены уже на первом CSS paint. Явный атрибут
+   всегда сильнее media fallback; равенство двух наборов охраняет theme.test. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --rp-ink: #f2f1ed;
+    --rp-paper: #121311;
+
+    --rp-bg: #121311;
+    --rp-surface: #1c1d1b;
+    --rp-surface-sunken: #0d0e0c;
+    --rp-border: #2e2f2c;
+    --rp-border-strong: #43443f;
+
+    --rp-text: #f2f1ed;
+    --rp-text-secondary: #a3a19a;
+    --rp-text-muted: #7a7873;
+    --rp-text-accent: #2cc694;
+
+    --rp-accent: #2cc694;
+    --rp-accent-hover: #45d6a8;
+    --rp-on-accent: #08150f;
+
+    --rp-jade-mist: #10322a;
+
+    --rp-success: #51cf66;
+    --rp-warning: #e8a32c;
+    --rp-danger: #e8615a;
+    --rp-info: #5aa3e8;
+
+    --rp-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --rp-shadow: 0 4px 12px rgb(0 0 0 / 0.5);
+    --rp-shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6);
+
+    --rp-overlay: rgb(0 0 0 / 0.65);
+  }
+}
+
 /* inline обязателен: без него значения подставятся на этапе сборки
    и перестанут реагировать на смену темы. */
 @theme inline {

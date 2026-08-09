@@ -43,7 +43,7 @@
 | `status` | `enum` | `active` / `banned` |
 | `referral_code` | `varchar`, уникальный | Генерируется при создании пользователя |
 | `referred_by_id` | FK на `users`, `null` | Заполняется в подпроекте 3 |
-| `remnawave_uuid` | `uuid`, `null` | Заполняется в подпроекте 2 |
+| `remnawave_id` | `bigint`, `null` | Заполняется в подпроекте 2. Заводилось как `remnawave_uuid`; панель 3.2.1 адресует пользователя числом, поле заменено |
 | `remnawave_short_uuid` | `varchar`, `null` | То же |
 
 Аккаунт существует, если у него есть хотя бы один способ входа: подтверждённая
