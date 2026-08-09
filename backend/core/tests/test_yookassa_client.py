@@ -8,7 +8,8 @@ from decimal import Decimal
 import httpx
 
 from repibot_core.integrations.yookassa.client import YooKassaClient
-from repibot_core.integrations.yookassa.types import YooKassaPaymentStatus
+from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
+from repibot_core.services.payments import PaymentService
 
 
 async def test_create_payment_uses_basic_auth_idempotence_key_and_snapped_amount() -> None:
@@ -61,6 +62,7 @@ async def test_create_payment_uses_basic_auth_idempotence_key_and_snapped_amount
 
 async def test_get_payment_parses_provider_truth_without_webhook_fields() -> None:
     """Webhook data must never be able to turn an unverified payment into success."""
+
     async def handle(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v3/payments/payment-1"
         return httpx.Response(
@@ -121,4 +123,31 @@ async def test_create_payment_omits_method_saving_when_not_requested() -> None:
     finally:
         await client.aclose()
 
-    assert "save_payment_method" not in seen["body"]
+    body = seen["body"]
+    assert isinstance(body, dict)
+    assert "save_payment_method" not in body
+
+
+async def test_mismatched_provider_response_id_is_rejected_before_database_access() -> None:
+    """Looking up by a substituted response id could mutate another attempt."""
+
+    class FailingSession:
+        def begin(self) -> object:
+            raise AssertionError("database must not be touched")
+
+    class MismatchedProvider:
+        async def get_payment(self, payment_id: str) -> YooKassaPayment:
+            assert payment_id == "requested-payment"
+            return YooKassaPayment(
+                id="substituted-payment",
+                status=YooKassaPaymentStatus.succeeded,
+                amount_rub=Decimal("254.15"),
+                currency="RUB",
+                confirmation_url=None,
+            )
+
+    result = await PaymentService(FailingSession()).verify_yookassa_callback(  # type: ignore[arg-type]
+        "requested-payment", MismatchedProvider()
+    )
+
+    assert result is None

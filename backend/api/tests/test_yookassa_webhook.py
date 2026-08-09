@@ -16,6 +16,7 @@ from repibot_core.db.models import (
     OrderStatus,
     PaymentAttempt,
     PaymentProvider,
+    PaymentStatus,
     Plan,
     PromoReservation,
     TrafficResetStrategy,
@@ -27,9 +28,7 @@ from repibot_core.integrations.yookassa.testing import FakeYooKassa
 pytestmark = pytest.mark.docker
 
 
-async def _pending_attempt(
-    engine: AsyncEngine, *, expired: bool = False
-) -> tuple[int, int, str]:
+async def _pending_attempt(engine: AsyncEngine, *, expired: bool = False) -> tuple[int, int, str]:
     async with create_session_factory(engine)() as session:
         plan = Plan(
             code="yookassa-month",
@@ -96,9 +95,9 @@ async def _promo_reservation_count(engine: AsyncEngine, order_id: int) -> int:
     async with create_session_factory(engine)() as session:
         return int(
             await session.scalar(
-                select(func.count()).select_from(PromoReservation).where(
-                    PromoReservation.order_id == order_id
-                )
+                select(func.count())
+                .select_from(PromoReservation)
+                .where(PromoReservation.order_id == order_id)
             )
         )
 
@@ -186,3 +185,35 @@ async def test_expired_order_is_marked_expired_and_never_fulfilled(
     assert response.status_code == 204
     assert await _order_status(engine, order_id) is OrderStatus.expired
     assert await _promo_reservation_count(engine, order_id) == 0
+
+
+async def test_retry_recovers_after_local_finalizer_crash_without_stranding_attempt(
+    api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crash after provider GET must roll back verification with the unfinished order."""
+    from repibot_api.routers import webhooks
+    from repibot_core.services.payments import PaymentService
+
+    fake = FakeYooKassa()
+    order_id, attempt_id, payment_id = await _pending_attempt(engine)
+    fake.set_payment(payment_id, status="succeeded", amount="254.15", currency="RUB")
+    monkeypatch.setattr(webhooks, "create_yookassa_client", lambda: fake)
+    original = PaymentService._stage_referral_bonus
+
+    async def crash_after_verification(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("simulated cancellation after verification")
+
+    monkeypatch.setattr(PaymentService, "_stage_referral_bonus", crash_after_verification)
+    with pytest.raises(RuntimeError, match="simulated cancellation"):
+        await api_client.post("/webhook/yookassa", json={"object": {"id": payment_id}})
+    attempt_after_crash = await _attempt(engine, attempt_id)
+
+    assert await _order_status(engine, order_id) is OrderStatus.pending
+    assert attempt_after_crash.status is PaymentStatus.pending
+    assert attempt_after_crash.verified_payload is None
+
+    monkeypatch.setattr(PaymentService, "_stage_referral_bonus", original)
+    recovered = await api_client.post("/webhook/yookassa", json={"object": {"id": payment_id}})
+
+    assert recovered.status_code == 204
+    assert await _order_status(engine, order_id) is OrderStatus.fulfilled

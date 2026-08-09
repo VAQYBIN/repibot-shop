@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from taskiq import InMemoryBroker
 
 from repibot_worker import tasks
@@ -137,3 +137,57 @@ async def test_poll_recovers_a_succeeded_payment_without_a_webhook(
     status = await db_session.scalar(select(Order.status).where(Order.id == order.id))
     assert status is OrderStatus.fulfilled
     assert attempt.provider_payment_id == "poll-payment"
+
+
+@pytest.mark.docker
+async def test_pending_payment_claim_is_exclusive_between_overlapping_polls(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Two poll workers must not fetch the same pending provider payment concurrently."""
+    from repibot_core import tasks as core_tasks
+    from repibot_core.db.models import (
+        PaymentProvider,
+        Plan,
+        TrafficResetStrategy,
+        User,
+    )
+    from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
+
+    plan = Plan(
+        code="claim-month",
+        name={"ru": "Месяц", "en": "Month"},
+        description=None,
+        duration_days=30,
+        price_rub=Decimal("254.15"),
+        price_stars=199,
+        traffic_limit_bytes=0,
+        traffic_reset_strategy=TrafficResetStrategy.NO_RESET,
+        hwid_device_limit=3,
+        internal_squad_uuids=["11111111-1111-4111-8111-111111111111"],
+        is_trial=False,
+        is_active=True,
+        is_visible=True,
+        sort_order=0,
+    )
+    user = User(email="claim@example.org", referral_code="claim001")
+    db_session.add_all((plan, user))
+    await db_session.flush()
+    order = await OrderRepository(db_session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key="claim-order",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+    )
+    attempt = await PaymentAttemptRepository(db_session).get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key="claim-attempt",
+        provider_payment_id="claim-payment",
+    )
+    await db_session.commit()
+
+    async with engine.connect() as first, engine.connect() as second:
+        assert await core_tasks._try_claim_pending_payment(first, attempt.id)
+        assert not await core_tasks._try_claim_pending_payment(second, attempt.id)
+        await core_tasks._release_pending_payment_claim(first, attempt.id)

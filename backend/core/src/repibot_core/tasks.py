@@ -11,8 +11,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
 
 from repibot_core.db.engine import create_engine, create_session_factory
 from repibot_core.db.models import (
@@ -125,20 +125,45 @@ async def reconcile_pending_payments() -> dict[str, int]:
                     )
                 ).all()
             )
-            await session.commit()
-            for _attempt_id, provider_payment_id in attempts:
-                if provider_payment_id is None:  # pragma: no cover
+        for attempt_id, provider_payment_id in attempts:
+            if provider_payment_id is None:  # pragma: no cover
+                continue
+            async with engine.connect() as claim_connection:
+                if not await _try_claim_pending_payment(claim_connection, attempt_id):
                     continue
                 checked += 1
-                result = await PaymentService(session).verify_yookassa_callback(
-                    provider_payment_id, client
-                )
+                try:
+                    async with factory() as session:
+                        result = await PaymentService(session).verify_yookassa_callback(
+                            provider_payment_id, client
+                        )
+                finally:
+                    await _release_pending_payment_claim(claim_connection, attempt_id)
                 if result is not None and not result.already_finalized:
                     fulfilled += 1
     finally:
         await client.aclose()
         await engine.dispose()
     return {"checked": checked, "fulfilled": fulfilled}
+
+
+_PAYMENT_POLL_LOCK_NAMESPACE = 91_003
+
+
+async def _try_claim_pending_payment(connection: AsyncConnection, attempt_id: int) -> bool:
+    """Берёт session-level advisory lock: HTTP идёт без удержания row lock."""
+    claimed = bool(
+        await connection.scalar(
+            select(func.pg_try_advisory_lock(_PAYMENT_POLL_LOCK_NAMESPACE, attempt_id))
+        )
+    )
+    return claimed
+
+
+async def _release_pending_payment_claim(connection: AsyncConnection, attempt_id: int) -> None:
+    await connection.execute(
+        select(func.pg_advisory_unlock(_PAYMENT_POLL_LOCK_NAMESPACE, attempt_id))
+    )
 
 
 def _panel_client() -> RemnawaveClient:

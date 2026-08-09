@@ -67,13 +67,31 @@ class PaymentService:
         # не имеет права открывать HTTP-клиент при удержании row locks.
         self._entitlements = SubscriptionService(session, self._settings, provisioning=None)
 
-    async def finalize_success(self, attempt_id: int) -> FinalizationResult:
+    async def finalize_success(
+        self,
+        attempt_id: int | None = None,
+        *,
+        verified_yookassa_payment: YooKassaPayment | None = None,
+    ) -> FinalizationResult | None:
         """Фиксирует подтверждённую попытку и все её локальные последствия."""
+        if (attempt_id is None) == (verified_yookassa_payment is None):
+            msg = "нужна ровно одна ссылка на подтверждённую платёжную попытку"
+            raise ValueError(msg)
         async with self._session.begin():
-            order_id = await self._session.scalar(
-                select(PaymentAttempt.order_id).where(PaymentAttempt.id == attempt_id)
-            )
+            if verified_yookassa_payment is None:
+                order_id = await self._session.scalar(
+                    select(PaymentAttempt.order_id).where(PaymentAttempt.id == attempt_id)
+                )
+            else:
+                order_id = await self._session.scalar(
+                    select(PaymentAttempt.order_id).where(
+                        PaymentAttempt.provider == PaymentProvider.yookassa,
+                        PaymentAttempt.provider_payment_id == verified_yookassa_payment.id,
+                    )
+                )
             if order_id is None:
+                if verified_yookassa_payment is not None:
+                    return None
                 raise ServiceError("платёжная попытка не найдена", "payment_attempt_not_found")
 
             # Общий порядок удержания строк: order → attempt → subscription →
@@ -82,10 +100,25 @@ class PaymentService:
             order = await self._orders.get_for_update(order_id)
             if order is None:  # pragma: no cover — FK attempt.order_id это исключает
                 raise ServiceError("заказ не найден", "order_not_found")
-            attempt = await self._attempts.get_for_update(attempt_id)
+            if attempt_id is not None:
+                attempt = await self._attempts.get_for_update(attempt_id)
+            else:
+                assert verified_yookassa_payment is not None  # for static narrowing
+                attempt = (
+                    await self._session.execute(
+                        select(PaymentAttempt)
+                        .where(
+                            PaymentAttempt.provider == PaymentProvider.yookassa,
+                            PaymentAttempt.provider_payment_id == verified_yookassa_payment.id,
+                        )
+                        .with_for_update()
+                    )
+                ).scalar_one_or_none()
             if attempt is None or attempt.order_id != order.id:  # pragma: no cover
                 raise ServiceError("платёжная попытка не найдена", "payment_attempt_not_found")
 
+            if verified_yookassa_payment is not None:
+                self._record_yookassa_verification(attempt, verified_yookassa_payment)
             if order.status is OrderStatus.expired:
                 return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
             if order.status is OrderStatus.pending and order.expires_at <= datetime.now(UTC):
@@ -93,6 +126,11 @@ class PaymentService:
                 return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
             if order.status is OrderStatus.fulfilled:
                 return FinalizationResult(order_id=order.id, already_finalized=True)
+            if verified_yookassa_payment is not None and (
+                verified_yookassa_payment.status is not YooKassaPaymentStatus.succeeded
+                or not self._yookassa_amount_matches(order, verified_yookassa_payment)
+            ):
+                return None
             self._validate_verified_attempt(order, attempt)
 
             purchaser = await self._session.get(User, order.user_id)
@@ -190,43 +228,9 @@ class PaymentService:
         коммерческие блокировки и обязан оставаться полностью локальным.
         """
         payment = await yookassa.get_payment(provider_payment_id)
-        should_finalize = False
-        async with self._session.begin():
-            order_id = await self._session.scalar(
-                select(PaymentAttempt.order_id).where(
-                    PaymentAttempt.provider == PaymentProvider.yookassa,
-                    PaymentAttempt.provider_payment_id == payment.id,
-                )
-            )
-            if order_id is None:
-                return None
-            order = await self._orders.get_for_update(order_id)
-            if order is None:  # pragma: no cover — FK attempt.order_id это исключает
-                return None
-            attempt = await self._session.scalar(
-                select(PaymentAttempt)
-                .where(
-                    PaymentAttempt.provider == PaymentProvider.yookassa,
-                    PaymentAttempt.provider_payment_id == payment.id,
-                )
-                .with_for_update()
-            )
-            if attempt is None:  # pragma: no cover — строки выбраны одним ключом
-                return None
-
-            self._record_yookassa_verification(attempt, payment)
-            if order.status is OrderStatus.pending and order.expires_at <= datetime.now(UTC):
-                await self._expire_locked_order(order)
-                return None
-            should_finalize = (
-                order.status is OrderStatus.pending
-                and payment.status is YooKassaPaymentStatus.succeeded
-                and self._yookassa_amount_matches(order, payment)
-            )
-
-        if should_finalize:
-            return await self.finalize_success(attempt.id)
-        return None
+        if payment.id != provider_payment_id:
+            return None
+        return await self.finalize_success(verified_yookassa_payment=payment)
 
     async def expire_due_orders(self, *, now: datetime) -> int:
         """Закрывает просроченные заказы и освобождает их промо-резервы атомарно."""
