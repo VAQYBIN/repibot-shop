@@ -293,3 +293,39 @@ class OrderResponse(BaseModel):
     confirmation_url: str | None
     telegram_invoice_required: bool = False
     telegram_handoff_url: str | None = None
+
+
+class PromoRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+    percent_off: int = Field(default=0, ge=0, le=100)
+    bonus_days: int = Field(default=0, ge=0)
+    max_uses: int | None = Field(default=None, gt=0)
+    per_user_limit: int | None = Field(default=None, gt=0)
+    is_active: bool = True
+    starts_at: datetime | None = None
+    expires_at: datetime | None = None
+
+
+class PromoResponse(BaseModel):
+    id: int
+    code: str
+    percent_off: int
+    bonus_days: int
+    max_uses: int | None
+    per_user_limit: int | None
+    is_active: bool
+    starts_at: datetime | None
+    expires_at: datetime | None
+
+
+class RedeemGiftRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
+class GiftVoucherResponse(BaseModel):
+    code: str
+    purchased_at: datetime
+    redeemed_at: datetime | None
+    expires_at: datetime
+    purchased_by_me: bool
+    redeemed_by_me: bool

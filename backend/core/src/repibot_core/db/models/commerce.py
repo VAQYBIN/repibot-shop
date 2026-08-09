@@ -8,6 +8,7 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum,
@@ -47,6 +48,30 @@ class PaymentStatus(StrEnum):
     succeeded = "succeeded"
     canceled = "canceled"
     failed = "failed"
+
+
+class PromoCode(TimestampMixin, Base):
+    """Настраиваемая администратором скидка для ручной покупки или продления."""
+
+    __tablename__ = "promo_codes"
+    __table_args__ = (
+        CheckConstraint("percent_off >= 0 AND percent_off <= 100", name="ck_promos_percent_range"),
+        CheckConstraint("bonus_days >= 0", name="ck_promos_bonus_nonnegative"),
+        CheckConstraint("max_uses IS NULL OR max_uses > 0", name="ck_promos_max_uses_positive"),
+        CheckConstraint(
+            "per_user_limit IS NULL OR per_user_limit > 0", name="ck_promos_user_limit_positive"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    percent_off: Mapped[int] = mapped_column(Integer, default=0)
+    bonus_days: Mapped[int] = mapped_column(Integer, default=0)
+    max_uses: Mapped[int | None] = mapped_column(Integer)
+    per_user_limit: Mapped[int | None] = mapped_column(Integer)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Order(TimestampMixin, Base):
@@ -127,7 +152,7 @@ class PromoReservation(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
-    promo_code_id: Mapped[int] = mapped_column(Integer)
+    promo_code_id: Mapped[int] = mapped_column(ForeignKey("promo_codes.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

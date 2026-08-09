@@ -82,6 +82,7 @@ _SERVICE_STATUS = {
     "plan_inactive": 409,
     "order_expired": 409,
     "promo_unavailable": 409,
+    "gift_unavailable": 409,
     "provider_unavailable": 503,
     "plan_code_taken": 409,
     "plan_squads_unknown": 422,

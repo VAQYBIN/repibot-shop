@@ -21,8 +21,10 @@ from repibot_api.schemas import (
     CreateOrderRequest,
     DeviceResponse,
     DevicesResponse,
+    GiftVoucherResponse,
     OrderResponse,
     PublicPlanResponse,
+    RedeemGiftRequest,
     SubscriptionStateResponse,
     TrafficDayResponse,
     TrafficResponse,
@@ -49,11 +51,38 @@ from repibot_core.services.devices import DeviceService, DeviceView
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.payments import PaymentService
 from repibot_core.services.plans import PlanService
+from repibot_core.services.promotions import GiftService
 from repibot_core.services.subscriptions import SubscriptionService
 from repibot_core.services.traffic import TrafficService
 from repibot_core.settings import get_settings
 
 router = APIRouter(tags=["subscription"])
+
+
+@router.get("/api/me/gifts", response_model=list[GiftVoucherResponse])
+async def my_gifts(
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> list[GiftVoucherResponse]:
+    return [
+        GiftVoucherResponse.model_validate(item, from_attributes=True)
+        for item in await GiftService(session).list_for_user(context.principal.user_id)
+    ]
+
+
+@router.post("/api/me/gifts/redeem", response_model=SubscriptionStateResponse)
+async def redeem_gift(
+    payload: RedeemGiftRequest,
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> SubscriptionStateResponse:
+    try:
+        view = await GiftService(session).redeem(payload.code, context.principal.user_id)
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+    return SubscriptionStateResponse(
+        subscription=subscription_response(view), trial_available=False
+    )
 
 
 async def stars_handoff_url(redis: Redis, handoff_reference: str) -> str:

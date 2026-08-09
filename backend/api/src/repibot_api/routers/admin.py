@@ -21,6 +21,8 @@ from repibot_api.schemas import (
     AdminSubscriptionRequest,
     PlanRequest,
     PlanResponse,
+    PromoRequest,
+    PromoResponse,
     SquadResponse,
     SubscriptionStateResponse,
 )
@@ -42,6 +44,7 @@ from repibot_core.integrations.remnawave.client import RemnawaveUnavailable
 from repibot_core.integrations.remnawave.squads import PanelSquads
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.plans import PlanInput, PlanService, PlanView
+from repibot_core.services.promotions import PromotionInput, PromotionService
 from repibot_core.services.subscriptions import SubscriptionService, SubscriptionView
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -57,6 +60,64 @@ async def whoami(
     context: Annotated[AuthContext, Depends(require_role(UserRole.admin, UserRole.support))],
 ) -> WhoAmIResponse:
     return WhoAmIResponse(id=context.principal.user_id, role=context.principal.role.value)
+
+
+@router.get("/promos", response_model=list[PromoResponse])
+async def list_promos(
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+) -> list[PromoResponse]:
+    return [_promo_response(item) for item in await PromotionService(session).list()]
+
+
+@router.post("/promos", response_model=PromoResponse, status_code=status.HTTP_201_CREATED)
+async def create_promo(
+    payload: PromoRequest,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+) -> PromoResponse:
+    try:
+        item = await PromotionService(session).create(_promo_input(payload))
+        await session.commit()
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+    return _promo_response(item)
+
+
+@router.patch("/promos/{promo_id}", response_model=PromoResponse)
+async def update_promo(
+    promo_id: int,
+    payload: PromoRequest,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+) -> PromoResponse:
+    try:
+        item = await PromotionService(session).update(promo_id, _promo_input(payload))
+        await session.commit()
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+    return _promo_response(item)
+
+
+@router.delete("/promos/{promo_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def deactivate_promo(
+    promo_id: int,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+) -> None:
+    try:
+        await PromotionService(session).deactivate(promo_id)
+        await session.commit()
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+
+
+def _promo_input(payload: PromoRequest) -> PromotionInput:
+    return PromotionInput(**payload.model_dump())
+
+
+def _promo_response(item: object) -> PromoResponse:
+    return PromoResponse.model_validate(item, from_attributes=True)
 
 
 @router.get("/plans", response_model=list[PlanResponse])

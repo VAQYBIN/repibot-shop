@@ -10,6 +10,7 @@ from repibot_core.db.models.commerce import (
     PaymentAttempt,
     PaymentProvider,
     PaymentStatus,
+    PromoCode,
     PromoReservation,
     ReferralReward,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "PaymentAttempt",
     "PaymentProvider",
     "PaymentStatus",
+    "PromoCode",
     "Plan",
     "PromoReservation",
     "ReconciliationFinding",

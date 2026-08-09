@@ -38,6 +38,7 @@ from repibot_core.domain.payments import referral_reward_days
 from repibot_core.domain.subscriptions import convert_remainder
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.services.errors import ServiceError
+from repibot_core.services.promotions import PromotionService
 from repibot_core.services.provisioning import TOPIC_PROVISION
 from repibot_core.services.subscriptions import SubscriptionService
 from repibot_core.settings import Settings, get_settings
@@ -144,10 +145,14 @@ class PaymentService:
                     raise ServiceError("тариф не найден", "plan_inactive")
                 if not plan.is_active or not plan.is_visible or plan.is_trial:
                     raise ServiceError("тариф недоступен", "plan_inactive")
-                if purpose is OrderPurpose.gift and not promo_code:
-                    raise ServiceError("для подарка нужен промокод", "promo_unavailable")
                 if promo_code:
-                    raise ServiceError("промокод недоступен", "promo_unavailable")
+                    if purpose not in (OrderPurpose.purchase, OrderPurpose.renew):
+                        raise ServiceError("промокод недоступен", "promo_unavailable")
+                    quote = await PromotionService(self._session).prepare(
+                        user_id=user_id, code=promo_code, gross_rub=plan.price_rub
+                    )
+                else:
+                    quote = None
                 existing = await self._orders.create_pending(
                     user_id=user_id,
                     plan=plan,
@@ -155,7 +160,14 @@ class PaymentService:
                     expires_at=datetime.now(UTC)
                     + timedelta(minutes=self._settings.yookassa_order_ttl_minutes),
                     purpose=purpose,
+                    gross_rub=plan.price_rub,
+                    discount_rub=quote.discount_rub if quote is not None else Decimal("0.00"),
+                    promo_code_id=quote.promo_id if quote is not None else None,
                 )
+                if quote is not None:
+                    await PromotionService(self._session).reserve_prepared(
+                        order=existing, user_id=user_id, quote=quote
+                    )
                 await self._attempts.get_or_create(
                     order_id=existing.id,
                     provider=PaymentProvider.yookassa,
@@ -241,8 +253,6 @@ class PaymentService:
                     raise ServiceError("тариф не найден", "plan_not_found")
                 if not plan.is_active or not plan.is_visible or plan.is_trial:
                     raise ServiceError("тариф недоступен", "plan_inactive")
-                if purpose is OrderPurpose.gift and not promo_code:
-                    raise ServiceError("для подарка нужен промокод", "promo_unavailable")
                 if promo_code:
                     raise ServiceError("промокод недоступен", "promo_unavailable")
                 existing = await self._orders.create_pending(
@@ -290,9 +300,7 @@ class PaymentService:
             handoff_reference=attempt.handoff_token,
         )
 
-    async def next_stars_invoice(
-        self, user_id: int, handoff_reference: str
-    ) -> StarsInvoice | None:
+    async def next_stars_invoice(self, user_id: int, handoff_reference: str) -> StarsInvoice | None:
         """Resolves the owner's requested opaque handoff without exposing invoice data to web."""
         if self._session.in_transaction():
             await self._session.commit()
@@ -525,9 +533,11 @@ class PaymentService:
                     .with_for_update()
                 )
             ).scalar_one_or_none()
-            await self._session.execute(
-                select(GiftVoucher).where(GiftVoucher.order_id == order.id).with_for_update()
-            )
+            existing_voucher = (
+                await self._session.execute(
+                    select(GiftVoucher).where(GiftVoucher.order_id == order.id).with_for_update()
+                )
+            ).scalar_one_or_none()
             existing_reward = (
                 await self._session.execute(
                     select(ReferralReward)
@@ -559,9 +569,18 @@ class PaymentService:
                 applied.entitlement_price_rub = order.price_rub_snapshot
                 applied.entitlement_duration_days = order.duration_days_snapshot
                 await self._outbox.add(TOPIC_PROVISION, {"user_id": order.user_id})
+            elif existing_voucher is None:
+                self._session.add(
+                    GiftVoucher(
+                        order_id=order.id,
+                        code=token_urlsafe(18),
+                        purchased_by_user_id=order.user_id,
+                        expires_at=datetime.now(UTC) + timedelta(days=365),
+                    )
+                )
 
-            if reservation is not None and reservation.consumed_at is None:
-                reservation.consumed_at = datetime.now(UTC)
+            if reservation is not None:
+                await PromotionService(self._session).consume(order_id=order.id)
 
             await self._stage_referral_bonus(
                 order=order,

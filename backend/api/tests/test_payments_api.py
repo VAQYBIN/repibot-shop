@@ -190,20 +190,20 @@ async def test_create_order_rejects_unavailable_plan(
     assert fake_yookassa.calls == 0
 
 
-async def test_gift_order_without_promo_is_rejected(
+async def test_gift_order_is_paid_without_a_promo(
     api_client: AsyncClient,
     user_headers: dict[str, str],
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """Dropping the gift/promo rule must never accidentally sell an untracked gift."""
+    """A gift is a paid order purpose, not a promo side-effect."""
     response = await api_client.post(
         "/api/me/orders", json=_payload(month_plan, purpose="gift"), headers=user_headers
     )
 
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "promo_unavailable"
-    assert fake_yookassa.calls == 0
+    assert response.status_code == 201
+    assert response.json()["purpose"] == "gift"
+    assert fake_yookassa.calls == 1
 
 
 async def test_same_client_key_returns_same_order(
