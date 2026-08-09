@@ -121,6 +121,28 @@ def test_commerce_settings_have_safe_defaults(monkeypatch: pytest.MonkeyPatch) -
     assert settings.auto_renew_disable_after_final_failure is True
 
 
+def test_e2e_yookassa_http_is_limited_to_its_compose_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Permitting arbitrary cleartext URLs would turn an E2E convenience into a payment risk."""
+    settings = _build(
+        monkeypatch,
+        YOOKASSA_SHOP_ID="e2e-shop",
+        YOOKASSA_SECRET_KEY="e2e-secret",
+        YOOKASSA_API_BASE_URL="http://yookassa-fake:3000/v3",
+    )
+
+    assert settings.yookassa_api_base_url == "http://yookassa-fake:3000/v3"
+    with pytest.raises(ValidationError):
+        _build(monkeypatch, YOOKASSA_API_BASE_URL="http://payment-proxy.example/v3")
+    with pytest.raises(ValidationError):
+        _build(
+            monkeypatch,
+            ENVIRONMENT="production",
+            YOOKASSA_API_BASE_URL="http://yookassa-fake:3000/v3",
+        )
+
+
 def test_invalid_referral_reward_settings_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(ValidationError):
         _build(monkeypatch, REFERRAL_REWARD_PERCENT="-1")

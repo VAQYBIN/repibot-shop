@@ -24,6 +24,8 @@ services:
     depends_on:
       remnawave-fake:
         condition: service_healthy
+      yookassa-fake:
+        condition: service_healthy
   worker:
     <<: *e2e-env
     depends_on:
@@ -34,6 +36,38 @@ services:
     depends_on:
       remnawave-fake:
         condition: service_healthy
+      yookassa-fake:
+        condition: service_healthy
+
+  # FakeYooKassa доступна только API-контейнерам этой compose-сети. Порт на
+  # хост нужен лишь Playwright для управляемого webhook/poll interleave и
+  # привязан к loopback: внешняя сеть машины его не видит.
+  yookassa-fake:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    command:
+      [
+        "uvicorn",
+        "repibot_core.testing.yookassa:yookassa_app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "3000",
+      ]
+    ports: ["127.0.0.1:3002:3000"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')",
+        ]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
 
   remnawave-fake:
     build:

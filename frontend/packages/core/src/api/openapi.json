@@ -1651,6 +1651,98 @@
         }
       }
     },
+    "/api/admin/orders/{order_id}/refund-mark": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Mark Order Refunded",
+        "description": "Record a completed provider refund without changing any entitlement.",
+        "operationId": "mark_order_refunded_api_admin_orders__order_id__refund_mark_post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundMarkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/orders/{order_id}/compensations": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Compensate Order",
+        "description": "Apply exactly one explicitly named, idempotent local correction.",
+        "operationId": "compensate_order_api_admin_orders__order_id__compensations_post",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompensationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhook/yookassa": {
       "post": {
         "tags": [
@@ -1792,6 +1884,38 @@
           "email"
         ],
         "title": "ChangeEmailRequest"
+      },
+      "CompensationRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "revoke_days",
+              "reverse_referral_reward"
+            ],
+            "title": "Action"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Idempotency Key"
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "idempotency_key",
+          "comment"
+        ],
+        "title": "CompensationRequest",
+        "description": "One irreversible, separately approved local correction."
       },
       "CreateOrderRequest": {
         "properties": {
@@ -2862,6 +2986,29 @@
           "code"
         ],
         "title": "RedeemGiftRequest"
+      },
+      "RefundMarkRequest": {
+        "properties": {
+          "reference": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Reference"
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference",
+          "comment"
+        ],
+        "title": "RefundMarkRequest",
+        "description": "Proof that a human completed the provider-side refund first."
       },
       "RegisterRequest": {
         "properties": {

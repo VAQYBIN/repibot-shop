@@ -157,10 +157,16 @@ class Settings(BaseSettings):
     @field_validator("yookassa_api_base_url")
     @classmethod
     def _yookassa_api_base_url_is_https(cls, value: str) -> str:
-        if not value.startswith("https://"):
+        normalized = value.rstrip("/")
+        # Cleartext is never a deployment option.  The sole exception is an
+        # in-network test double whose compose service name cannot resolve on
+        # a public network and whose port is not published except to loopback.
+        if normalized == "http://yookassa-fake:3000/v3":
+            return normalized
+        if not normalized.startswith("https://"):
             msg = "YOOKASSA_API_BASE_URL должен начинаться с https://"
             raise ValueError(msg)
-        return value.rstrip("/")
+        return normalized
 
     @field_validator("auto_renew_offsets_hours")
     @classmethod
@@ -175,6 +181,9 @@ class Settings(BaseSettings):
         has_secret = bool(self.yookassa_secret_key.get_secret_value())
         if has_shop_id != has_secret:
             msg = "YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY задаются вместе"
+            raise ValueError(msg)
+        if self.environment == "production" and self.yookassa_api_base_url.startswith("http://"):
+            msg = "HTTP-заглушка YooKassa допустима только в local окружении"
             raise ValueError(msg)
 
 

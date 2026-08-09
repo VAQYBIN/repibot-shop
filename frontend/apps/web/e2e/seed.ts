@@ -136,6 +136,16 @@ export function resetRegistrationRateLimit(): void {
   ])
 }
 
+/**
+ * Выдать роль исключительно пользователю из отдельного e2e-compose проекта.
+ *
+ * Это позволяет открыть server-gated экран админа без общего `ADMIN_TELEGRAM_IDS`
+ * и не может обратиться к базе разработческого или production-стека.
+ */
+export function grantE2eAdmin(email: string): void {
+  runSql("UPDATE users SET role = 'admin', updated_at = now() WHERE email = :'email'", { email })
+}
+
 function runSql(sql: string, variables: Record<string, string> = {}): void {
   const command = [
     'exec',

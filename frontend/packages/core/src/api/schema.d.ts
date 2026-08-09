@@ -793,6 +793,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/orders/{order_id}/refund-mark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Order Refunded
+         * @description Record a completed provider refund without changing any entitlement.
+         */
+        post: operations["mark_order_refunded_api_admin_orders__order_id__refund_mark_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/orders/{order_id}/compensations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Compensate Order
+         * @description Apply exactly one explicitly named, idempotent local correction.
+         */
+        post: operations["compensate_order_api_admin_orders__order_id__compensations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhook/yookassa": {
         parameters: {
             query?: never;
@@ -884,6 +924,21 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /**
+         * CompensationRequest
+         * @description One irreversible, separately approved local correction.
+         */
+        CompensationRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "revoke_days" | "reverse_referral_reward";
+            /** Idempotency Key */
+            idempotency_key: string;
+            /** Comment */
+            comment: string;
         };
         /**
          * CreateOrderRequest
@@ -1312,6 +1367,16 @@ export interface components {
         RedeemGiftRequest: {
             /** Code */
             code: string;
+        };
+        /**
+         * RefundMarkRequest
+         * @description Proof that a human completed the provider-side refund first.
+         */
+        RefundMarkRequest: {
+            /** Reference */
+            reference: string;
+            /** Comment */
+            comment: string;
         };
         /** RegisterRequest */
         RegisterRequest: {
@@ -2867,6 +2932,72 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SubscriptionStateResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_order_refunded_api_admin_orders__order_id__refund_mark_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundMarkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compensate_order_api_admin_orders__order_id__compensations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompensationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
