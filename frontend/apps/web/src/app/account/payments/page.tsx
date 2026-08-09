@@ -63,7 +63,7 @@ export default function PaymentsPage() {
   ) {
     setStarsHint(false)
     setPromoApplied(false)
-    let order
+    let order: OrderResponse
     try {
       order = await createOrder.mutateAsync({
         plan_id: plan.id,

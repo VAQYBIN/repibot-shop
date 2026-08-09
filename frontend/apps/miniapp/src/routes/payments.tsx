@@ -67,7 +67,7 @@ export function Payments() {
   ) {
     setStars(false)
     setAccepted(false)
-    let created
+    let created: OrderResponse
     try {
       created = await createOrder.mutateAsync({
         plan_id: plan.id,
