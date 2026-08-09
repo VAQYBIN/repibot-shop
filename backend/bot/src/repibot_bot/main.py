@@ -18,6 +18,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 
 from repibot_bot.handlers.language import build_language_router
+from repibot_bot.handlers.payments import build_payment_router
 from repibot_bot.handlers.start import build_start_router
 from repibot_bot.middleware import UserMiddleware
 from repibot_core.logging import configure_logging
@@ -38,8 +39,10 @@ def build_dispatcher(storage: BaseStorage) -> Dispatcher:
     middleware = UserMiddleware()
     dispatcher.message.middleware(middleware)
     dispatcher.callback_query.middleware(middleware)
+    dispatcher.pre_checkout_query.middleware(middleware)
     dispatcher.include_router(build_start_router())
     dispatcher.include_router(build_language_router())
+    dispatcher.include_router(build_payment_router())
     return dispatcher
 
 

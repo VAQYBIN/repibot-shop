@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
+from hmac import compare_digest
+from hmac import new as hmac_new
 from typing import Protocol
 
 from sqlalchemy import delete, func, select
@@ -69,6 +71,14 @@ class YooKassaCreator(Protocol):
 class CreatedOrder:
     order: Order
     confirmation_url: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class CreatedStarsOrder:
+    """Pending Stars order and the opaque payload for its Telegram invoice."""
+
+    order: Order
+    invoice_payload: str | None
 
 
 class PaymentService:
@@ -191,6 +201,160 @@ class PaymentService:
             attempt.verified_payload = {"confirmation_url": payment.confirmation_url}
 
         return CreatedOrder(order=existing, confirmation_url=payment.confirmation_url)
+
+    async def create_stars_order(
+        self,
+        *,
+        user_id: int,
+        plan_id: int,
+        purpose: OrderPurpose,
+        client_key: str,
+        promo_code: str | None,
+    ) -> CreatedStarsOrder:
+        """Creates the server-side Stars invoice state without charging in the web app."""
+        if self._session.in_transaction():
+            await self._session.commit()
+        provider_key = sha256(f"stars:{user_id}:{client_key}".encode()).hexdigest()
+        existing: Order | None = None
+        attempt: PaymentAttempt | None = None
+        async with self._session.begin():
+            await self._session.execute(
+                select(func.pg_advisory_xact_lock(self._order_lock_key(user_id, client_key)))
+            )
+            existing = await self._session.scalar(
+                select(Order)
+                .where(Order.user_id == user_id, Order.client_key == client_key)
+                .with_for_update()
+            )
+            if existing is None:
+                plan = await self._plans.get(plan_id)
+                if plan is None:
+                    raise ServiceError("тариф не найден", "plan_not_found")
+                if not plan.is_active or not plan.is_visible or plan.is_trial:
+                    raise ServiceError("тариф недоступен", "plan_inactive")
+                if purpose is OrderPurpose.gift and not promo_code:
+                    raise ServiceError("для подарка нужен промокод", "promo_unavailable")
+                if promo_code:
+                    raise ServiceError("промокод недоступен", "promo_unavailable")
+                existing = await self._orders.create_pending(
+                    user_id=user_id,
+                    plan=plan,
+                    client_key=client_key,
+                    expires_at=datetime.now(UTC)
+                    + timedelta(minutes=self._settings.stars_order_ttl_minutes),
+                    purpose=purpose,
+                )
+                attempt = await self._attempts.get_or_create(
+                    order_id=existing.id,
+                    provider=PaymentProvider.stars,
+                    attempt_no=1,
+                    provider_key=provider_key,
+                )
+            elif existing.status is OrderStatus.pending and existing.expires_at <= datetime.now(
+                UTC
+            ):
+                await self._expire_locked_order(existing)
+            elif existing.status is OrderStatus.pending:
+                attempt = await self._session.scalar(
+                    select(PaymentAttempt).where(
+                        PaymentAttempt.order_id == existing.id,
+                        PaymentAttempt.provider == PaymentProvider.stars,
+                    )
+                )
+
+        assert existing is not None
+        if existing.status is OrderStatus.expired or existing.expires_at <= datetime.now(UTC):
+            raise ServiceError("заказ истёк", "order_expired")
+        if existing.status is not OrderStatus.pending:
+            return CreatedStarsOrder(order=existing, invoice_payload=None)
+        if attempt is None:
+            raise ServiceError(
+                "для заказа уже выбран другой способ оплаты", "payment_provider_mismatch"
+            )
+        return CreatedStarsOrder(
+            order=existing, invoice_payload=self._stars_invoice_payload(attempt.id)
+        )
+
+    async def authorize_stars_attempt(
+        self, *, invoice_payload: str, user_id: int, total_amount: int
+    ) -> int | None:
+        """Checks the pre-checkout query before Telegram is allowed to charge Stars."""
+        return await self._validated_stars_attempt(
+            invoice_payload=invoice_payload,
+            user_id=user_id,
+            total_amount=total_amount,
+            mark_succeeded=False,
+        )
+
+    async def confirm_stars_success(
+        self, *, invoice_payload: str, user_id: int, total_amount: int
+    ) -> int | None:
+        """Records Telegram's successful-payment update for the shared finalizer."""
+        return await self._validated_stars_attempt(
+            invoice_payload=invoice_payload,
+            user_id=user_id,
+            total_amount=total_amount,
+            mark_succeeded=True,
+        )
+
+    async def _validated_stars_attempt(
+        self,
+        *,
+        invoice_payload: str,
+        user_id: int,
+        total_amount: int,
+        mark_succeeded: bool,
+    ) -> int | None:
+        attempt_id = self._stars_attempt_id(invoice_payload)
+        if attempt_id is None or isinstance(total_amount, bool):
+            return None
+        if self._session.in_transaction():
+            await self._session.commit()
+        async with self._session.begin():
+            order_id = await self._session.scalar(
+                select(PaymentAttempt.order_id).where(PaymentAttempt.id == attempt_id)
+            )
+            if order_id is None:
+                return None
+            order = await self._orders.get_for_update(order_id)
+            attempt = await self._attempts.get_for_update(attempt_id)
+            if attempt is None or order is None:
+                return None
+            if order.status is OrderStatus.pending and order.expires_at <= datetime.now(UTC):
+                await self._expire_locked_order(order)
+                return None
+            if (
+                attempt.provider is not PaymentProvider.stars
+                or attempt.status is not PaymentStatus.pending
+                or order.status is not OrderStatus.pending
+                or order.user_id != user_id
+                or type(total_amount) is not int
+                or total_amount != order.price_stars_snapshot
+            ):
+                return None
+            if mark_succeeded:
+                attempt.status = PaymentStatus.succeeded
+                attempt.verified_payload = {"amount": total_amount, "currency": "XTR"}
+                attempt.verified_at = datetime.now(UTC)
+            return attempt.id
+
+    def _stars_invoice_payload(self, attempt_id: int) -> str:
+        value = str(attempt_id)
+        signature = hmac_new(
+            self._settings.encryption_key.get_secret_value().encode(),
+            f"stars:{value}".encode(),
+            sha256,
+        ).hexdigest()
+        return f"stars.{value}.{signature}"
+
+    def _stars_attempt_id(self, payload: str) -> int | None:
+        if payload.count(".") != 2:
+            return None
+        prefix, value, signature = payload.split(".", maxsplit=2)
+        if prefix != "stars" or not value.isdecimal() or not signature:
+            return None
+        expected = self._stars_invoice_payload(int(value)).rsplit(".", maxsplit=1)[1]
+        return int(value) if compare_digest(signature, expected) else None
 
     @staticmethod
     def _provider_key(user_id: int, client_key: str) -> str:

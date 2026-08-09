@@ -38,9 +38,9 @@ from repibot_api.subscription_view import (
     traffic_service,
     yookassa_client,
 )
-from repibot_core.db.models import Order, OrderPurpose, PaymentAttempt, PaymentProvider
+from repibot_core.db.models import Order, OrderPurpose, PaymentAttempt, PaymentProvider, User
 from repibot_core.integrations.remnawave.client import RemnawaveUnavailable
-from repibot_core.integrations.yookassa.client import YooKassaClient, YooKassaError
+from repibot_core.integrations.yookassa.client import YooKassaError
 from repibot_core.ratelimit import DEVICE_UNLINK_WINDOW, Rule
 from repibot_core.services.devices import DeviceService, DeviceView
 from repibot_core.services.errors import ServiceError
@@ -79,13 +79,10 @@ async def create_order(
     payload: CreateOrderRequest,
     context: Annotated[AuthContext, Depends(current_context)],
     payments: Annotated[PaymentService, Depends(payment_service)],
-    yookassa: Annotated[YooKassaClient, Depends(yookassa_client)],
     redis: Annotated[Redis, Depends(get_redis)],
     ip: Annotated[str | None, Depends(client_ip)],
     session: Annotated[AsyncSession, Depends(db_session)],
 ) -> OrderResponse:
-    if payload.provider != "yookassa":
-        raise ApiError("провайдер недоступен", 503, "provider_unavailable")
     replay = await session.scalar(
         select(Order.id).where(
             Order.user_id == context.principal.user_id,
@@ -97,20 +94,38 @@ async def create_order(
         if ip is not None:
             await enforce(redis, f"payment-create:ip:{ip}", PAYMENT_CREATE)
     try:
-        created = await payments.create_manual_yookassa_order(
-            user_id=context.principal.user_id,
-            plan_id=payload.plan_id,
-            purpose=OrderPurpose(payload.purpose),
-            client_key=payload.idempotency_key,
-            promo_code=payload.promo_code,
-            save_payment_method=payload.save_payment_method,
-            yookassa=yookassa,
-        )
+        if payload.provider == "stars":
+            user = await session.get(User, context.principal.user_id)
+            if user is None or user.telegram_id is None:
+                raise ApiError("сначала привяжите Telegram", 409, "telegram_required")
+            stars_order = await payments.create_stars_order(
+                user_id=context.principal.user_id,
+                plan_id=payload.plan_id,
+                purpose=OrderPurpose(payload.purpose),
+                client_key=payload.idempotency_key,
+                promo_code=payload.promo_code,
+            )
+            return order_response(
+                stars_order.order,
+                None,
+                telegram_invoice_required=stars_order.invoice_payload is not None,
+            )
+        async for yookassa in yookassa_client():
+            yookassa_order = await payments.create_manual_yookassa_order(
+                user_id=context.principal.user_id,
+                plan_id=payload.plan_id,
+                purpose=OrderPurpose(payload.purpose),
+                client_key=payload.idempotency_key,
+                promo_code=payload.promo_code,
+                save_payment_method=payload.save_payment_method,
+                yookassa=yookassa,
+            )
+            return order_response(yookassa_order.order, yookassa_order.confirmation_url)
+        raise RuntimeError("YooKassa dependency did not yield a client")
     except ServiceError as error:
         raise api_error_from_service(error) from error
     except (httpx.HTTPError, YooKassaError) as error:
         raise ApiError("провайдер недоступен", 503, "provider_unavailable") from error
-    return order_response(created.order, created.confirmation_url)
 
 
 @router.get("/api/me/orders", response_model=list[OrderResponse])

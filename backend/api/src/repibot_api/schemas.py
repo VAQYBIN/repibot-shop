@@ -291,3 +291,4 @@ class OrderResponse(BaseModel):
     status: str
     expires_at: datetime
     confirmation_url: str | None
+    telegram_invoice_required: bool = False

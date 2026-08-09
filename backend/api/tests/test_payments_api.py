@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -68,6 +68,35 @@ def _payload(
     }
 
 
+def _stars_payload(plan_id: int) -> dict[str, object]:
+    return {
+        "plan_id": plan_id,
+        "purpose": "purchase",
+        "provider": "stars",
+        "idempotency_key": "stars-7ba4f38a-7778-4a53-a8c5-d0fdd9d2f794",
+    }
+
+
+async def test_create_stars_order_requires_telegram_invoice(
+    api_client: AsyncClient,
+    telegram_user_headers: dict[str, str],
+    month_plan: int,
+) -> None:
+    started = datetime.now(UTC)
+    response = await api_client.post(
+        "/api/me/orders", json=_stars_payload(month_plan), headers=telegram_user_headers
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["telegram_invoice_required"] is True
+    assert body["confirmation_url"] is None
+    assert body["price_stars"] == 199
+    expires_at = datetime.fromisoformat(body["expires_at"])
+    assert expires_at.tzinfo is not None
+    assert timedelta(minutes=14) < expires_at - started <= timedelta(minutes=15, seconds=1)
+
+
 async def test_create_manual_yookassa_order_returns_confirm_url(
     api_client: AsyncClient,
     user_headers: dict[str, str],
@@ -102,6 +131,7 @@ async def test_create_manual_yookassa_order_returns_confirm_url(
         "status",
         "expires_at",
         "confirmation_url",
+        "telegram_invoice_required",
     }
 
 
@@ -174,9 +204,7 @@ async def test_same_client_key_returns_same_order(
     fake_yookassa: FakeYooKassa,
 ) -> None:
     """Removing idempotency would create two payable orders for one click retry."""
-    first = await api_client.post(
-        "/api/me/orders", json=_payload(month_plan), headers=user_headers
-    )
+    first = await api_client.post("/api/me/orders", json=_payload(month_plan), headers=user_headers)
     second = await api_client.post(
         "/api/me/orders", json=_payload(month_plan), headers=user_headers
     )

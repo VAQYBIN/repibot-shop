@@ -10,11 +10,12 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import CallbackQuery, Message, TelegramObject
+from aiogram.types import CallbackQuery, Message, PreCheckoutQuery, TelegramObject
 from redis.asyncio import Redis
 
 from repibot_core.db.engine import create_engine, create_session_factory
 from repibot_core.integrations.telegram.bot_api import BotApi
+from repibot_core.services.payments import PaymentService
 from repibot_core.services.telegram_link import TelegramLinkService
 from repibot_core.services.telegram_users import TelegramUserService
 from repibot_core.settings import get_settings
@@ -40,7 +41,11 @@ class UserMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        sender = event.from_user if isinstance(event, Message | CallbackQuery) else None
+        sender = (
+            event.from_user
+            if isinstance(event, Message | CallbackQuery | PreCheckoutQuery)
+            else None
+        )
         if sender is None:
             return await handler(event, data)
 
@@ -58,4 +63,5 @@ class UserMiddleware(BaseMiddleware):
             data["telegram_link"] = TelegramLinkService(
                 session, self._settings, self._redis, self._bot_api
             )
+            data["payment_service"] = PaymentService(session, self._settings)
             return await handler(event, data)
