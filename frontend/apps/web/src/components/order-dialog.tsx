@@ -1,10 +1,8 @@
 'use client'
 
-import type { CreateOrderRequest } from '@repibot/core'
+import type { CreateOrderRequest, Language } from '@repibot/core'
 import { Button, Dialog } from '@repibot/ui'
-
 import { useTranslate } from '@/lib/i18n'
-import type { Language } from '@repibot/core'
 
 export interface OrderDialogProps {
   open: boolean
