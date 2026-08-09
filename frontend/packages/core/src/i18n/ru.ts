@@ -136,6 +136,8 @@ export const ru = {
   'payment.pay_card': 'Оплатить картой',
   'payment.pay_stars': 'Оплатить Stars',
   'payment.gift': 'Подарить',
+  'payment.renew': 'Продлить',
+  'payment.change': 'Сменить тариф',
   'payment.gift_confirm': 'Подтвердить подарок?',
   'payment.gift_hint': 'После подтверждённой оплаты ваучер появится в истории заказов.',
   'payment.confirm': 'Продолжить',

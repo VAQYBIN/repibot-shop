@@ -4,23 +4,25 @@ import {
   translate,
   useAutoRenew,
   useCreateOrder,
+  useGifts,
   useOrders,
   usePlans,
   useRedeemGift,
   useSubscription,
 } from '@repibot/core'
-import { Button, Card, EmptyState, Input, Switch } from '@repibot/ui'
+import { Button, Card, Dialog, EmptyState, Input, Switch } from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { useLanguage } from '../api'
 import { Loading, Retry } from '../auth-fallback'
+import { openTelegramUrl } from '../telegram'
 import { rootRoute } from './root'
 
 function name(values: Record<string, string>, language: 'ru' | 'en', fallback: string) {
   return values[language] ?? values.ru ?? values.en ?? fallback
 }
-type Plan = { id: number }
+type Plan = { id: number; code: string; name: Record<string, string>; duration_days: number }
 function errorText(error: unknown, language: 'ru' | 'en') {
   return error instanceof Error && error.message
     ? error.message
@@ -51,25 +53,36 @@ export function Payments() {
   const subscription = useSubscription()
   const createOrder = useCreateOrder(language)
   const redeem = useRedeemGift(language)
+  const gifts = useGifts()
   const autoRenew = useAutoRenew(language)
   const [promo, setPromo] = useState('')
   const [voucher, setVoucher] = useState('')
   const [stars, setStars] = useState(false)
   const [accepted, setAccepted] = useState(false)
-  async function order(plan: Plan, provider: 'yookassa' | 'stars') {
+  const [giftPlan, setGiftPlan] = useState<Plan | null>(null)
+  async function order(
+    plan: Plan,
+    provider: 'yookassa' | 'stars',
+    purpose: 'purchase' | 'renew' | 'gift' = 'purchase',
+  ) {
     setStars(false)
     setAccepted(false)
     const created = await createOrder.mutateAsync({
       plan_id: plan.id,
-      purpose: 'purchase',
+      purpose,
       provider,
       promo_code: promo || null,
       save_payment_method: false,
       idempotency_key: crypto.randomUUID(),
     })
     setAccepted(promo !== '')
+    if (provider === 'yookassa' && created.confirmation_url)
+      openTelegramUrl(created.confirmation_url)
     // Mini App never settles Stars in a browser. Telegram's bot owns the invoice.
-    if (created.telegram_invoice_required) setStars(true)
+    if (created.telegram_invoice_required) {
+      setStars(true)
+      if (created.telegram_handoff_url) openTelegramUrl(created.telegram_handoff_url, true)
+    }
   }
   if (plans.isPending || orders.isPending || subscription.isPending)
     return <Loading language={language} />
@@ -79,6 +92,14 @@ export function Payments() {
         language={language}
         message={errorText(plans.error, language)}
         onRetry={() => void plans.refetch()}
+      />
+    )
+  if (subscription.error !== null)
+    return (
+      <Retry
+        language={language}
+        message={errorText(subscription.error, language)}
+        onRetry={() => void subscription.refetch()}
       />
     )
   const current = subscription.data?.subscription
@@ -130,6 +151,20 @@ export function Payments() {
                       <Button variant="secondary" onClick={() => void order(plan, 'yookassa')}>
                         {translate(language, 'payment.pay_card')}
                       </Button>
+                      <Button variant="ghost" onClick={() => setGiftPlan(plan)}>
+                        {translate(language, 'payment.gift')}
+                      </Button>
+                      {current === null || current === undefined ? null : (
+                        <Button
+                          variant="ghost"
+                          onClick={() => void order(plan, 'yookassa', 'renew')}
+                        >
+                          {translate(
+                            language,
+                            current.plan_code === plan.code ? 'payment.renew' : 'payment.change',
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 </li>
@@ -174,6 +209,26 @@ export function Payments() {
             {errorText(redeem.error, language)}
           </p>
         ) : null}
+        {gifts.isPending ? (
+          <p role="status" className="mt-3 text-sm text-text-secondary">
+            {translate(language, 'common.loading')}
+          </p>
+        ) : gifts.error !== null ? (
+          <p role="alert" className="mt-3 text-sm text-danger">
+            {errorText(gifts.error, language)}
+          </p>
+        ) : gifts.data?.length === 0 ? null : (
+          <ul className="mt-3 space-y-1 text-sm text-text-secondary">
+            {gifts.data?.map((gift) => (
+              <li key={gift.code}>
+                {gift.code} —{' '}
+                {gift.redeemed_at === null
+                  ? translate(language, 'payment.status.pending')
+                  : translate(language, 'payment.status.fulfilled')}
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
       <Card>
         {current === null || current === undefined ? (
@@ -224,6 +279,24 @@ export function Payments() {
           </ul>
         )}
       </section>
+      <Dialog
+        open={giftPlan !== null}
+        onClose={() => setGiftPlan(null)}
+        title={translate(language, 'payment.gift_confirm')}
+        description={translate(language, 'payment.gift_hint')}
+      >
+        <Button variant="ghost" onClick={() => setGiftPlan(null)}>
+          {translate(language, 'common.cancel')}
+        </Button>
+        <Button
+          disabled={createOrder.isPending}
+          onClick={() => {
+            if (giftPlan) void order(giftPlan, 'yookassa', 'gift')
+          }}
+        >
+          {translate(language, 'payment.confirm')}
+        </Button>
+      </Dialog>
     </main>
   )
 }

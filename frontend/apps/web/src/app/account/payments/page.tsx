@@ -6,6 +6,7 @@ import {
   type TranslationKey,
   useAutoRenew,
   useCreateOrder,
+  useGifts,
   useOrders,
   usePlans,
   useRedeemGift,
@@ -47,6 +48,7 @@ export default function PaymentsPage() {
   const subscription = useSubscription()
   const createOrder = useCreateOrder(language)
   const redeemGift = useRedeemGift(language)
+  const gifts = useGifts()
   const autoRenew = useAutoRenew(language)
   const [promo, setPromo] = useState('')
   const [voucher, setVoucher] = useState('')
@@ -72,7 +74,11 @@ export default function PaymentsPage() {
     setPromoApplied(promo !== '')
     if (provider === 'yookassa' && order.confirmation_url !== null)
       window.open(order.confirmation_url, '_blank', 'noopener,noreferrer')
-    if (provider === 'stars' && order.telegram_invoice_required) setStarsHint(true)
+    if (provider === 'stars' && order.telegram_invoice_required) {
+      setStarsHint(true)
+      if (order.telegram_handoff_url)
+        window.open(order.telegram_handoff_url, '_blank', 'noopener,noreferrer')
+    }
     setGiftPlan(null)
   }
   const current = subscription.data?.subscription
@@ -141,6 +147,14 @@ export default function PaymentsPage() {
                       <Button variant="ghost" onClick={() => setGiftPlan(plan)}>
                         {t('payment.gift')}
                       </Button>
+                      {current === null || current === undefined ? null : (
+                        <Button
+                          variant="ghost"
+                          onClick={() => void submit(plan, 'yookassa', 'renew')}
+                        >
+                          {t(current.plan_code === plan.code ? 'payment.renew' : 'payment.change')}
+                        </Button>
+                      )}
                     </div>
                   </Card>
                 </li>
@@ -181,6 +195,26 @@ export default function PaymentsPage() {
             {errorText(redeemGift.error, language)}
           </p>
         ) : null}
+        {gifts.isPending ? (
+          <p role="status" className="mt-3 text-sm text-text-secondary">
+            {t('common.loading')}
+          </p>
+        ) : gifts.error !== null ? (
+          <p role="alert" className="mt-3 text-sm text-danger">
+            {errorText(gifts.error, language)}
+          </p>
+        ) : gifts.data?.length === 0 ? null : (
+          <ul className="mt-3 space-y-1 text-sm text-text-secondary">
+            {gifts.data?.map((gift) => (
+              <li key={gift.code}>
+                {gift.code} —{' '}
+                {gift.redeemed_at === null
+                  ? t('payment.status.pending')
+                  : t('payment.status.fulfilled')}
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
       <Card>
         <div className="flex items-start justify-between gap-4">
@@ -188,7 +222,16 @@ export default function PaymentsPage() {
             <h2 className="text-lg font-semibold text-text">{t('payment.auto_renew')}</h2>
             <p className="mt-1 text-sm text-text-secondary">{t('payment.auto_renew_hint')}</p>
           </div>
-          {current === undefined || current === null ? (
+          {subscription.error !== null ? (
+            <div>
+              <p role="alert" className="text-sm text-danger">
+                {errorText(subscription.error, language)}
+              </p>
+              <Button size="sm" className="mt-2" onClick={() => void subscription.refetch()}>
+                {t('common.retry')}
+              </Button>
+            </div>
+          ) : current === undefined || current === null ? (
             <p className="text-sm text-text-secondary">{t('payment.auto_renew.unavailable')}</p>
           ) : (
             <Switch

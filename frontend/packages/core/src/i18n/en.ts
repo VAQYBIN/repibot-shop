@@ -138,6 +138,8 @@ export const en: Record<TranslationKey, string> = {
   'payment.pay_card': 'Pay by card',
   'payment.pay_stars': 'Pay with Stars',
   'payment.gift': 'Give as a gift',
+  'payment.renew': 'Renew',
+  'payment.change': 'Change plan',
   'payment.gift_confirm': 'Confirm this gift?',
   'payment.gift_hint': 'After a confirmed payment, the voucher will appear in order history.',
   'payment.confirm': 'Continue',

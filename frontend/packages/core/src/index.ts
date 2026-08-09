@@ -37,11 +37,13 @@ export {
   type AutoRenewRequest,
   type AutoRenewResponse,
   type CreateOrderRequest,
+  type GiftVoucherResponse,
   type OrderResponse,
   type RedeemGiftRequest,
   type SubscriptionStateResponse,
   useAutoRenew,
   useCreateOrder,
+  useGifts,
   useOrders,
   useRedeemGift,
 } from './payments/hooks'

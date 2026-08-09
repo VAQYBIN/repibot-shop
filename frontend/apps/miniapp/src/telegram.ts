@@ -12,6 +12,8 @@ interface TelegramWebApp {
   colorScheme?: 'light' | 'dark'
   ready?: () => void
   expand?: () => void
+  openLink?: (url: string) => void
+  openTelegramLink?: (url: string) => void
 }
 
 declare global {
@@ -55,4 +57,11 @@ export function initTelegram(): void {
   app?.ready?.()
   app?.expand?.()
   applyTelegramTheme()
+}
+
+/** Платёжные переходы остаются внутри Telegram WebView, а не создают вкладку. */
+export function openTelegramUrl(url: string, botLink = false): void {
+  const app = webApp()
+  if (botLink) app?.openTelegramLink?.(url)
+  else app?.openLink?.(url)
 }

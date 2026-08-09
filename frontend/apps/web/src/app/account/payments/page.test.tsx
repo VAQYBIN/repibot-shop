@@ -38,6 +38,7 @@ function handlers(extra: Record<string, unknown> = {}) {
     '/api/me': { language: 'ru' },
     '/api/plans': [PLAN],
     '/api/me/orders': [],
+    '/api/me/gifts': [],
     '/api/me/subscription': SUBSCRIPTION,
     ...extra,
   }
@@ -46,6 +47,41 @@ function handlers(extra: Record<string, unknown> = {}) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в кабинете', () => {
+  it('opens the specific Stars handoff returned by the server', async () => {
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/me/orders': (request: Request) =>
+          request.method === 'POST'
+            ? {
+                id: 11,
+                purpose: 'purchase',
+                plan_id: 1,
+                plan_code: 'month',
+                plan_name: PLAN.name,
+                duration_days: 30,
+                price_rub: '299',
+                price_stars: 199,
+                gross_rub: '299',
+                discount_rub: '0',
+                amount_due_rub: '299',
+                status: 'pending',
+                expires_at: '2026-08-11T12:00:00Z',
+                confirmation_url: null,
+                telegram_invoice_required: true,
+                telegram_handoff_url: 'https://t.me/repibot?start=order_11',
+              }
+            : [],
+      }),
+    })
+    await userEvent.click(await screen.findByRole('button', { name: /оплатить stars/i }))
+    expect(open).toHaveBeenCalledWith(
+      'https://t.me/repibot?start=order_11',
+      '_blank',
+      'noopener,noreferrer',
+    )
+  })
   it('opens a confirmed YooKassa URL only after server creates an order', async () => {
     const open = vi.fn()
     vi.stubGlobal('open', open)

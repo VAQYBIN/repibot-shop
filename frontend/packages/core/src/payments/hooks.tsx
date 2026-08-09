@@ -10,6 +10,7 @@ export type RedeemGiftRequest = components['schemas']['RedeemGiftRequest']
 export type SubscriptionStateResponse = components['schemas']['SubscriptionStateResponse']
 export type AutoRenewRequest = components['schemas']['AutoRenewRequest']
 export type AutoRenewResponse = components['schemas']['AutoRenewResponse']
+export type GiftVoucherResponse = components['schemas']['GiftVoucherResponse']
 
 const ORDERS_QUERY_KEY = ['orders'] as const
 const SUBSCRIPTION_QUERY_KEY = ['subscription'] as const
@@ -22,6 +23,19 @@ export function useOrders() {
     queryFn: async () => {
       const { data, error } = await api.GET('/api/me/orders')
       if (error || !data) throw error ?? new Error('пустой ответ /api/me/orders')
+      return data
+    },
+  })
+}
+
+/** История ваучеров принадлежит серверу; клиент не синтезирует её из заказов. */
+export function useGifts() {
+  const { api } = useAuthClient()
+  return useQuery({
+    queryKey: GIFTS_QUERY_KEY,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/me/gifts')
+      if (error || !data) throw error ?? new Error('пустой ответ /api/me/gifts')
       return data
     },
   })
