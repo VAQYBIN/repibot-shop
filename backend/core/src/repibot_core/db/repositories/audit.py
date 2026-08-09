@@ -47,3 +47,17 @@ class AuditRepository:
             AuditLog.after["idempotency_key"].astext == idempotency_key,
         )
         return (await self._session.execute(statement)).scalar_one_or_none()
+
+    async def compensation_for_action(self, order_id: int, action: str) -> AuditLog | None:
+        """Find the one durable compensation for an order/action pair.
+
+        The caller holds the order row lock, which serializes absent-row checks
+        and inserts without relying on an application-only race-prone lookup.
+        """
+        statement = select(AuditLog).where(
+            AuditLog.action == "order.compensation",
+            AuditLog.entity == "order",
+            AuditLog.entity_id == str(order_id),
+            AuditLog.after["action"].astext == action,
+        )
+        return (await self._session.execute(statement)).scalar_one_or_none()

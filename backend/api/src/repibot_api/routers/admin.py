@@ -271,31 +271,34 @@ async def mark_order_refunded(
     ip: Annotated[str | None, Depends(client_ip)],
 ) -> None:
     """Record a completed provider refund without changing any entitlement."""
-    if session.in_transaction():
-        await session.commit()
-    async with session.begin():
-        order = await _locked_order(session, order_id)
-        if order.status not in (OrderStatus.fulfilled, OrderStatus.refunded):
-            raise ServiceError(
-                "возврат можно отметить только для оплаченного заказа", "refund_invalid"
+    try:
+        if session.in_transaction():
+            await session.commit()
+        async with session.begin():
+            order = await _locked_order(session, order_id)
+            if order.status not in (OrderStatus.fulfilled, OrderStatus.refunded):
+                raise ServiceError(
+                    "возврат можно отметить только для оплаченного заказа", "refund_invalid"
+                )
+            if order.status is OrderStatus.refunded:
+                return
+            before = _order_snapshot(order)
+            order.status = OrderStatus.refunded
+            await AuditRepository(session).record(
+                "order.refund_mark",
+                "order",
+                actor_id=context.principal.user_id,
+                entity_id=str(order.id),
+                before=before,
+                after={
+                    **_order_snapshot(order),
+                    "reference": payload.reference,
+                    "comment": payload.comment,
+                },
+                ip=ip,
             )
-        if order.status is OrderStatus.refunded:
-            return
-        before = _order_snapshot(order)
-        order.status = OrderStatus.refunded
-        await AuditRepository(session).record(
-            "order.refund_mark",
-            "order",
-            actor_id=context.principal.user_id,
-            entity_id=str(order.id),
-            before=before,
-            after={
-                **_order_snapshot(order),
-                "reference": payload.reference,
-                "comment": payload.comment,
-            },
-            ip=ip,
-        )
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
 
 
 @router.post("/orders/{order_id}/compensations", status_code=status.HTTP_204_NO_CONTENT)
@@ -307,58 +310,65 @@ async def compensate_order(
     ip: Annotated[str | None, Depends(client_ip)],
 ) -> None:
     """Apply exactly one explicitly named, idempotent local correction."""
-    if session.in_transaction():
-        await session.commit()
-    async with session.begin():
-        order = await _locked_order(session, order_id)
-        audits = AuditRepository(session)
-        if await audits.compensation_with_key(order.id, payload.idempotency_key) is not None:
-            return
-        if order.status not in (OrderStatus.fulfilled, OrderStatus.refunded):
-            raise ServiceError("компенсация требует оплаченный заказ", "compensation_invalid")
+    try:
+        if session.in_transaction():
+            await session.commit()
+        async with session.begin():
+            order = await _locked_order(session, order_id)
+            audits = AuditRepository(session)
+            if await audits.compensation_with_key(order.id, payload.idempotency_key) is not None:
+                return
+            if await audits.compensation_for_action(order.id, payload.action) is not None:
+                raise ServiceError("эта компенсация уже применена", "compensation_already_applied")
+            if order.status not in (OrderStatus.fulfilled, OrderStatus.refunded):
+                raise ServiceError("компенсация требует оплаченный заказ", "compensation_invalid")
 
-        if payload.action == "revoke_days":
-            before, after = await _revoke_days(
-                session,
-                user_id=order.user_id,
-                days=order.duration_days_snapshot,
-                actor_id=context.principal.user_id,
-                comment=payload.comment,
-            )
-        else:
-            reward = await session.scalar(
-                select(ReferralReward)
-                .where(ReferralReward.origin_order_id == order.id)
-                .with_for_update()
-            )
-            if reward is None or reward.reversed_at is not None:
-                raise ServiceError("реферальную награду уже нельзя сторнировать", "reward_missing")
-            reward_before = _reward_snapshot(reward)
-            before, after = await _revoke_days(
-                session,
-                user_id=reward.referrer_user_id,
-                days=reward.days,
-                actor_id=context.principal.user_id,
-                comment=payload.comment,
-            )
-            reward.reversed_at = datetime.now(UTC)
-            before["referral_reward"] = reward_before
-            after["referral_reward"] = _reward_snapshot(reward)
+            if payload.action == "revoke_days":
+                before, after = await _revoke_days(
+                    session,
+                    user_id=order.user_id,
+                    days=order.duration_days_snapshot,
+                    actor_id=context.principal.user_id,
+                    comment=payload.comment,
+                )
+            else:
+                reward = await session.scalar(
+                    select(ReferralReward)
+                    .where(ReferralReward.origin_order_id == order.id)
+                    .with_for_update()
+                )
+                if reward is None or reward.reversed_at is not None:
+                    raise ServiceError(
+                        "реферальную награду уже нельзя сторнировать", "reward_missing"
+                    )
+                reward_before = _reward_snapshot(reward)
+                before, after = await _revoke_days(
+                    session,
+                    user_id=reward.referrer_user_id,
+                    days=reward.days,
+                    actor_id=context.principal.user_id,
+                    comment=payload.comment,
+                )
+                reward.reversed_at = datetime.now(UTC)
+                before["referral_reward"] = reward_before
+                after["referral_reward"] = _reward_snapshot(reward)
 
-        await audits.record(
-            "order.compensation",
-            "order",
-            actor_id=context.principal.user_id,
-            entity_id=str(order.id),
-            before=before,
-            after={
-                **after,
-                "action": payload.action,
-                "idempotency_key": payload.idempotency_key,
-                "comment": payload.comment,
-            },
-            ip=ip,
-        )
+            await audits.record(
+                "order.compensation",
+                "order",
+                actor_id=context.principal.user_id,
+                entity_id=str(order.id),
+                before=before,
+                after={
+                    **after,
+                    "action": payload.action,
+                    "idempotency_key": payload.idempotency_key,
+                    "comment": payload.comment,
+                },
+                ip=ip,
+            )
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
 
 
 async def _locked_order(session: AsyncSession, order_id: int) -> Order:
@@ -401,7 +411,9 @@ async def _revoke_days(
     before = _subscription_snapshot(subscription, plan.code)
     now = datetime.now(UTC)
     subscription.expires_at = max(now, subscription.expires_at - timedelta(days=days))
-    subscription.status = SubscriptionState.pending_provision
+    subscription.status = (
+        SubscriptionState.active if subscription.expires_at > now else SubscriptionState.expired
+    )
     await subscriptions.add_event(
         user_id=user_id,
         type=SubscriptionEventType.admin_revoke,

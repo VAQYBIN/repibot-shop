@@ -24,18 +24,23 @@ from repibot_core.db.models import (
 )
 from repibot_core.db.repositories.orders import OrderRepository
 from repibot_core.domain.subscriptions import SubscriptionState
+from repibot_core.integrations.remnawave.users import PanelUsers
+from repibot_core.services.provisioning import build_provision_handler
+from repibot_core.testing.remnawave import FakePanel
 
 pytestmark = pytest.mark.docker
 
 
-async def _fulfilled_order(engine: AsyncEngine, *, user_id: int, plan_id: int) -> Order:
+async def _fulfilled_order(
+    engine: AsyncEngine, *, user_id: int, plan_id: int, key: str = "admin-refund-order"
+) -> Order:
     async with create_session_factory(engine)() as session:
         plan = await session.get(Plan, plan_id)
         assert plan is not None
         order = await OrderRepository(session).create_pending(
             user_id=user_id,
             plan=plan,
-            client_key="admin-refund-order",
+            client_key=key,
             expires_at=datetime.now(UTC) + timedelta(minutes=30),
         )
         order.status = OrderStatus.fulfilled
@@ -151,9 +156,16 @@ async def test_revoke_days_compensation_is_audited_and_idempotent(
     retry = await api_client.post(
         f"/api/admin/orders/{order.id}/compensations", json=payload, headers=admin_headers
     )
+    second_action = await api_client.post(
+        f"/api/admin/orders/{order.id}/compensations",
+        json={**payload, "idempotency_key": "refund-rf_1-revoke-again"},
+        headers=admin_headers,
+    )
 
     assert first.status_code == 204
     assert retry.status_code == 204
+    assert second_action.status_code == 409
+    assert second_action.json()["error"]["code"] == "compensation_already_applied"
     async with create_session_factory(engine)() as session:
         events = list(
             (
@@ -174,6 +186,48 @@ async def test_revoke_days_compensation_is_audited_and_idempotent(
     assert len(events) == 1
     assert events[0].days_delta == -30
     assert len(audits) == 1
+
+
+async def test_partial_revoke_keeps_remaining_access_active_in_panel(
+    api_client: AsyncClient,
+    admin_headers: dict[str, str],
+    month_plan: int,
+    plain_user_id: int,
+    engine: AsyncEngine,
+    fake_panel_squad: None,
+    fake_panel: FakePanel,
+) -> None:
+    granted = await api_client.post(
+        f"/api/admin/users/{plain_user_id}/subscription",
+        json={"plan_id": month_plan, "days": 60, "comment": "paid term"},
+        headers=admin_headers,
+    )
+    assert granted.status_code == 200
+    order = await _fulfilled_order(engine, user_id=plain_user_id, plan_id=month_plan)
+
+    response = await api_client.post(
+        f"/api/admin/orders/{order.id}/compensations",
+        json={
+            "action": "revoke_days",
+            "idempotency_key": "partial-revoke",
+            "comment": "separate approved compensation",
+        },
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 204
+    async with create_session_factory(engine)() as session:
+        subscription = await session.scalar(
+            select(Subscription).where(Subscription.user_id == plain_user_id)
+        )
+    assert subscription is not None
+    assert subscription.status is SubscriptionState.active
+    assert subscription.expires_at > datetime.now(UTC)
+
+    await build_provision_handler(create_session_factory(engine), PanelUsers(fake_panel.client()))(
+        {"user_id": plain_user_id}
+    )
+    assert [user["status"] for user in fake_panel.users.values()] == ["ACTIVE"]
 
 
 async def test_reverse_referral_reward_is_separate_one_time_compensation(
@@ -227,3 +281,58 @@ async def test_reverse_referral_reward_is_separate_one_time_compensation(
             select(ReferralReward).where(ReferralReward.origin_order_id == order.id)
         )
     assert reward is not None and reward.reversed_at is not None
+
+
+async def test_payment_admin_state_errors_are_stable_4xx(
+    api_client: AsyncClient,
+    admin_headers: dict[str, str],
+    month_plan: int,
+    plain_user_id: int,
+    engine: AsyncEngine,
+) -> None:
+    pending = await _fulfilled_order(engine, user_id=plain_user_id, plan_id=month_plan)
+    async with create_session_factory(engine)() as session:
+        stored = await session.get(Order, pending.id)
+        assert stored is not None
+        stored.status = OrderStatus.pending
+        await session.commit()
+
+    invalid_refund = await api_client.post(
+        f"/api/admin/orders/{pending.id}/refund-mark",
+        json={"reference": "rf_1", "comment": "YooKassa refund completed"},
+        headers=admin_headers,
+    )
+    missing_order = await api_client.post(
+        "/api/admin/orders/999999/compensations",
+        json={
+            "action": "revoke_days",
+            "idempotency_key": "missing-order",
+            "comment": "separate approved compensation",
+        },
+        headers=admin_headers,
+    )
+    fulfilled = await _fulfilled_order(
+        engine, user_id=plain_user_id, plan_id=month_plan, key="missing-reward-order"
+    )
+    missing_reward = await api_client.post(
+        f"/api/admin/orders/{fulfilled.id}/compensations",
+        json={
+            "action": "reverse_referral_reward",
+            "idempotency_key": "missing-reward",
+            "comment": "separate approved compensation",
+        },
+        headers=admin_headers,
+    )
+
+    assert (invalid_refund.status_code, invalid_refund.json()["error"]["code"]) == (
+        409,
+        "refund_invalid",
+    )
+    assert (missing_order.status_code, missing_order.json()["error"]["code"]) == (
+        404,
+        "order_not_found",
+    )
+    assert (missing_reward.status_code, missing_reward.json()["error"]["code"]) == (
+        404,
+        "reward_missing",
+    )
