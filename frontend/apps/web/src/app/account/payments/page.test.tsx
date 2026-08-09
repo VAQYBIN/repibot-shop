@@ -84,8 +84,14 @@ describe('оплата в кабинете', () => {
             redeemed_by_me: false,
           },
         ],
-        '/api/me/gifts/redeem': SUBSCRIPTION,
-        '/api/me/subscription/auto-renew': { auto_renew_enabled: true },
+        '/api/me/gifts/redeem': (request: Request) => {
+          requests.push(request)
+          return SUBSCRIPTION
+        },
+        '/api/me/subscription/auto-renew': (request: Request) => {
+          requests.push(request)
+          return { auto_renew_enabled: true }
+        },
       }),
     })
     await userEvent.type(await screen.findByLabelText('Промокод'), 'SAVE')
