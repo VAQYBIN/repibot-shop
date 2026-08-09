@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import (
@@ -33,6 +34,7 @@ from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
 from repibot_core.domain.payments import referral_reward_days
 from repibot_core.domain.subscriptions import convert_remainder
+from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.provisioning import TOPIC_PROVISION
 from repibot_core.services.subscriptions import SubscriptionService
@@ -43,6 +45,11 @@ from repibot_core.settings import Settings, get_settings
 class FinalizationResult:
     order_id: int
     already_finalized: bool
+    expired: bool = False
+
+
+class YooKassaVerifier(Protocol):
+    async def get_payment(self, payment_id: str) -> YooKassaPayment: ...
 
 
 class PaymentService:
@@ -79,6 +86,11 @@ class PaymentService:
             if attempt is None or attempt.order_id != order.id:  # pragma: no cover
                 raise ServiceError("платёжная попытка не найдена", "payment_attempt_not_found")
 
+            if order.status is OrderStatus.expired:
+                return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
+            if order.status is OrderStatus.pending and order.expires_at <= datetime.now(UTC):
+                await self._expire_locked_order(order)
+                return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
             if order.status is OrderStatus.fulfilled:
                 return FinalizationResult(order_id=order.id, already_finalized=True)
             self._validate_verified_attempt(order, attempt)
@@ -168,6 +180,100 @@ class PaymentService:
             order.fulfilled_at = datetime.now(UTC)
 
         return FinalizationResult(order_id=order.id, already_finalized=False)
+
+    async def verify_yookassa_callback(
+        self, provider_payment_id: str, yookassa: YooKassaVerifier
+    ) -> FinalizationResult | None:
+        """Проверяет hint у YooKassa и только затем вызывает локальный финализатор.
+
+        Сеть намеренно находится до ``session.begin()``: финализатор удерживает
+        коммерческие блокировки и обязан оставаться полностью локальным.
+        """
+        payment = await yookassa.get_payment(provider_payment_id)
+        should_finalize = False
+        async with self._session.begin():
+            order_id = await self._session.scalar(
+                select(PaymentAttempt.order_id).where(
+                    PaymentAttempt.provider == PaymentProvider.yookassa,
+                    PaymentAttempt.provider_payment_id == payment.id,
+                )
+            )
+            if order_id is None:
+                return None
+            order = await self._orders.get_for_update(order_id)
+            if order is None:  # pragma: no cover — FK attempt.order_id это исключает
+                return None
+            attempt = await self._session.scalar(
+                select(PaymentAttempt)
+                .where(
+                    PaymentAttempt.provider == PaymentProvider.yookassa,
+                    PaymentAttempt.provider_payment_id == payment.id,
+                )
+                .with_for_update()
+            )
+            if attempt is None:  # pragma: no cover — строки выбраны одним ключом
+                return None
+
+            self._record_yookassa_verification(attempt, payment)
+            if order.status is OrderStatus.pending and order.expires_at <= datetime.now(UTC):
+                await self._expire_locked_order(order)
+                return None
+            should_finalize = (
+                order.status is OrderStatus.pending
+                and payment.status is YooKassaPaymentStatus.succeeded
+                and self._yookassa_amount_matches(order, payment)
+            )
+
+        if should_finalize:
+            return await self.finalize_success(attempt.id)
+        return None
+
+    async def expire_due_orders(self, *, now: datetime) -> int:
+        """Закрывает просроченные заказы и освобождает их промо-резервы атомарно."""
+        async with self._session.begin():
+            orders = list(
+                (
+                    await self._session.scalars(
+                        select(Order)
+                        .where(Order.status == OrderStatus.pending, Order.expires_at <= now)
+                        .with_for_update(skip_locked=True)
+                    )
+                ).all()
+            )
+            for order in orders:
+                await self._expire_locked_order(order)
+        return len(orders)
+
+    @staticmethod
+    def _record_yookassa_verification(attempt: PaymentAttempt, payment: YooKassaPayment) -> None:
+        """Запоминает именно ответ провайдера — ключ дедупликации id + status."""
+        attempt.status = (
+            PaymentStatus.succeeded
+            if payment.status is YooKassaPaymentStatus.succeeded
+            else PaymentStatus.canceled
+            if payment.status is YooKassaPaymentStatus.canceled
+            else PaymentStatus.pending
+        )
+        attempt.verified_payload = {
+            "amount": format(payment.amount_rub, ".2f"),
+            "currency": payment.currency,
+            "status": payment.status.value,
+        }
+        attempt.verified_at = datetime.now(UTC)
+
+    @staticmethod
+    def _yookassa_amount_matches(order: Order, payment: YooKassaPayment) -> bool:
+        return payment.currency == "RUB" and payment.amount_rub == order.amount_due_rub
+
+    async def _expire_locked_order(self, order: Order) -> None:
+        """Освобождает неиспользованный промокод в той же транзакции, что и expiry."""
+        await self._session.execute(
+            delete(PromoReservation).where(
+                PromoReservation.order_id == order.id,
+                PromoReservation.consumed_at.is_(None),
+            )
+        )
+        order.status = OrderStatus.expired
 
     def _validate_verified_attempt(self, order: Order, attempt: PaymentAttempt) -> None:
         if attempt.status is not PaymentStatus.succeeded or attempt.verified_payload is None:

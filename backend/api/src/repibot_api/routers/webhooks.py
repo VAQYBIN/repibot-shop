@@ -14,11 +14,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_api.deps import db_session, get_redis
 from repibot_api.errors import ApiError
+from repibot_core.integrations.yookassa.client import create_yookassa_client
 from repibot_core.services.panel_cache import PanelCache
 from repibot_core.services.panel_webhooks import PanelWebhookService, verify_signature
+from repibot_core.services.payments import PaymentService
 from repibot_core.settings import get_settings
 
 router = APIRouter(tags=["webhooks"])
+
+
+@router.post("/webhook/yookassa", status_code=status.HTTP_204_NO_CONTENT)
+async def yookassa_webhook(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> Response:
+    """Принимает только идентификатор hint и сверяет платёж у YooKassa."""
+    payload = await request.json()
+    payment_id = (
+        payload.get("object", {}).get("id")
+        if isinstance(payload, dict) and isinstance(payload.get("object"), dict)
+        else None
+    )
+    if not isinstance(payment_id, str) or not payment_id:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    client = create_yookassa_client()
+    try:
+        # Никакое поле webhook, кроме id, не участвует в коммерческом решении.
+        await PaymentService(session).verify_yookassa_callback(payment_id, client)
+    finally:
+        await client.aclose()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/webhook/remnawave", status_code=status.HTTP_204_NO_CONTENT)

@@ -12,12 +12,12 @@ import logging
 
 from repibot_core.db.engine import check_database, create_engine
 from repibot_core.settings import get_settings
-from repibot_core.tasks import process_outbox
+from repibot_core.tasks import process_outbox, reconcile_pending_payments
 from repibot_worker.broker import broker
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["heartbeat", "process_outbox"]
+__all__ = ["heartbeat", "process_outbox", "reconcile_pending_payments"]
 
 
 @broker.task(schedule=[{"cron": "*/5 * * * *"}])

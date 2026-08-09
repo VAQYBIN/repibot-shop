@@ -11,10 +11,19 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from repibot_core.db.engine import create_engine, create_session_factory
+from repibot_core.db.models import (
+    Order,
+    OrderStatus,
+    PaymentAttempt,
+    PaymentProvider,
+    PaymentStatus,
+)
 from repibot_core.integrations.remnawave.client import RemnawaveClient
+from repibot_core.integrations.yookassa.client import create_yookassa_client
 from repibot_core.queue import broker
 from repibot_core.services.outbox import OutboxDispatcher
 from repibot_core.settings import get_settings
@@ -86,6 +95,50 @@ async def reconcile_panel() -> dict[str, int]:
         await engine.dispose()
 
     return {"written": written}
+
+
+@broker.task(schedule=[{"cron": "*/5 * * * *"}])
+async def reconcile_pending_payments() -> dict[str, int]:
+    """Добирает подтверждённые YooKassa-платежи, если webhook был потерян."""
+    engine = create_engine(get_settings().database_url)
+    client = create_yookassa_client()
+    checked = 0
+    fulfilled = 0
+    try:
+        from repibot_core.services.payments import PaymentService
+
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            await PaymentService(session).expire_due_orders(now=datetime.now(UTC))
+            attempts = list(
+                (
+                    await session.execute(
+                        select(PaymentAttempt.id, PaymentAttempt.provider_payment_id)
+                        .join(Order, Order.id == PaymentAttempt.order_id)
+                        .where(
+                            PaymentAttempt.provider == PaymentProvider.yookassa,
+                            PaymentAttempt.status == PaymentStatus.pending,
+                            PaymentAttempt.provider_payment_id.is_not(None),
+                            Order.status == OrderStatus.pending,
+                            Order.expires_at > datetime.now(UTC),
+                        )
+                    )
+                ).all()
+            )
+            await session.commit()
+            for _attempt_id, provider_payment_id in attempts:
+                if provider_payment_id is None:  # pragma: no cover
+                    continue
+                checked += 1
+                result = await PaymentService(session).verify_yookassa_callback(
+                    provider_payment_id, client
+                )
+                if result is not None and not result.already_finalized:
+                    fulfilled += 1
+    finally:
+        await client.aclose()
+        await engine.dispose()
+    return {"checked": checked, "fulfilled": fulfilled}
 
 
 def _panel_client() -> RemnawaveClient:
