@@ -56,12 +56,14 @@ export default function PaymentsPage() {
   const [starsHint, setStarsHint] = useState(false)
   const [promoApplied, setPromoApplied] = useState(false)
   const current = subscription.data?.subscription
+  const subscriptionReady = !subscription.isPending && subscription.error === null
 
   async function submit(
     plan: Plan,
     provider: 'yookassa' | 'stars',
     purpose: 'purchase' | 'renew' | 'gift' = 'purchase',
   ) {
+    if (provider === 'yookassa' && !subscriptionReady) return
     setStarsHint(false)
     setPromoApplied(false)
     let order: OrderResponse
@@ -143,17 +145,25 @@ export default function PaymentsPage() {
                       {t('plans.per_days').replace('{days}', String(plan.duration_days))}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button onClick={() => void submit(plan, 'yookassa')}>
+                      <Button
+                        disabled={!subscriptionReady}
+                        onClick={() => void submit(plan, 'yookassa')}
+                      >
                         {t('payment.pay_card')}
                       </Button>
                       <Button variant="secondary" onClick={() => void submit(plan, 'stars')}>
                         {t('payment.pay_stars')}
                       </Button>
-                      <Button variant="ghost" onClick={() => setGiftPlan(plan)}>
+                      <Button
+                        variant="ghost"
+                        disabled={!subscriptionReady}
+                        onClick={() => setGiftPlan(plan)}
+                      >
                         {t('payment.gift')}
                       </Button>
                       {current === null || current === undefined ? null : (
                         <Button
+                          disabled={!subscriptionReady}
                           variant="ghost"
                           onClick={() => void submit(plan, 'yookassa', 'renew')}
                         >
@@ -167,6 +177,11 @@ export default function PaymentsPage() {
           </ul>
         </section>
       )}
+      {subscription.isPending ? (
+        <p role="status" className="text-sm text-text-secondary">
+          {t('common.loading')}
+        </p>
+      ) : null}
       {createOrder.error !== null ? (
         <p role="alert" className="text-sm text-danger">
           {errorText(createOrder.error, language)}

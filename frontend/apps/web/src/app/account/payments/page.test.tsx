@@ -47,6 +47,52 @@ function handlers(extra: Record<string, unknown> = {}) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в кабинете', () => {
+  it('waits for subscription before creating a card order and then preserves elected auto-renew', async () => {
+    let resolveSubscription: ((value: unknown) => void) | undefined
+    const delayed = new Promise((resolve) => {
+      resolveSubscription = resolve
+    })
+    let posts = 0
+    let body: unknown
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/me/subscription': () => delayed,
+        '/api/me/orders': async (request: Request) => {
+          if (request.method === 'GET') return []
+          posts += 1
+          body = await request.json()
+          return {
+            id: 17,
+            purpose: 'purchase',
+            plan_id: 1,
+            plan_code: 'month',
+            plan_name: PLAN.name,
+            duration_days: 30,
+            price_rub: '299',
+            price_stars: 199,
+            gross_rub: '299',
+            discount_rub: '0',
+            amount_due_rub: '299',
+            status: 'pending',
+            expires_at: '2026-08-11T12:00:00Z',
+            confirmation_url: null,
+            telegram_invoice_required: false,
+          }
+        },
+      }),
+    })
+    const card = await screen.findByRole('button', { name: 'Оплатить картой' })
+    expect(card).toBeDisabled()
+    await userEvent.click(card)
+    expect(posts).toBe(0)
+    resolveSubscription?.({
+      ...SUBSCRIPTION,
+      subscription: { ...SUBSCRIPTION.subscription, auto_renew_enabled: true },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
+    expect(posts).toBe(1)
+    expect(body).toMatchObject({ save_payment_method: true })
+  })
   it('asks YooKassa to save a payment method when auto-renew is already elected', async () => {
     let body: unknown
     renderWithProviders(<PaymentsPage />, {
