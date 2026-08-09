@@ -23,6 +23,7 @@ from repibot_core.db.models import (
     Plan,
     Subscription,
     SubscriptionEvent,
+    SubscriptionEventType,
     TrafficResetStrategy,
     User,
 )
@@ -30,6 +31,7 @@ from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptR
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
 from repibot_core.services.payments import FinalizationResult, PaymentService
+from repibot_core.services.promotions import PromotionInput, PromotionService
 from repibot_core.services.provisioning import TOPIC_PROVISION
 
 pytestmark = pytest.mark.docker
@@ -102,6 +104,41 @@ async def _finalize(factory: object, attempt_id: int) -> FinalizationResult:
         result = await PaymentService(session).finalize_success(attempt_id)
         assert result is not None
         return result
+
+
+async def _verified_bonus_promo_attempt(
+    session: AsyncSession,
+    *,
+    user: User,
+    plan: Plan,
+    key: str,
+    purpose: OrderPurpose = OrderPurpose.purchase,
+) -> int:
+    promos = PromotionService(session)
+    promo = await promos.create(PromotionInput(code=f"BONUS-{key}", bonus_days=5))
+    quote = await promos.prepare(user_id=user.id, code=promo.code, gross_rub=plan.price_rub)
+    order = await OrderRepository(session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key=f"order-{key}",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+        purpose=purpose,
+        promo_code_id=promo.id,
+    )
+    await promos.reserve_prepared(order=order, user_id=user.id, quote=quote)
+    # Админ меняет промокод уже после покупки: оплаченный bonus обязан остаться 5 днями.
+    await promos.update(promo.id, PromotionInput(code=promo.code, bonus_days=20))
+    attempt = await PaymentAttemptRepository(session).get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key=f"payment-{key}",
+        status=PaymentStatus.succeeded,
+        verified_payload={"amount": str(order.amount_due_rub), "currency": "RUB"},
+        verified_at=datetime.now(UTC),
+    )
+    await session.commit()
+    return attempt.id
 
 
 async def test_two_finalizers_credit_days_and_outbox_once(
@@ -198,6 +235,68 @@ async def test_manual_same_plan_renewal_adds_purchased_days(
 
     assert result.already_finalized is False
     assert before.expires_at - expires_before == timedelta(days=30)
+
+
+async def test_promo_bonus_is_snapshotted_and_applied_once_after_renewal(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Reading PromoCode at finalization would change paid bonus or grant it again on retry."""
+    plan = await _plan(db_session, "bonus-renewal")
+    user = await _user(db_session, "bonus0001")
+    factory = create_session_factory(engine)
+    first = await _verified_attempt(db_session, user=user, plan=plan, key="bonus-base")
+    await _finalize(factory, first)
+    subscription = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    assert subscription is not None
+    expires_before = subscription.expires_at
+    promoted = await _verified_bonus_promo_attempt(
+        db_session, user=user, plan=plan, key="renewal", purpose=OrderPurpose.renew
+    )
+
+    await _finalize(factory, promoted)
+    retry = await _finalize(factory, promoted)
+    await db_session.refresh(subscription)
+    bonuses = await db_session.scalar(
+        select(func.count())
+        .select_from(SubscriptionEvent)
+        .where(
+            SubscriptionEvent.user_id == user.id,
+            SubscriptionEvent.type == SubscriptionEventType.bonus_days,
+        )
+    )
+
+    assert retry.already_finalized is True
+    assert subscription.expires_at - expires_before == timedelta(days=35)
+    assert bonuses == 1
+
+
+async def test_promo_bonus_follows_converted_purchase_on_plan_switch(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Applying bonus before switch conversion would leave it on the old plan's value."""
+    old_plan = await _plan(db_session, "bonus-old", price_rub=Decimal("300.00"))
+    new_plan = await _plan(db_session, "bonus-new", price_rub=Decimal("600.00"))
+    user = await _user(db_session, "bonus0002")
+    factory = create_session_factory(engine)
+    first = await _verified_attempt(db_session, user=user, plan=old_plan, key="bonus-old")
+    await _finalize(factory, first)
+    subscription = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    assert subscription is not None
+    subscription.expires_at = datetime.now(UTC) + timedelta(days=20, minutes=1)
+    await db_session.commit()
+    promoted = await _verified_bonus_promo_attempt(
+        db_session, user=user, plan=new_plan, key="switch"
+    )
+
+    await _finalize(factory, promoted)
+    await db_session.refresh(subscription)
+
+    remaining = subscription.expires_at - datetime.now(UTC)
+    assert timedelta(days=44) < remaining <= timedelta(days=45)
 
 
 async def test_different_orders_for_new_user_finalize_without_subscription_race(

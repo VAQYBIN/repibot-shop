@@ -154,6 +154,7 @@ class PromoReservation(Base):
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
     promo_code_id: Mapped[int] = mapped_column(ForeignKey("promo_codes.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    bonus_days_snapshot: Mapped[int] = mapped_column(Integer, default=0)
     reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

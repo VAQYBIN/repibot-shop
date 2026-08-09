@@ -563,6 +563,17 @@ class PaymentService:
                     actor=SubscriptionActor.system,
                     origin_attempt_id=attempt.id,
                 )
+                if reservation is not None and reservation.bonus_days_snapshot > 0:
+                    applied = await self._entitlements.apply_entitlement(
+                        order.user_id,
+                        plan,
+                        reservation.bonus_days_snapshot,
+                        source=SubscriptionSource.purchase,
+                        event_type=SubscriptionEventType.bonus_days,
+                        actor=SubscriptionActor.system,
+                        origin_attempt_id=None,
+                        comment="бонусные дни по промокоду",
+                    )
                 # Новый остаток тоже должен знать согласованную при покупке
                 # стоимость, иначе будущая смена тарифа прочитает Plan после
                 # редактирования цены в админке.

@@ -148,3 +148,12 @@ async def test_admin_promo_crud_requires_admin(
         "/api/admin/promos", json={"code": "NOPE", "percent_off": 10}, headers=user_headers
     )
     assert response.status_code == 403
+
+
+async def test_openapi_documents_gift_and_promo_contracts(api_client: AsyncClient) -> None:
+    """Removing a public route from the published schema breaks generated clients."""
+    schema = (await api_client.get("/openapi.json")).json()
+
+    assert set(schema["paths"]["/api/me/gifts"]) == {"get"}
+    assert set(schema["paths"]["/api/me/gifts/redeem"]) == {"post"}
+    assert {"get", "post"} <= set(schema["paths"]["/api/admin/promos"])

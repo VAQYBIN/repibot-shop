@@ -874,6 +874,72 @@
         }
       }
     },
+    "/api/me/gifts": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "My Gifts",
+        "operationId": "my_gifts_api_me_gifts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GiftVoucherResponse"
+                  },
+                  "type": "array",
+                  "title": "Response My Gifts Api Me Gifts Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/gifts/redeem": {
+      "post": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Redeem Gift",
+        "operationId": "redeem_gift_api_me_gifts_redeem_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemGiftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me/orders": {
       "get": {
         "tags": [
@@ -1139,6 +1205,155 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WhoAmIResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/promos": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Promos",
+        "operationId": "list_promos_api_admin_promos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PromoResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Promos Api Admin Promos Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create Promo",
+        "operationId": "create_promo_api_admin_promos_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/promos/{promo_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Promo",
+        "operationId": "update_promo_api_admin_promos__promo_id__patch",
+        "parameters": [
+          {
+            "name": "promo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Promo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Deactivate Promo",
+        "operationId": "deactivate_promo_api_admin_promos__promo_id__delete",
+        "parameters": [
+          {
+            "name": "promo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Promo Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1645,6 +1860,54 @@
           "email"
         ],
         "title": "EmailRequest"
+      },
+      "GiftVoucherResponse": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "purchased_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Purchased At"
+          },
+          "redeemed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redeemed At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "purchased_by_me": {
+            "type": "boolean",
+            "title": "Purchased By Me"
+          },
+          "redeemed_by_me": {
+            "type": "boolean",
+            "title": "Redeemed By Me"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "purchased_at",
+          "redeemed_at",
+          "expires_at",
+          "purchased_by_me",
+          "redeemed_by_me"
+        ],
+        "title": "GiftVoucherResponse"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2262,6 +2525,170 @@
         ],
         "title": "PlanResponse"
       },
+      "PromoRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "percent_off": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Percent Off",
+            "default": 0
+          },
+          "bonus_days": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bonus Days",
+            "default": 0
+          },
+          "max_uses": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Uses"
+          },
+          "per_user_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per User Limit"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "PromoRequest"
+      },
+      "PromoResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "percent_off": {
+            "type": "integer",
+            "title": "Percent Off"
+          },
+          "bonus_days": {
+            "type": "integer",
+            "title": "Bonus Days"
+          },
+          "max_uses": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Uses"
+          },
+          "per_user_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per User Limit"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "percent_off",
+          "bonus_days",
+          "max_uses",
+          "per_user_limit",
+          "is_active",
+          "starts_at",
+          "expires_at"
+        ],
+        "title": "PromoResponse"
+      },
       "PublicPlanResponse": {
         "properties": {
           "id": {
@@ -2334,6 +2761,21 @@
         ],
         "title": "PublicPlanResponse",
         "description": "Тариф в витрине. Внутренние поля наружу не уезжают.\n\ninternal_squad_uuids не отдаётся: состав локаций — наша кухня, а не то,\nчто клиент должен видеть в ответе API."
+      },
+      "RedeemGiftRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "RedeemGiftRequest"
       },
       "RegisterRequest": {
         "properties": {

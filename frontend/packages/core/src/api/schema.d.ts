@@ -455,6 +455,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/gifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Gifts */
+        get: operations["my_gifts_api_me_gifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/gifts/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Redeem Gift */
+        post: operations["redeem_gift_api_me_gifts_redeem_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/orders": {
         parameters: {
             query?: never;
@@ -616,6 +650,42 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/admin/promos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Promos */
+        get: operations["list_promos_api_admin_promos_get"];
+        put?: never;
+        /** Create Promo */
+        post: operations["create_promo_api_admin_promos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/promos/{promo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deactivate Promo */
+        delete: operations["deactivate_promo_api_admin_promos__promo_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Promo */
+        patch: operations["update_promo_api_admin_promos__promo_id__patch"];
         trace?: never;
     };
     "/api/admin/plans": {
@@ -846,6 +916,27 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /** GiftVoucherResponse */
+        GiftVoucherResponse: {
+            /** Code */
+            code: string;
+            /**
+             * Purchased At
+             * Format: date-time
+             */
+            purchased_at: string;
+            /** Redeemed At */
+            redeemed_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Purchased By Me */
+            purchased_by_me: boolean;
+            /** Redeemed By Me */
+            redeemed_by_me: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1107,6 +1198,55 @@ export interface components {
             /** Sort Order */
             sort_order: number;
         };
+        /** PromoRequest */
+        PromoRequest: {
+            /** Code */
+            code: string;
+            /**
+             * Percent Off
+             * @default 0
+             */
+            percent_off: number;
+            /**
+             * Bonus Days
+             * @default 0
+             */
+            bonus_days: number;
+            /** Max Uses */
+            max_uses?: number | null;
+            /** Per User Limit */
+            per_user_limit?: number | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Starts At */
+            starts_at?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+        };
+        /** PromoResponse */
+        PromoResponse: {
+            /** Id */
+            id: number;
+            /** Code */
+            code: string;
+            /** Percent Off */
+            percent_off: number;
+            /** Bonus Days */
+            bonus_days: number;
+            /** Max Uses */
+            max_uses: number | null;
+            /** Per User Limit */
+            per_user_limit: number | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Starts At */
+            starts_at: string | null;
+            /** Expires At */
+            expires_at: string | null;
+        };
         /**
          * PublicPlanResponse
          * @description Тариф в витрине. Внутренние поля наружу не уезжают.
@@ -1139,6 +1279,11 @@ export interface components {
             hwid_device_limit: number;
             /** Is Trial */
             is_trial: boolean;
+        };
+        /** RedeemGiftRequest */
+        RedeemGiftRequest: {
+            /** Code */
+            code: string;
         };
         /** RegisterRequest */
         RegisterRequest: {
@@ -2074,6 +2219,59 @@ export interface operations {
             };
         };
     };
+    my_gifts_api_me_gifts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftVoucherResponse"][];
+                };
+            };
+        };
+    };
+    redeem_gift_api_me_gifts_redeem_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RedeemGiftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionStateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_orders_api_me_orders_get: {
         parameters: {
             query?: never;
@@ -2305,6 +2503,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WhoAmIResponse"];
+                };
+            };
+        };
+    };
+    list_promos_api_admin_promos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoResponse"][];
+                };
+            };
+        };
+    };
+    create_promo_api_admin_promos_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_promo_api_admin_promos__promo_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_promo_api_admin_promos__promo_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PromoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromoResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

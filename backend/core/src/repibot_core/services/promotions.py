@@ -132,6 +132,7 @@ class PromotionService:
                 order_id=order.id,
                 promo_code_id=quote.promo_id,
                 user_id=user_id,
+                bonus_days_snapshot=quote.bonus_days,
                 expires_at=order.expires_at,
             )
         )
@@ -152,9 +153,9 @@ class PromotionService:
 
     async def release_expired(self, *, now: datetime) -> int:
         result = await self._session.execute(
-            delete(PromoReservation).where(
-                PromoReservation.consumed_at.is_(None), PromoReservation.expires_at <= now
-            ).returning(PromoReservation.id)
+            delete(PromoReservation)
+            .where(PromoReservation.consumed_at.is_(None), PromoReservation.expires_at <= now)
+            .returning(PromoReservation.id)
         )
         return len(result.scalars().all())
 
