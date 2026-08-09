@@ -353,6 +353,12 @@ class AutoRenewalService:
         """Catch up cycles in order; an unresolved earlier request blocks later ones."""
         blocked: set[int] = set()
         calls = 0
+        # Provider success has already been durably recorded but the process may
+        # die before PaymentService finalizes it.  This worklist intentionally
+        # ignores the current subscription anchor: a later manual renewal does
+        # not erase the entitlement (or compensation) path for a paid charge.
+        for attempt_id in await self._successful_unfulfilled_attempts():
+            await self._finalize(attempt_id)
         for subscription_id, anchor, number in await self._pending_cycles():
             made_call, outcome = await self._process_cycle(
                 subscription_id, anchor, number, now, allow_create=False
@@ -374,6 +380,26 @@ class AutoRenewalService:
                 if not await self._anchor_is_current(subscription_id, anchor):
                     break
         return calls
+
+    async def _successful_unfulfilled_attempts(self) -> list[int]:
+        if self._session.in_transaction():
+            await self._session.commit()
+        attempt_ids = list(
+            (
+                await self._session.scalars(
+                    select(PaymentAttempt.id)
+                    .join(Order, Order.id == PaymentAttempt.order_id)
+                    .where(
+                        Order.client_key.like("auto-renew:%"),
+                        Order.status == OrderStatus.pending,
+                        PaymentAttempt.provider == PaymentProvider.yookassa,
+                        PaymentAttempt.status == PaymentStatus.succeeded,
+                    )
+                )
+            ).all()
+        )
+        await self._session.commit()
+        return attempt_ids
 
     async def _pending_cycles(self) -> list[tuple[int, datetime, int]]:
         if self._session.in_transaction():

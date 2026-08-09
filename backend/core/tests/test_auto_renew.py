@@ -277,6 +277,33 @@ async def test_stale_confirmed_failure_does_not_disable_or_notify_new_cycle(
     assert failures is None
 
 
+async def test_fresh_run_finalizes_recorded_success_after_crash_before_finalizer(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crash after persisting provider success must not strand a charged renewal."""
+    subscription, anchor = await _subscription(db_session)
+    provider = ScriptedYooKassa([_payment("crash-success", YooKassaPaymentStatus.succeeded)])
+    interrupted = AutoRenewalService(db_session, provider, get_settings())
+
+    async def crash(_: int) -> None:
+        raise RuntimeError("worker crashed after durable provider record")
+
+    monkeypatch.setattr(interrupted, "_finalize", crash)
+    with pytest.raises(RuntimeError, match="worker crashed"):
+        await interrupted.run(now=anchor - timedelta(hours=24))
+
+    subscription.expires_at = anchor + timedelta(days=30)
+    await db_session.commit()
+
+    recovered = AutoRenewalService(db_session, RecordingYooKassa(), get_settings())
+    await recovered.run(now=anchor - timedelta(hours=1))
+
+    order = await db_session.scalar(
+        select(Order).where(Order.client_key.like("auto-renew:%"))
+    )
+    assert order is not None and order.status is OrderStatus.fulfilled
+
+
 async def test_expired_subscription_runs_second_retry_and_overdue_run_catches_up_in_order(
     db_session: AsyncSession,
 ) -> None:
