@@ -563,11 +563,12 @@ class PaymentService:
                     actor=SubscriptionActor.system,
                     origin_attempt_id=attempt.id,
                 )
-                if reservation is not None and reservation.bonus_days_snapshot > 0:
+                bonus_days = reservation.bonus_days_snapshot if reservation is not None else None
+                if bonus_days is not None and bonus_days > 0:
                     applied = await self._entitlements.apply_entitlement(
                         order.user_id,
                         plan,
-                        reservation.bonus_days_snapshot,
+                        bonus_days,
                         source=SubscriptionSource.purchase,
                         event_type=SubscriptionEventType.bonus_days,
                         actor=SubscriptionActor.system,

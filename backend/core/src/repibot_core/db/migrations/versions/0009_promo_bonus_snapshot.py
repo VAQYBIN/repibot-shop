@@ -16,9 +16,22 @@ depends_on = None
 
 
 def upgrade() -> None:
+    pending = op.get_bind().scalar(
+        sa.text(
+            "select count(*) from promo_reservations reservation "
+            "join orders on orders.id = reservation.order_id "
+            "where reservation.consumed_at is null and orders.status = 'pending'"
+        )
+    )
+    if pending:
+        raise RuntimeError(
+            f"migration 0009 blocked: {pending} pending promo reservations lack an immutable "
+            "bonus snapshot. Let the 30-minute pending promo orders drain or expire, or cancel "
+            "them before applying this migration."
+        )
     op.add_column(
         "promo_reservations",
-        sa.Column("bonus_days_snapshot", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("bonus_days_snapshot", sa.Integer(), nullable=True),
     )
 
 

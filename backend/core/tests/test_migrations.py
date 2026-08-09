@@ -31,6 +31,62 @@ def test_migrations_apply_and_rollback(postgres_url: str) -> None:
     command.upgrade(config, "head")
 
 
+def test_promo_bonus_snapshot_migration_refuses_legacy_pending_reservation(
+    postgres_url: str,
+) -> None:
+    """A zero default would silently lose a promised bonus on a pending paid order."""
+    config = _alembic_config(postgres_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "0008")
+    engine = create_sync_engine(postgres_url.replace("+asyncpg", "+psycopg"))
+    try:
+        with engine.begin() as connection:
+            user_id = connection.execute(
+                text(
+                    "insert into users (email, language, role, status, referral_code) "
+                    "values ('legacy@example.org', 'ru', 'user', 'active', 'LEGACY') returning id"
+                )
+            ).scalar_one()
+            plan_id = connection.execute(
+                text(
+                    "insert into plans (code, name, duration_days, price_rub, price_stars, "
+                    "traffic_reset_strategy, internal_squad_uuids) values "
+                    "('legacy', '{\"ru\": \"legacy\"}'::jsonb, 30, 300, 199, 'NO_RESET', "
+                    "array['11111111-1111-4111-8111-111111111111']::uuid[]) returning id"
+                )
+            ).scalar_one()
+            promo_id = connection.execute(
+                text("insert into promo_codes (code, bonus_days) values ('LEGACY', 5) returning id")
+            ).scalar_one()
+            order_id = connection.execute(
+                text(
+                    "insert into orders (user_id, purpose, plan_id, plan_code_snapshot, "
+                    "plan_name_snapshot, duration_days_snapshot, price_rub_snapshot, "
+                    "price_stars_snapshot, gross_rub, discount_rub, amount_due_rub, promo_code_id, "
+                    "client_key, expires_at, status) values "
+                    "(:user_id, 'purchase', :plan_id, 'legacy', '{\"ru\": \"legacy\"}'::jsonb, "
+                    "30, 300, 199, 300, 0, 300, :promo_id, 'legacy-order', "
+                    "now() + interval '30 minutes', "
+                    "'pending') returning id"
+                ),
+                {"user_id": user_id, "plan_id": plan_id, "promo_id": promo_id},
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "insert into promo_reservations (order_id, promo_code_id, user_id, expires_at) "
+                    "values (:order_id, :promo_id, :user_id, now() + interval '30 minutes')"
+                ),
+                {"order_id": order_id, "promo_id": promo_id, "user_id": user_id},
+            )
+        with pytest.raises(RuntimeError, match="pending promo reservations"):
+            command.upgrade(config, "0009")
+    finally:
+        engine.dispose()
+        # This fixture shares the PostgreSQL container with the remaining migration tests.
+        # The deliberately blocked 0009 leaves its legacy fixture at revision 0008.
+        command.downgrade(config, "base")
+
+
 async def test_users_table_exists_after_migration(postgres_url: str, engine: AsyncEngine) -> None:
     command.upgrade(_alembic_config(postgres_url), "head")
 
