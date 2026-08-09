@@ -1,5 +1,7 @@
 """Миграции должны применяться на чистой базе и откатываться обратно."""
 
+from importlib import import_module
+
 import pytest
 from alembic import command
 from alembic.autogenerate import compare_metadata
@@ -85,6 +87,35 @@ def test_promo_bonus_snapshot_migration_refuses_legacy_pending_reservation(
         # This fixture shares the PostgreSQL container with the remaining migration tests.
         # The deliberately blocked 0009 leaves its legacy fixture at revision 0008.
         command.downgrade(config, "base")
+
+
+def test_promo_bonus_snapshot_locks_writers_before_inspection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Counting before a writer-excluding lock permits a legacy reservation TOCTOU."""
+    migration = import_module("repibot_core.db.migrations.versions.0009_promo_bonus_snapshot")
+    calls: list[str] = []
+
+    class Bind:
+        def scalar(self, statement: object) -> int:
+            calls.append(str(statement))
+            return 0
+
+    class Operations:
+        def execute(self, statement: object) -> None:
+            calls.append(str(statement))
+
+        def get_bind(self) -> Bind:
+            return Bind()
+
+        def add_column(self, _table: str, _column: object) -> None:
+            calls.append("add_column")
+
+    monkeypatch.setattr(migration, "op", Operations())
+    migration.upgrade()
+
+    assert "lock table orders, promo_reservations in share row exclusive mode" in calls[0].lower()
+    assert "select count" in calls[1].lower()
 
 
 async def test_users_table_exists_after_migration(postgres_url: str, engine: AsyncEngine) -> None:
