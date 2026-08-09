@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +23,7 @@ afterEach(() => vi.unstubAllGlobals())
 describe('оплата в Mini App', () => {
   it('requests a saved YooKassa payment method only when the loaded subscription elected auto-renew', async () => {
     let body: unknown
-    stubFetch(async (request) => {
+    stubFetch((request) => {
       const path = new URL(request.url).pathname
       if (path === '/api/me') return Response.json(PROFILE)
       if (path === '/api/plans') return Response.json([PLAN])
@@ -44,7 +44,9 @@ describe('оплата в Mini App', () => {
           },
           trial_available: false,
         })
-      body = await request.json()
+      void request.json().then((value) => {
+        body = value
+      })
       return Response.json({
         id: 16,
         purpose: 'purchase',
@@ -65,7 +67,9 @@ describe('оплата в Mini App', () => {
     })
     renderWithProviders(<Payments />)
     await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
-    expect(body).toMatchObject({ provider: 'yookassa', save_payment_method: true })
+    await waitFor(() =>
+      expect(body).toMatchObject({ provider: 'yookassa', save_payment_method: true }),
+    )
   })
   it('closes a successful gift confirmation so a second Continue cannot create another order', async () => {
     const posts: Request[] = []
