@@ -27,10 +27,21 @@ function errorText(error: unknown, language: 'ru' | 'en') {
     : translate(language, 'common.error')
 }
 function state(order: OrderResponse, language: 'ru' | 'en') {
-  return translate(
-    language,
-    `payment.status.${order.status === 'succeeded' ? 'fulfilled' : order.status}` as any,
-  )
+  switch (order.status) {
+    case 'succeeded':
+    case 'fulfilled':
+      return translate(language, 'payment.status.fulfilled')
+    case 'pending':
+      return translate(language, 'payment.status.pending')
+    case 'expired':
+      return translate(language, 'payment.status.expired')
+    case 'canceled':
+      return translate(language, 'payment.status.canceled')
+    case 'refunded':
+      return translate(language, 'payment.status.refunded')
+    default:
+      return order.status
+  }
 }
 
 export function Payments() {

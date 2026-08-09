@@ -3,6 +3,7 @@
 import {
   formatDate,
   type OrderResponse,
+  type TranslationKey,
   useAutoRenew,
   useCreateOrder,
   useOrders,
@@ -20,10 +21,22 @@ function localized(values: Record<string, string>, language: 'ru' | 'en', fallba
   return values[language] ?? values.ru ?? values.en ?? fallback
 }
 type Plan = { id: number; code: string; name: Record<string, string>; duration_days: number }
-function orderStatus(order: OrderResponse, t: (key: any) => string) {
-  const status = order.status === 'succeeded' ? 'fulfilled' : order.status
-  const key = `payment.status.${status}` as const
-  return t(key)
+function orderStatus(order: OrderResponse, t: (key: TranslationKey) => string) {
+  switch (order.status) {
+    case 'succeeded':
+    case 'fulfilled':
+      return t('payment.status.fulfilled')
+    case 'pending':
+      return t('payment.status.pending')
+    case 'expired':
+      return t('payment.status.expired')
+    case 'canceled':
+      return t('payment.status.canceled')
+    case 'refunded':
+      return t('payment.status.refunded')
+    default:
+      return order.status
+  }
 }
 
 export default function PaymentsPage() {
