@@ -13,6 +13,7 @@ import { AuthGuard } from './auth-guard'
 const LINKS = [
   { href: '/account', key: 'account.title' },
   { href: '/account/subscription', key: 'subscription.title' },
+  { href: '/account/payments', key: 'payment.title' },
   { href: '/account/security', key: 'account.security' },
 ] as const
 

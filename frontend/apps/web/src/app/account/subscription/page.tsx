@@ -2,6 +2,7 @@
 
 import { useActivateTrial, useSubscription } from '@repibot/core'
 import { Button, EmptyState } from '@repibot/ui'
+import Link from 'next/link'
 
 import { DeviceList } from '@/components/device-list'
 import { SubscriptionCard } from '@/components/subscription-card'
@@ -51,6 +52,13 @@ export default function SubscriptionPage() {
           {errorText(trial.error, language)}
         </p>
       )}
+
+      <Link
+        href="/account/payments"
+        className="text-sm font-medium text-text-accent underline underline-offset-4"
+      >
+        {t('payment.title')}
+      </Link>
 
       {panelAvailable ? (
         <>

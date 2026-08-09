@@ -16,6 +16,9 @@ function Navigation() {
       <Link to="/subscription" className="text-text-accent">
         {translate(language, 'subscription.title')}
       </Link>
+      <Link to="/payments" className="text-text-accent">
+        {translate(language, 'payment.title')}
+      </Link>
       <Link to="/devices" className="text-text-accent">
         {translate(language, 'devices.title')}
       </Link>
