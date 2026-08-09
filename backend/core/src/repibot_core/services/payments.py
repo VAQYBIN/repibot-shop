@@ -78,6 +78,7 @@ class CreatedStarsOrder:
 
     order: Order
     invoice_payload: str | None
+    handoff_reference: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,6 +258,7 @@ class PaymentService:
                     provider=PaymentProvider.stars,
                     attempt_no=1,
                     provider_key=token_urlsafe(32),
+                    handoff_token=token_urlsafe(32),
                 )
             elif existing.status is OrderStatus.pending and existing.expires_at <= datetime.now(
                 UTC
@@ -269,22 +271,29 @@ class PaymentService:
                         PaymentAttempt.provider == PaymentProvider.stars,
                     )
                 )
+            if attempt is not None and attempt.handoff_token is None:
+                # Migration leaves historical attempts nullable; first API retry binds one safely.
+                attempt.handoff_token = token_urlsafe(32)
 
         assert existing is not None
         if existing.status is OrderStatus.expired or existing.expires_at <= datetime.now(UTC):
             raise ServiceError("заказ истёк", "order_expired")
         if existing.status is not OrderStatus.pending:
-            return CreatedStarsOrder(order=existing, invoice_payload=None)
+            return CreatedStarsOrder(order=existing, invoice_payload=None, handoff_reference=None)
         if attempt is None:
             raise ServiceError(
                 "для заказа уже выбран другой способ оплаты", "payment_provider_mismatch"
             )
         return CreatedStarsOrder(
-            order=existing, invoice_payload=self._stars_invoice_payload(attempt.provider_key)
+            order=existing,
+            invoice_payload=self._stars_invoice_payload(attempt.provider_key),
+            handoff_reference=attempt.handoff_token,
         )
 
-    async def next_stars_invoice(self, user_id: int) -> StarsInvoice | None:
-        """Returns the owner's newest active Stars invoice without exposing it to the web app."""
+    async def next_stars_invoice(
+        self, user_id: int, handoff_reference: str
+    ) -> StarsInvoice | None:
+        """Resolves the owner's requested opaque handoff without exposing invoice data to web."""
         if self._session.in_transaction():
             await self._session.commit()
         async with self._session.begin():
@@ -298,8 +307,8 @@ class PaymentService:
                         Order.expires_at > datetime.now(UTC),
                         PaymentAttempt.provider == PaymentProvider.stars,
                         PaymentAttempt.status == PaymentStatus.pending,
+                        PaymentAttempt.handoff_token == handoff_reference,
                     )
-                    .order_by(PaymentAttempt.id.desc())
                     .limit(1)
                 )
             ).one_or_none()
@@ -367,7 +376,15 @@ class PaymentService:
             attempt = await self._attempts.get_for_update(attempt_id)
             if attempt is None or order is None:
                 return None
-            if order.status is OrderStatus.pending and order.expires_at <= datetime.now(UTC):
+            paid_stars = (
+                attempt.provider is PaymentProvider.stars
+                and attempt.status is PaymentStatus.succeeded
+            )
+            if (
+                order.status is OrderStatus.pending
+                and order.expires_at <= datetime.now(UTC)
+                and not paid_stars
+            ):
                 await self._expire_locked_order(order)
                 return None
             if (
@@ -467,7 +484,12 @@ class PaymentService:
                 self._record_yookassa_verification(attempt, verified_yookassa_payment)
             if order.status is OrderStatus.expired:
                 return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
-            if order.status is OrderStatus.pending and order.expires_at <= datetime.now(UTC):
+            paid_stars = self._is_recorded_stars_success(order, attempt)
+            if (
+                order.status is OrderStatus.pending
+                and order.expires_at <= datetime.now(UTC)
+                and not paid_stars
+            ):
                 await self._expire_locked_order(order)
                 return FinalizationResult(order_id=order.id, already_finalized=False, expired=True)
             if order.status is OrderStatus.fulfilled:
@@ -585,7 +607,17 @@ class PaymentService:
                 (
                     await self._session.scalars(
                         select(Order)
-                        .where(Order.status == OrderStatus.pending, Order.expires_at <= now)
+                        .where(
+                            Order.status == OrderStatus.pending,
+                            Order.expires_at <= now,
+                            ~select(PaymentAttempt.id)
+                            .where(
+                                PaymentAttempt.order_id == Order.id,
+                                PaymentAttempt.provider == PaymentProvider.stars,
+                                PaymentAttempt.status == PaymentStatus.succeeded,
+                            )
+                            .exists(),
+                        )
                         .with_for_update(skip_locked=True)
                     )
                 ).all()
@@ -593,6 +625,16 @@ class PaymentService:
             for order in orders:
                 await self._expire_locked_order(order)
         return len(orders)
+
+    @staticmethod
+    def _is_recorded_stars_success(order: Order, attempt: PaymentAttempt) -> bool:
+        payload = attempt.verified_payload or {}
+        return (
+            attempt.provider is PaymentProvider.stars
+            and attempt.status is PaymentStatus.succeeded
+            and payload.get("currency") == "XTR"
+            and payload.get("amount") == order.price_stars_snapshot
+        )
 
     @staticmethod
     def _record_yookassa_verification(attempt: PaymentAttempt, payment: YooKassaPayment) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from aiogram import F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import LabeledPrice, Message, PreCheckoutQuery
 
 from repibot_core.db.models import User
@@ -21,7 +21,9 @@ class StarsInvoiceView(Protocol):
 
 
 class StarsPaymentService(Protocol):
-    async def next_stars_invoice(self, user_id: int) -> StarsInvoiceView | None: ...
+    async def next_stars_invoice(
+        self, user_id: int, handoff_reference: str
+    ) -> StarsInvoiceView | None: ...
 
     async def authorize_stars_attempt(
         self, *, invoice_payload: str, user_id: int, total_amount: int
@@ -66,7 +68,10 @@ async def handle_successful_payment(
 
 
 async def handle_stars_handoff(
-    message: Message, user: User, payment_service: StarsPaymentService
+    message: Message,
+    command: CommandObject,
+    user: User,
+    payment_service: StarsPaymentService,
 ) -> None:
     """Issues the invoice only in the authenticated Telegram chat of its owner."""
     if (
@@ -75,7 +80,10 @@ async def handle_stars_handoff(
         or message.chat.id != user.telegram_id
     ):
         return
-    invoice = await payment_service.next_stars_invoice(user.id)
+    handoff_reference = (command.args or "").removeprefix("pay_")
+    if not handoff_reference:
+        return
+    invoice = await payment_service.next_stars_invoice(user.id, handoff_reference)
     if invoice is None:
         return
     await message.answer_invoice(
@@ -90,7 +98,7 @@ async def handle_stars_handoff(
 def build_payment_router() -> Router:
     router = Router(name="payments")
     router.message.register(
-        handle_stars_handoff, CommandStart(deep_link=True, magic=F.args == "pay")
+        handle_stars_handoff, CommandStart(deep_link=True, magic=F.args.startswith("pay_"))
     )
     router.pre_checkout_query.register(handle_pre_checkout)
     router.message.register(handle_successful_payment, F.successful_payment)

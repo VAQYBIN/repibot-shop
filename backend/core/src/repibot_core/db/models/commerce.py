@@ -110,6 +110,7 @@ class PaymentAttempt(TimestampMixin, Base):
     )
     attempt_no: Mapped[int] = mapped_column(Integer)
     provider_key: Mapped[str] = mapped_column(String(128))
+    handoff_token: Mapped[str | None] = mapped_column(String(128), unique=True)
     provider_payment_id: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus, name="payment_status", native_enum=True), default=PaymentStatus.pending

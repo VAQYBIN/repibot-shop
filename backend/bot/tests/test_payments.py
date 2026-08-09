@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_bot.handlers.payments import build_payment_router
 from repibot_bot.main import build_dispatcher
-from repibot_core.db.models import Order, OrderStatus, TrafficResetStrategy, User
+from repibot_core.db.models import Order, OrderStatus, PaymentAttempt, TrafficResetStrategy, User
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.services.payments import FinalizationResult, PaymentService
 
@@ -47,7 +47,7 @@ class FakePayments:
     async def finalize_success(self, attempt_id: int) -> None:
         self.finalized.append(attempt_id)
 
-    async def next_stars_invoice(self, user_id: int) -> None:
+    async def next_stars_invoice(self, user_id: int, handoff_reference: str) -> None:
         return None
 
 
@@ -60,8 +60,9 @@ class FakeInvoice:
 
 
 class FakeInvoicePayments:
-    async def next_stars_invoice(self, user_id: int) -> FakeInvoice:
+    async def next_stars_invoice(self, user_id: int, handoff_reference: str) -> FakeInvoice:
         assert user_id == 7
+        assert handoff_reference == "test-handoff-reference"
         return FakeInvoice(
             title="Month",
             description="VPN subscription",
@@ -103,7 +104,9 @@ def _dispatcher() -> Dispatcher:
     return dispatcher
 
 
-def _start_pay_update(*, chat_type: str = "private") -> Update:
+def _start_pay_update(
+    *, chat_type: str = "private", argument: str = "pay_test-handoff-reference"
+) -> Update:
     return Update.model_validate(
         {
             "update_id": 1,
@@ -112,7 +115,7 @@ def _start_pay_update(*, chat_type: str = "private") -> Update:
                 "date": 0,
                 "chat": {"id": 700_001, "type": chat_type},
                 "from": {"id": 700_001, "is_bot": False, "first_name": "Test"},
-                "text": "/start pay",
+                "text": f"/start {argument}",
             },
         }
     )
@@ -279,13 +282,17 @@ async def test_pay_handoff_feed_update_sends_server_built_stars_invoice() -> Non
 async def test_pay_handoff_feed_update_sends_persisted_owner_invoice(
     db_session: AsyncSession,
 ) -> None:
-    user, _order, payload = await _stars_order(db_session)
+    user, order, payload = await _stars_order(db_session)
+    handoff_reference = await db_session.scalar(
+        select(PaymentAttempt.handoff_token).where(PaymentAttempt.order_id == order.id)
+    )
+    assert isinstance(handoff_reference, str)
     session = RecordingSession()
     bot = Bot(token="123456:test-token", session=session)
 
     await _dispatcher().feed_update(
         bot,
-        _start_pay_update(),
+        _start_pay_update(argument=f"pay_{handoff_reference}"),
         user=user,
         payment_service=PaymentService(db_session),
     )
@@ -308,6 +315,33 @@ async def test_pay_handoff_never_sends_an_owner_invoice_to_a_group() -> None:
     )
 
     assert not any(isinstance(method, SendInvoice) for method in session.methods)
+
+
+async def test_order_handoff_invoices_the_requested_attempt_when_two_are_pending(
+    db_session: AsyncSession,
+) -> None:
+    user, first_order, _first_payload = await _stars_order(db_session)
+    second = await PaymentService(db_session).create_stars_order(
+        user_id=user.id,
+        plan_id=first_order.plan_id,
+        purpose="purchase",  # type: ignore[arg-type]
+        client_key="stars-second-order",
+        promo_code=None,
+    )
+    reference = getattr(second, "handoff_reference", None)
+    assert isinstance(reference, str)
+
+    session = RecordingSession()
+    bot = Bot(token="123456:test-token", session=session)
+    await _dispatcher().feed_update(
+        bot,
+        _start_pay_update(argument=f"pay_{reference}"),
+        user=user,
+        payment_service=PaymentService(db_session),
+    )
+
+    sent = next(method for method in session.methods if isinstance(method, SendInvoice))
+    assert sent.payload == second.invoice_payload
 
 
 async def test_successful_payment_feed_update_finalizes_persisted_order_once(

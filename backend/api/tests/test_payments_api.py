@@ -86,7 +86,7 @@ async def test_create_stars_order_requires_telegram_invoice(
     from repibot_api.routers import subscription as subscription_router
 
     async def handoff_url(*_args: object) -> str:
-        return "https://t.me/repibot?start=pay"
+        return "https://t.me/repibot?start=pay_opaque-handoff-reference"
 
     monkeypatch.setattr(subscription_router, "stars_handoff_url", handoff_url)
     started = datetime.now(UTC)
@@ -98,7 +98,7 @@ async def test_create_stars_order_requires_telegram_invoice(
     body = response.json()
     assert body["telegram_invoice_required"] is True
     assert body["confirmation_url"] is None
-    assert body["telegram_handoff_url"] == "https://t.me/repibot?start=pay"
+    assert body["telegram_handoff_url"] == "https://t.me/repibot?start=pay_opaque-handoff-reference"
     assert body["price_stars"] == 199
     expires_at = datetime.fromisoformat(body["expires_at"])
     assert expires_at.tzinfo is not None

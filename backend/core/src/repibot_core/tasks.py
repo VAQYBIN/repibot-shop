@@ -99,15 +99,44 @@ async def reconcile_panel() -> dict[str, int]:
 
 @broker.task(schedule=[{"cron": "*/5 * * * *"}])
 async def reconcile_pending_payments() -> dict[str, int]:
-    """Добирает подтверждённые YooKassa-платежи, если webhook был потерян."""
+    """Добирает подтверждённые провайдером оплаты, если update/webhook был потерян."""
     engine = create_engine(get_settings().database_url)
-    client = create_yookassa_client()
+    client = None
     checked = 0
     fulfilled = 0
     try:
         from repibot_core.services.payments import PaymentService
 
         factory = create_session_factory(engine)
+        async with factory() as session:
+            stars_attempts = list(
+                (
+                    await session.scalars(
+                        select(PaymentAttempt.id)
+                        .join(Order, Order.id == PaymentAttempt.order_id)
+                        .where(
+                            PaymentAttempt.provider == PaymentProvider.stars,
+                            PaymentAttempt.status == PaymentStatus.succeeded,
+                            Order.status == OrderStatus.pending,
+                        )
+                    )
+                ).all()
+            )
+        # Сначала именно локально подтверждённые Stars. Их нельзя пропустить
+        # через expiry: Telegram уже списал деньги, а финализатор идемпотентен.
+        for attempt_id in stars_attempts:
+            async with engine.connect() as claim_connection:
+                if not await _try_claim_pending_payment(claim_connection, attempt_id):
+                    continue
+                checked += 1
+                try:
+                    async with factory() as session:
+                        result = await PaymentService(session).finalize_success(attempt_id)
+                finally:
+                    await _release_pending_payment_claim(claim_connection, attempt_id)
+                if result is not None and not result.already_finalized:
+                    fulfilled += 1
+
         async with factory() as session:
             await PaymentService(session).expire_due_orders(now=datetime.now(UTC))
             attempts = list(
@@ -125,8 +154,13 @@ async def reconcile_pending_payments() -> dict[str, int]:
                     )
                 ).all()
             )
+        if attempts:
+            client = create_yookassa_client()
+            assert client is not None
         for attempt_id, provider_payment_id in attempts:
             if provider_payment_id is None:  # pragma: no cover
+                continue
+            if client is None:  # pragma: no cover — client is constructed when attempts are found
                 continue
             async with engine.connect() as claim_connection:
                 if not await _try_claim_pending_payment(claim_connection, attempt_id):
@@ -142,7 +176,8 @@ async def reconcile_pending_payments() -> dict[str, int]:
                 if result is not None and not result.already_finalized:
                     fulfilled += 1
     finally:
-        await client.aclose()
+        if client is not None:
+            await client.aclose()
         await engine.dispose()
     return {"checked": checked, "fulfilled": fulfilled}
 

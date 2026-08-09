@@ -56,12 +56,12 @@ from repibot_core.settings import get_settings
 router = APIRouter(tags=["subscription"])
 
 
-async def stars_handoff_url(redis: Redis) -> str:
+async def stars_handoff_url(redis: Redis, handoff_reference: str) -> str:
     """Static deep link triggers the bot; no payment identifier crosses the browser boundary."""
     settings = get_settings()
     async with httpx.AsyncClient(timeout=BOT_TIMEOUT_SECONDS) as client:
         username = await BotApi(settings, redis, client=client).username()
-    return f"https://t.me/{username}?start=pay"
+    return f"https://t.me/{username}?start=pay_{handoff_reference}"
 
 
 async def _confirmation_urls(session: AsyncSession, order_ids: list[int]) -> dict[int, str | None]:
@@ -121,8 +121,8 @@ async def create_order(
                 None,
                 telegram_invoice_required=stars_order.invoice_payload is not None,
                 telegram_handoff_url=(
-                    await stars_handoff_url(redis)
-                    if stars_order.invoice_payload is not None
+                    await stars_handoff_url(redis, stars_order.handoff_reference)
+                    if stars_order.handoff_reference is not None
                     else None
                 ),
             )

@@ -191,3 +191,68 @@ async def test_pending_payment_claim_is_exclusive_between_overlapping_polls(
         assert await core_tasks._try_claim_pending_payment(first, attempt.id)
         assert not await core_tasks._try_claim_pending_payment(second, attempt.id)
         await core_tasks._release_pending_payment_claim(first, attempt.id)
+
+
+@pytest.mark.docker
+async def test_poll_recovers_recorded_stars_success_after_expiry_without_telegram_replay(
+    postgres_url: str, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A paid Stars attempt must finalize before the expiry sweep can discard it."""
+    from repibot_core.db.models import (
+        Order,
+        OrderStatus,
+        PaymentProvider,
+        PaymentStatus,
+        Plan,
+        TrafficResetStrategy,
+        User,
+    )
+    from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
+    from repibot_core.integrations.yookassa.testing import FakeYooKassa
+    from repibot_core.settings import get_settings
+
+    plan = Plan(
+        code="stars-recovery",
+        name={"ru": "Месяц", "en": "Month"},
+        description=None,
+        duration_days=30,
+        price_rub=Decimal("254.15"),
+        price_stars=199,
+        traffic_limit_bytes=0,
+        traffic_reset_strategy=TrafficResetStrategy.NO_RESET,
+        hwid_device_limit=3,
+        internal_squad_uuids=["11111111-1111-4111-8111-111111111111"],
+        is_trial=False,
+        is_active=True,
+        is_visible=True,
+        sort_order=0,
+    )
+    user = User(email="stars-recovery@example.org", referral_code="starsrec")
+    db_session.add_all((plan, user))
+    await db_session.flush()
+    order = await OrderRepository(db_session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key="stars-recovery-order",
+        expires_at=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    await PaymentAttemptRepository(db_session).get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.stars,
+        attempt_no=1,
+        provider_key="stars-recovery-reference",
+        status=PaymentStatus.succeeded,
+        verified_payload={"amount": 199, "currency": "XTR"},
+        verified_at=datetime.now(UTC) - timedelta(seconds=2),
+    )
+    await db_session.commit()
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "database_url", postgres_url)
+    monkeypatch.setattr("repibot_core.tasks.create_yookassa_client", FakeYooKassa)
+
+    result = await tasks.reconcile_pending_payments()
+
+    assert result == {"checked": 1, "fulfilled": 1}
+    status = await db_session.scalar(select(Order.status).where(Order.id == order.id))
+    assert status is OrderStatus.fulfilled
