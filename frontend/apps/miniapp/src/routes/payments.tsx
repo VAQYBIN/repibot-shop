@@ -60,6 +60,7 @@ export function Payments() {
   const [stars, setStars] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [giftPlan, setGiftPlan] = useState<Plan | null>(null)
+  const current = subscription.data?.subscription
   async function order(
     plan: Plan,
     provider: 'yookassa' | 'stars',
@@ -74,7 +75,7 @@ export function Payments() {
         purpose,
         provider,
         promo_code: promo || null,
-        save_payment_method: false,
+        save_payment_method: provider === 'yookassa' && current?.auto_renew_enabled === true,
         idempotency_key: crypto.randomUUID(),
       })
     } catch {
@@ -88,6 +89,7 @@ export function Payments() {
       setStars(true)
       if (created.telegram_handoff_url) openTelegramUrl(created.telegram_handoff_url, true)
     }
+    setGiftPlan(null)
   }
   if (plans.isPending || orders.isPending || subscription.isPending)
     return <Loading language={language} />
@@ -107,7 +109,6 @@ export function Payments() {
         onRetry={() => void subscription.refetch()}
       />
     )
-  const current = subscription.data?.subscription
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4">
       <h1 className="text-2xl font-semibold text-text">{translate(language, 'payment.title')}</h1>

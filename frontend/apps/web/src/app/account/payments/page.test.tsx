@@ -47,6 +47,40 @@ function handlers(extra: Record<string, unknown> = {}) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в кабинете', () => {
+  it('asks YooKassa to save a payment method when auto-renew is already elected', async () => {
+    let body: unknown
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/me/subscription': {
+          ...SUBSCRIPTION,
+          subscription: { ...SUBSCRIPTION.subscription, auto_renew_enabled: true },
+        },
+        '/api/me/orders': async (request: Request) => {
+          if (request.method === 'GET') return []
+          body = await request.json()
+          return {
+            id: 15,
+            purpose: 'renew',
+            plan_id: 1,
+            plan_code: 'month',
+            plan_name: PLAN.name,
+            duration_days: 30,
+            price_rub: '299',
+            price_stars: 199,
+            gross_rub: '299',
+            discount_rub: '0',
+            amount_due_rub: '299',
+            status: 'pending',
+            expires_at: '2026-08-11T12:00:00Z',
+            confirmation_url: null,
+            telegram_invoice_required: false,
+          }
+        },
+      }),
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
+    expect(body).toMatchObject({ provider: 'yookassa', save_payment_method: true })
+  })
   it('shows a mapped rejected promo error returned by the order endpoint', async () => {
     renderWithProviders(<PaymentsPage />, {
       handlers: handlers({

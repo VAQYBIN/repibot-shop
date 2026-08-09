@@ -21,6 +21,88 @@ const PLAN = {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в Mini App', () => {
+  it('requests a saved YooKassa payment method only when the loaded subscription elected auto-renew', async () => {
+    let body: unknown
+    stubFetch(async (request) => {
+      const path = new URL(request.url).pathname
+      if (path === '/api/me') return Response.json(PROFILE)
+      if (path === '/api/plans') return Response.json([PLAN])
+      if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
+      if (path === '/api/me/gifts') return Response.json([])
+      if (path === '/api/me/subscription')
+        return Response.json({
+          subscription: {
+            plan_code: 'month',
+            plan_name: PLAN.name,
+            status: 'active',
+            started_at: '2026-08-01T12:00:00Z',
+            expires_at: '2026-09-01T12:00:00Z',
+            subscription_url: null,
+            traffic_limit_bytes: 0,
+            hwid_device_limit: 3,
+            auto_renew_enabled: true,
+          },
+          trial_available: false,
+        })
+      body = await request.json()
+      return Response.json({
+        id: 16,
+        purpose: 'purchase',
+        plan_id: 1,
+        plan_code: 'month',
+        plan_name: PLAN.name,
+        duration_days: 30,
+        price_rub: '299',
+        price_stars: 199,
+        gross_rub: '299',
+        discount_rub: '0',
+        amount_due_rub: '299',
+        status: 'pending',
+        expires_at: '2026-08-11T12:00:00Z',
+        confirmation_url: null,
+        telegram_invoice_required: false,
+      })
+    })
+    renderWithProviders(<Payments />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
+    expect(body).toMatchObject({ provider: 'yookassa', save_payment_method: true })
+  })
+  it('closes a successful gift confirmation so a second Continue cannot create another order', async () => {
+    const posts: Request[] = []
+    stubFetch((request) => {
+      const path = new URL(request.url).pathname
+      if (path === '/api/me') return Response.json(PROFILE)
+      if (path === '/api/plans') return Response.json([PLAN])
+      if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
+      if (path === '/api/me/gifts') return Response.json([])
+      if (path === '/api/me/subscription')
+        return Response.json({ subscription: null, trial_available: false })
+      posts.push(request)
+      return Response.json({
+        id: 14,
+        purpose: 'gift',
+        plan_id: 1,
+        plan_code: 'month',
+        plan_name: PLAN.name,
+        duration_days: 30,
+        price_rub: '299',
+        price_stars: 199,
+        gross_rub: '299',
+        discount_rub: '0',
+        amount_due_rub: '299',
+        status: 'pending',
+        expires_at: '2026-08-11T12:00:00Z',
+        confirmation_url: null,
+        telegram_invoice_required: false,
+      })
+    })
+    renderWithProviders(<Payments />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Подарить' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Продолжить' }))
+    expect(await screen.findByRole('heading', { name: 'Оплата и подарки' })).toBeVisible()
+    expect(screen.queryByRole('dialog', { name: 'Подтвердить подарок?' })).not.toBeInTheDocument()
+    expect(posts).toHaveLength(1)
+  })
   it('requires confirmation before a Mini App gift sends purpose=gift', async () => {
     const requests: Request[] = []
     stubFetch((request) => {

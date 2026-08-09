@@ -55,6 +55,7 @@ export default function PaymentsPage() {
   const [giftPlan, setGiftPlan] = useState<Plan | null>(null)
   const [starsHint, setStarsHint] = useState(false)
   const [promoApplied, setPromoApplied] = useState(false)
+  const current = subscription.data?.subscription
 
   async function submit(
     plan: Plan,
@@ -70,7 +71,7 @@ export default function PaymentsPage() {
         provider,
         purpose,
         promo_code: promo || null,
-        save_payment_method: false,
+        save_payment_method: provider === 'yookassa' && current?.auto_renew_enabled === true,
         idempotency_key: crypto.randomUUID(),
       })
     } catch {
@@ -86,7 +87,6 @@ export default function PaymentsPage() {
     }
     setGiftPlan(null)
   }
-  const current = subscription.data?.subscription
 
   return (
     <main className="flex max-w-3xl flex-col gap-6">
