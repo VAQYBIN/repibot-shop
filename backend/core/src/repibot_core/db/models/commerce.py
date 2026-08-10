@@ -13,10 +13,12 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -209,6 +211,64 @@ class ReferralReward(Base):
     days: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     reversed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CardBindingStatus(StrEnum):
+    pending = "pending"
+    active = "active"
+    failed = "failed"
+
+
+class SavedPaymentMethod(Base):
+    """Действующая карта пользователя для повторных списаний.
+
+    Непогашенная строка одна: частичный уникальный индекс не даёт автопродлению
+    однажды выбрать забытую карту, с которой пользователь списаний не ждёт.
+    """
+
+    __tablename__ = "saved_payment_methods"
+    __table_args__ = (
+        Index(
+            "uq_saved_methods_active",
+            "user_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    provider: Mapped[PaymentProvider] = mapped_column(
+        Enum(PaymentProvider, name="payment_provider", native_enum=True)
+    )
+    provider_method_id: Mapped[str] = mapped_column(String(255))
+    # Название приходит от провайдера («Bank card *4444») и показывается как
+    # есть: собирать его из номера карты у себя значит хранить номер.
+    title: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CardBinding(Base):
+    """Привязка карты без списания: у неё нет ни тарифа, ни суммы, ни срока."""
+
+    __tablename__ = "card_bindings"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_binding_id", name="uq_card_bindings_provider_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    provider: Mapped[PaymentProvider] = mapped_column(
+        Enum(PaymentProvider, name="payment_provider", native_enum=True)
+    )
+    provider_binding_id: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[CardBindingStatus] = mapped_column(
+        Enum(CardBindingStatus, name="card_binding_status", native_enum=True),
+        default=CardBindingStatus.pending,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class NotificationDelivery(Base):

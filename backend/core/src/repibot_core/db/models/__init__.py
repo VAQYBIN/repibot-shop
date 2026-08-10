@@ -2,6 +2,8 @@
 
 from repibot_core.db.models.audit import AuditLog
 from repibot_core.db.models.commerce import (
+    CardBinding,
+    CardBindingStatus,
     GiftVoucher,
     NotificationDelivery,
     Order,
@@ -13,6 +15,7 @@ from repibot_core.db.models.commerce import (
     PromoCode,
     PromoReservation,
     ReferralReward,
+    SavedPaymentMethod,
 )
 from repibot_core.db.models.one_time_token import OneTimeToken, TokenType
 from repibot_core.db.models.outbox import OutboxMessage
@@ -33,6 +36,8 @@ from repibot_core.db.models.webhook import WebhookEvent, WebhookSource
 
 __all__ = [
     "AuditLog",
+    "CardBinding",
+    "CardBindingStatus",
     "FindingAction",
     "GiftVoucher",
     "NotificationDelivery",
@@ -50,6 +55,7 @@ __all__ = [
     "PromoReservation",
     "ReconciliationFinding",
     "ReferralReward",
+    "SavedPaymentMethod",
     "Session",
     "Subscription",
     "SubscriptionActor",
