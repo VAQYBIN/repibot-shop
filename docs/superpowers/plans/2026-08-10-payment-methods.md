@@ -56,7 +56,7 @@ Vitest.
   `YooKassaClient.get_card_binding(binding_id)`.
 - Consumes существующий `httpx.AsyncClient` клиента.
 
-- [ ] **Step 1: Падающий тест разбора ответа**
+- [x] **Step 1: Падающий тест разбора ответа**
 
 ```python
 async def test_saved_flag_and_title_come_from_the_provider_response() -> None:
@@ -76,12 +76,12 @@ async def test_saved_flag_and_title_come_from_the_provider_response() -> None:
 Добавить случай `saved` отсутствует → `False`, и тест, что
 `create_payment(save_payment_method=False)` не кладёт поле в тело запроса.
 
-- [ ] **Step 2: Прогнать RED**
+- [x] **Step 2: Прогнать RED**
 
 Run: `uv run pytest backend/core/tests/test_yookassa_client.py -q`
 Expected: FAIL — полей нет.
 
-- [ ] **Step 3: Реализация**
+- [x] **Step 3: Реализация**
 
 `_parse_payment` читает `payment_method.saved` и `.title`.
 `create_card_binding` шлёт `POST /payment_methods` телом
@@ -90,17 +90,17 @@ Expected: FAIL — полей нет.
 `GET /payment_methods/{id}`. Оба разбирают `id`, `status`
 (`pending|active|inactive`), `saved`, `title`, `confirmation.confirmation_url`.
 
-- [ ] **Step 4: Заглушка E2E умеет то же**
+- [x] **Step 4: Заглушка E2E умеет то же**
 
 `FakeYooKassa` возвращает `payment_method.saved` по запрошенному сценарию и
 поддерживает `/v3/payment_methods` с теми же статусами.
 
-- [ ] **Step 5: Проверка**
+- [x] **Step 5: Проверка**
 
 Run: `uv run pytest backend/core/tests/test_yookassa_client.py backend/core/tests/test_fake_yookassa.py -q`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "feat: клиент YooKassa читает сохранённую карту"
@@ -123,7 +123,7 @@ git commit -m "feat: клиент YooKassa читает сохранённую �
   `PaymentMethodService.revoke(user_id) -> bool`.
 - `SavedCardView(title, linked_at)`.
 
-- [ ] **Step 1: Падающий тест**
+- [x] **Step 1: Падающий тест**
 
 ```python
 async def test_saving_a_card_replaces_the_previous_one(db_session) -> None:
@@ -139,11 +139,11 @@ async def test_saving_a_card_replaces_the_previous_one(db_session) -> None:
 Плюс: `revoke` гасит строку и возвращает `False` при повторе; одновременное
 сохранение двух карт не нарушает частичный уникальный индекс.
 
-- [ ] **Step 2: RED**
+- [x] **Step 2: RED**
 
 Run: `uv run pytest backend/core/tests/test_payment_methods.py -q`
 
-- [ ] **Step 3: Модели и миграция**
+- [x] **Step 3: Модели и миграция**
 
 ```python
 class SavedPaymentMethod(Base):
@@ -159,16 +159,16 @@ class CardBinding(Base):
 
 Миграция создаёт обе таблицы и частичный индекс.
 
-- [ ] **Step 4: Сервис**
+- [x] **Step 4: Сервис**
 
 `save` в одной транзакции гасит прежнюю строку и вставляет новую; `revoke`
 проставляет `revoked_at` только непогашенной строке. Ни commit, ни сеть.
 
-- [ ] **Step 5: Проверка**
+- [x] **Step 5: Проверка**
 
 Run: `uv run pytest backend/core/tests/test_payment_methods.py backend/core/tests/test_migrations.py -q`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "feat: хранение действующей карты пользователя"
@@ -191,7 +191,7 @@ git commit -m "feat: хранение действующей карты поль
 - `AutoRenewalService._saved_method` читает `saved_payment_methods`.
 - `CreateOrderRequest.save_payment_method` удаляется из схемы API.
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 ```python
 async def test_checked_box_saves_the_card_and_turns_auto_renew_on(...) -> None:
@@ -207,28 +207,28 @@ async def test_unchecked_box_keeps_the_previous_card_and_setting(...) -> None:
 
 И тест, что ручной заказ не отправляет провайдеру `save_payment_method`.
 
-- [ ] **Step 2: RED**
+- [x] **Step 2: RED**
 
 Run: `uv run pytest backend/core/tests/test_payment_finalization.py -q`
 
-- [ ] **Step 3: Реализация**
+- [x] **Step 3: Реализация**
 
 В `finalize_success` после начисления права: если проверенный payload
 сообщает `payment_method_saved`, сохранить карту и включить
 `auto_renew_enabled`. Всё в той же транзакции, без сети.
 `create_manual_yookassa_order` перестаёт принимать `save_payment_method`.
 
-- [ ] **Step 4: Планировщик берёт карту из таблицы**
+- [x] **Step 4: Планировщик берёт карту из таблицы**
 
 `_saved_method` возвращает `provider_method_id` действующей строки. Прежний
 перебор payload попыток удалить: он считал пригодным любой
 `payment_method.id`, включая несохранённые.
 
-- [ ] **Step 5: Проверка**
+- [x] **Step 5: Проверка**
 
 Run: `uv run pytest backend/core/tests/test_payment_finalization.py backend/core/tests/test_auto_renew.py backend/api/tests/test_payments_api.py -q`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "feat: оплата с галочкой запоминает карту и включает автоплатёж"
@@ -250,7 +250,7 @@ git commit -m "feat: оплата с галочкой запоминает ка�
   `CardBindingService.settle(binding_id, provider) -> bool`.
 - Настройка `yookassa_zero_amount_binding: bool = False`.
 
-- [ ] **Step 1: Падающие тесты**
+- [x] **Step 1: Падающие тесты**
 
 ```python
 async def test_binding_becomes_a_card_only_after_provider_confirms_saved(...) -> None:
@@ -266,27 +266,27 @@ async def test_binding_becomes_a_card_only_after_provider_confirms_saved(...) ->
 Плюс: `status=inactive` карту не создаёт; повторный `settle` идемпотентен;
 при выключенной настройке `start` поднимает `binding_unavailable`.
 
-- [ ] **Step 2: RED**
+- [x] **Step 2: RED**
 
 Run: `uv run pytest backend/core/tests/test_card_binding.py -q`
 
-- [ ] **Step 3: Реализация**
+- [x] **Step 3: Реализация**
 
 `start` создаёт строку `card_bindings` и зовёт провайдера вне транзакции.
 `settle` читает состояние у провайдера, и только при `status=active` и
 `saved=true` сохраняет карту через `PaymentMethodService`; повтор возвращает
 `False`. Включение автоплатежа здесь такое же, как при оплате.
 
-- [ ] **Step 4: Добор потерянного подтверждения**
+- [x] **Step 4: Добор потерянного подтверждения**
 
 `reconcile_pending_payments` дочитывает незавершённые привязки, а
 `/webhook/yookassa` при неизвестном `object.id` пробует его как привязку.
 
-- [ ] **Step 5: Проверка**
+- [x] **Step 5: Проверка**
 
 Run: `uv run pytest backend/core/tests/test_card_binding.py backend/worker/tests/test_tasks.py -q`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "feat: привязка карты без списания"
@@ -308,7 +308,7 @@ git commit -m "feat: привязка карты без списания"
 - `DELETE /api/me/payment-method` → 204, автопродление выключено.
 - `POST /api/me/payment-method/bindings` → `BindingResponse(confirmation_url)`.
 
-- [ ] **Step 1: Падающие тесты маршрутов**
+- [x] **Step 1: Падающие тесты маршрутов**
 
 ```python
 async def test_unlinking_a_card_turns_auto_renew_off(api_client, user_headers) -> None:
@@ -322,21 +322,21 @@ async def test_unlinking_a_card_turns_auto_renew_off(api_client, user_headers) -
 Плюс: чужую карту не видно и не отвязать; при выключенной настройке
 `POST .../bindings` отвечает 409 `binding_unavailable`.
 
-- [ ] **Step 2: RED**
+- [x] **Step 2: RED**
 
 Run: `uv run pytest backend/api/tests/test_payment_method_api.py -q`
 
-- [ ] **Step 3: Реализация и экспорт схемы**
+- [x] **Step 3: Реализация и экспорт схемы**
 
 Собрать сервисы явными зависимостями; клиент провайдера открывать тем же
 менеджером контекста `yookassa_client`. Затем
 `uv run export-openapi; uv run verify-generated`.
 
-- [ ] **Step 4: Проверка**
+- [x] **Step 4: Проверка**
 
 Run: `uv run pytest backend/api/tests -q`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat: клиентский API сохранённой карты"
@@ -359,7 +359,7 @@ git commit -m "feat: клиентский API сохранённой карты"
 - Produces `usePaymentMethod()`, `useUnlinkCard()`, `useStartCardBinding()`.
 - Потребляет существующие `useAutoRenew`, `useCreateOrder`.
 
-- [ ] **Step 1: Падающие тесты интерфейса**
+- [x] **Step 1: Падающие тесты интерфейса**
 
 ```tsx
 it('выключает переключатель автоплатежа, когда карты нет', async () => {
@@ -372,22 +372,22 @@ it('выключает переключатель автоплатежа, ког
 Плюс: отвязка спрашивает подтверждение; кнопка привязки скрыта при
 `binding_available: false`; название карты не выдумывается на клиенте.
 
-- [ ] **Step 2: RED**
+- [x] **Step 2: RED**
 
 Run: `cd frontend && pnpm --filter @repibot/web test -- payments`
 
-- [ ] **Step 3: Реализация**
+- [x] **Step 3: Реализация**
 
 Хуки в общем пакете, тексты RU/EN. Заказ больше не шлёт
 `save_payment_method`. Веб открывает `confirmation_url` привязки через
 `window.open(..., 'noopener,noreferrer')`, Mini App — через
 `openTelegramUrl`.
 
-- [ ] **Step 4: Проверка**
+- [x] **Step 4: Проверка**
 
 Run: `cd frontend && pnpm -r test && pnpm -r --parallel typecheck && pnpm lint`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat: управление картой в кабинете и Mini App"
@@ -402,22 +402,22 @@ git commit -m "feat: управление картой в кабинете и Mi
 - Modify: `frontend/apps/web/e2e/money-scenarios.spec.ts`
 - Modify: `docs/superpowers/plans/2026-08-10-payment-methods.md`
 
-- [ ] **Step 1: Сквозной сценарий**
+- [x] **Step 1: Сквозной сценарий**
 
 Оплата с сохранением карты включает автоплатёж, отвязка выключает его,
 повторная оплата без галочки ничего не меняет.
 
-- [ ] **Step 2: Документация**
+- [x] **Step 2: Документация**
 
 Описать `YOOKASSA_ZERO_AMOUNT_BINDING`, что привязку на нулевую сумму в
 боевом магазине подключает менеджер YooKassa, и что галочку сохранения
 показывает форма провайдера.
 
-- [ ] **Step 3: Полная проверка**
+- [x] **Step 3: Полная проверка**
 
 Run: `uv run check`, затем `pnpm --filter @repibot/web e2e`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m "test: сквозной сценарий карты и документация"
