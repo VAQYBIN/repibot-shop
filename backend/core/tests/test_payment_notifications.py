@@ -1,4 +1,4 @@
-"""Durable fan-out of payment events to every linked channel."""
+"""Надёжная рассылка событий оплаты во все привязанные каналы."""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ async def _order(session: AsyncSession, *, telegram: bool, verified_email: bool)
 
 
 async def test_success_enqueues_each_available_channel_once(db_session: AsyncSession) -> None:
-    """Removing either recipient or the delivery uniqueness must fail this test."""
+    """Потеря адресата или уникальности доставки обязана уронить этот тест."""
     order = await _order(db_session, telegram=True, verified_email=True)
     notifications = NotificationService(db_session)
 
@@ -99,7 +99,7 @@ async def test_success_uses_only_linked_available_channel(
 
 
 async def test_terminal_delivery_failure_is_durably_queryable(db_session: AsyncSession) -> None:
-    """Closing a terminal outbox retry without changing delivery state hides a failed notice."""
+    """Закрыть попытку очереди, не тронув доставку, значит спрятать неудачу."""
     order = await _order(db_session, telegram=True, verified_email=False)
     await NotificationService(db_session).enqueue_payment_event(order.id, "payment_succeeded")
     message = await db_session.scalar(select(OutboxMessage))

@@ -50,7 +50,7 @@ class BotApi:
         return name
 
     async def send_message(self, chat_id: int, text: str) -> None:
-        """Sends a plain localized notification to a linked Telegram account."""
+        """Отправляет простое локализованное уведомление в привязанный Telegram."""
         token = self._settings.bot_token.get_secret_value()
         try:
             response = await self._client.post(

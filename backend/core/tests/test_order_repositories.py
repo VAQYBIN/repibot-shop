@@ -208,7 +208,7 @@ async def test_order_snapshot_fields_cannot_be_mutated(db_session: AsyncSession)
 
 @pytest.mark.parametrize("field", ("user_id", "purpose", "client_key", "expires_at"))
 async def test_order_intent_fields_cannot_be_mutated(db_session: AsyncSession, field: str) -> None:
-    """The immutable commercial decision includes owner, purpose, key, and TTL."""
+    """Неизменяемое коммерческое решение включает владельца, назначение, ключ и срок."""
     plan = await _plan(db_session)
     user = await _user(db_session)
     order = await OrderRepository(db_session).create_pending(

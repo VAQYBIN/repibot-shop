@@ -91,7 +91,7 @@ async def test_login_sets_httponly_cookie_scoped_to_refresh(api_client: AsyncCli
 async def test_admin_login_sets_a_short_lived_assertion_scoped_to_admin(
     api_client: AsyncClient, engine: AsyncEngine
 ) -> None:
-    """A browser admin receives routing evidence, not another API credential."""
+    """Админ в браузере получает признак для маршрутизации, а не второй пропуск в API."""
     await _register_and_verify(api_client)
     await _set_email_role(engine, UserRole.admin)
 

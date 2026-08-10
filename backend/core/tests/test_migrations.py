@@ -36,7 +36,7 @@ def test_migrations_apply_and_rollback(postgres_url: str) -> None:
 def test_promo_bonus_snapshot_migration_refuses_legacy_pending_reservation(
     postgres_url: str,
 ) -> None:
-    """A zero default would silently lose a promised bonus on a pending paid order."""
+    """Ноль по умолчанию молча съел бы обещанный бонус у неоплаченного заказа."""
     config = _alembic_config(postgres_url)
     command.downgrade(config, "base")
     command.upgrade(config, "0008")
@@ -84,15 +84,15 @@ def test_promo_bonus_snapshot_migration_refuses_legacy_pending_reservation(
             command.upgrade(config, "0009")
     finally:
         engine.dispose()
-        # This fixture shares the PostgreSQL container with the remaining migration tests.
-        # The deliberately blocked 0009 leaves its legacy fixture at revision 0008.
+        # Фикстура делит контейнер PostgreSQL с остальными тестами миграций.
+        # Намеренно остановленная 0009 оставляет её на ревизии 0008.
         command.downgrade(config, "base")
 
 
 def test_promo_bonus_snapshot_locks_writers_before_inspection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Counting before a writer-excluding lock permits a legacy reservation TOCTOU."""
+    """Подсчёт до блокировки записи открывает гонку на старых резервах."""
     migration = import_module("repibot_core.db.migrations.versions.0009_promo_bonus_snapshot")
     calls: list[str] = []
 

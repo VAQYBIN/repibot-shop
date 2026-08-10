@@ -228,14 +228,14 @@ class AdminSubscriptionRequest(BaseModel):
 
 
 class RefundMarkRequest(BaseModel):
-    """Proof that a human completed the provider-side refund first."""
+    """Доказательство, что возврат у провайдера уже сделан человеком."""
 
     reference: str = Field(min_length=1, max_length=255)
     comment: str = Field(min_length=1, max_length=512)
 
 
 class CompensationRequest(BaseModel):
-    """One irreversible, separately approved local correction."""
+    """Одна необратимая местная коррекция, подтверждаемая отдельно."""
 
     action: Literal["revoke_days", "reverse_referral_reward"]
     idempotency_key: str = Field(min_length=1, max_length=128)

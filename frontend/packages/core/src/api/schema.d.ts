@@ -804,7 +804,7 @@ export interface paths {
         put?: never;
         /**
          * Mark Order Refunded
-         * @description Record a completed provider refund without changing any entitlement.
+         * @description Фиксирует выполненный у провайдера возврат, не трогая выданный доступ.
          */
         post: operations["mark_order_refunded_api_admin_orders__order_id__refund_mark_post"];
         delete?: never;
@@ -824,7 +824,7 @@ export interface paths {
         put?: never;
         /**
          * Compensate Order
-         * @description Apply exactly one explicitly named, idempotent local correction.
+         * @description Применяет ровно одну названную и идемпотентную местную коррекцию.
          */
         post: operations["compensate_order_api_admin_orders__order_id__compensations_post"];
         delete?: never;
@@ -927,7 +927,7 @@ export interface components {
         };
         /**
          * CompensationRequest
-         * @description One irreversible, separately approved local correction.
+         * @description Одна необратимая местная коррекция, подтверждаемая отдельно.
          */
         CompensationRequest: {
             /**
@@ -1370,7 +1370,7 @@ export interface components {
         };
         /**
          * RefundMarkRequest
-         * @description Proof that a human completed the provider-side refund first.
+         * @description Доказательство, что возврат у провайдера уже сделан человеком.
          */
         RefundMarkRequest: {
             /** Reference */

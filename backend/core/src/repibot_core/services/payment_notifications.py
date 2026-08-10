@@ -1,4 +1,4 @@
-"""Durable payment notifications and the YooKassa recurring-payment scheduler."""
+"""Надёжные уведомления об оплате и планировщик автоплатежей YooKassa."""
 
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ from repibot_core.domain.subscriptions import SubscriptionState
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.settings import Settings, get_settings
 
-# The suffix identifies the transport and makes every outbox record dispatchable
-# without a second lookup.  The base is public for producers that need to route
-# payment notifications without knowing their transport implementation.
+# Суффикс называет транспорт, поэтому разбирающему очередь не нужен второй
+# запрос, чтобы понять, куда отправлять. Базовая тема нужна тем, кто ставит
+# уведомление, не зная, каким способом оно уйдёт.
 TOPIC_PAYMENT_NOTIFICATION = "notify"
 TOPIC_PAYMENT_EMAIL = f"{TOPIC_PAYMENT_NOTIFICATION}.email"
 TOPIC_PAYMENT_TELEGRAM = f"{TOPIC_PAYMENT_NOTIFICATION}.telegram"
@@ -52,14 +52,14 @@ class YooKassaRecurringCreator(Protocol):
 
 
 class NotificationService:
-    """Stages one delivery per business event and each currently available channel."""
+    """Ставит по одной доставке на событие и на каждый доступный сейчас канал."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._outbox = OutboxRepository(session)
 
     async def enqueue_payment_event(self, order_id: int, kind: str) -> int:
-        """Queue all usable destinations; retries never duplicate a delivery intent."""
+        """Ставит все пригодные адреса; повтор не создаёт вторую доставку."""
         row = (
             await self._session.execute(
                 select(Order.user_id, Order.plan_name_snapshot, Order.plan_code_snapshot)
@@ -73,7 +73,7 @@ class NotificationService:
         from repibot_core.db.models import User
 
         user = await self._session.get(User, user_id)
-        if user is None:  # the order FK is cascade-protected; defensive for historical data
+        if user is None:  # внешний ключ заказа это исключает; защита от старых данных
             return 0
         channels: list[tuple[str, str, str]] = []
         if user.telegram_id is not None:
@@ -107,11 +107,10 @@ class NotificationService:
 
 
 class AutoRenewalService:
-    """Reconciles durable renewal cycles before it creates any later charge.
+    """Сводит записанные циклы продления прежде, чем начать следующее списание.
 
-    The state machine separates an unknown provider outcome from a confirmed
-    failure.  A transport timeout is therefore never permission to start
-    another renewal charge.
+    Конечный автомат различает неизвестный ответ провайдера и подтверждённый
+    отказ, поэтому таймаут транспорта не даёт права на второе списание.
     """
 
     def __init__(
@@ -127,13 +126,12 @@ class AutoRenewalService:
         self._attempts = PaymentAttemptRepository(session)
 
     async def run(self, *, now: datetime) -> int:
-        """Catch up cycles in order; an unresolved earlier request blocks later ones."""
+        """Догоняет циклы по порядку: неразрешённый ранний запрет держит поздние."""
         blocked: set[int] = set()
         calls = 0
-        # Provider success has already been durably recorded but the process may
-        # die before PaymentService finalizes it.  This worklist intentionally
-        # ignores the current subscription anchor: a later manual renewal does
-        # not erase the entitlement (or compensation) path for a paid charge.
+        # Успех провайдера уже записан, но процесс мог умереть до финализации.
+        # Этот список намеренно не смотрит на текущую дату окончания подписки:
+        # более поздняя ручная оплата не отменяет права на уже списанные деньги.
         for attempt_id in await self._successful_unfulfilled_attempts():
             await self._finalize(attempt_id)
         for subscription_id, anchor, number in await self._pending_cycles():
@@ -313,8 +311,9 @@ class AutoRenewalService:
                 plan=plan,
                 purpose=OrderPurpose.renew,
                 client_key=cycle_key,
-                # A provider response can be delayed.  The local order must outlive
-                # the retry window so a confirmed charge always has a fulfillment path.
+                # Ответ провайдера бывает медленным. Местный заказ должен пережить
+                # окно повторов, иначе у подтверждённого списания не останется
+                # пути к выдаче доступа.
                 expires_at=now + timedelta(days=7),
             )
             attempt = await self._attempts.get_or_create(
@@ -358,8 +357,8 @@ class AutoRenewalService:
                     return 0, "skip"
                 await self._mark_request_started(attempt_id)
             try:
-                # A replay uses the same provider key.  YooKassa therefore resolves
-                # the original request instead of creating a second payment.
+                # Повтор идёт с тем же ключом идемпотентности, поэтому YooKassa
+                # вернёт исходный платёж, а не создаст второй.
                 payment = await self._yookassa.create_payment(
                     idempotence_key=provider_key,
                     amount_rub=await self._order_amount(order_id),

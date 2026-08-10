@@ -45,11 +45,11 @@ function isValidAdminAssertion(assertion: string | undefined, secret: string): b
 }
 
 /**
- * Fast, fail-closed presentation gate for the sensitive payments page.
+ * Быстрый гейт показа платёжной админки, закрытый по умолчанию.
  *
- * `ADMIN_ASSERTION_SECRET` is deliberately not a NEXT_PUBLIC variable, and
- * this cookie never reaches `/api`.  The backend's `require_role(admin)`
- * dependency remains the authority for every mutation.
+ * `ADMIN_ASSERTION_SECRET` намеренно не NEXT_PUBLIC, и эта cookie никогда
+ * не доходит до `/api`. Право на любое изменение по-прежнему выдаёт
+ * `require_role(admin)` на бэкенде.
  */
 export function proxy(request: NextRequest) {
   const secret = process.env.ADMIN_ASSERTION_SECRET

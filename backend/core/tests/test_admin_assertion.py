@@ -1,4 +1,4 @@
-"""Short-lived signed assertions used only to gate the admin web surface."""
+"""Короткие подписанные утверждения только для гейта админских страниц."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _base64url(value: bytes) -> str:
 
 
 def test_admin_assertion_is_an_hmac_signed_expiring_admin_claim() -> None:
-    """Changing its role, expiry, or payload bytes must invalidate the HMAC."""
+    """Правка роли, срока или байтов payload обязана ломать подпись."""
     expires_at = datetime(2030, 1, 2, 3, 4, 5, tzinfo=UTC)
 
     assertion = create_admin_assertion(SECRET, expires_at=expires_at)

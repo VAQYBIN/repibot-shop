@@ -1,4 +1,4 @@
-"""Deterministic YooKassa substitute used only by the isolated E2E compose stack."""
+"""Детерминированная замена YooKassa только для изолированного стенда E2E."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPa
 
 
 class FakeYooKassa:
-    """In-memory provider truth with a deliberate callback-versus-poll seam."""
+    """Состояние провайдера в памяти со швом для гонки webhook и опроса."""
 
     def __init__(self) -> None:
         self._payments: dict[str, YooKassaPayment] = {}
@@ -38,7 +38,7 @@ class FakeYooKassa:
         save_payment_method: bool,
         payment_method_id: str | None = None,
     ) -> YooKassaPayment:
-        """Mirror YooKassa idempotence and return only normalized provider fields."""
+        """Повторяет идемпотентность YooKassa и отдаёт только разобранные поля."""
         del description, save_payment_method
         if idempotence_key in self._keys:
             return self._payments[self._keys[idempotence_key]]
@@ -97,7 +97,7 @@ def _payment_json(payment: YooKassaPayment) -> dict[str, object]:
 
 
 def create_yookassa_app() -> Starlette:
-    """Create the fake HTTP boundary; compose does not publish it beyond loopback."""
+    """Собирает HTTP-границу заглушки; compose не выпускает её за loopback."""
     fake = FakeYooKassa()
 
     async def create(request: Request) -> Response:
@@ -127,9 +127,9 @@ def create_yookassa_app() -> Starlette:
                     else None
                 ),
             )
-            # A provider replay returns the original commercial snapshot.  A
-            # request can choose a non-RUB fake payment on first create, but
-            # its same-key replay must never rewrite that stored payment.
+            # Повтор у провайдера возвращает исходный снимок. Первый запрос
+            # вправе создать платёж не в рублях, но повтор с тем же ключом
+            # не должен переписать уже сохранённый платёж.
             if not is_replay and currency != payment.currency:
                 payment = replace(payment, currency=currency)
                 fake._payments[payment.id] = payment

@@ -88,7 +88,7 @@ def _services(
 
 
 def _set_browser_session_cookies(response: Response, issued: IssuedSession) -> None:
-    """Sets UI-facing cookies from the same backend role truth as the session."""
+    """Ставит cookie для интерфейса по той же роли, что выдала сессию."""
     if issued.refresh_token is None or issued.refresh_expires_at is None:
         return
 

@@ -270,7 +270,7 @@ async def mark_order_refunded(
     context: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
     ip: Annotated[str | None, Depends(client_ip)],
 ) -> None:
-    """Record a completed provider refund without changing any entitlement."""
+    """Фиксирует выполненный у провайдера возврат, не трогая выданный доступ."""
     try:
         if session.in_transaction():
             await session.commit()
@@ -309,7 +309,7 @@ async def compensate_order(
     context: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
     ip: Annotated[str | None, Depends(client_ip)],
 ) -> None:
-    """Apply exactly one explicitly named, idempotent local correction."""
+    """Применяет ровно одну названную и идемпотентную местную коррекцию."""
     try:
         if session.in_transaction():
             await session.commit()
@@ -399,7 +399,7 @@ async def _revoke_days(
     actor_id: int,
     comment: str,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    """Subtract days locally, append an event, and queue panel reconciliation."""
+    """Снимает дни, пишет событие и ставит примирение с панелью в очередь."""
     subscriptions = SubscriptionRepository(session)
     await subscriptions.lock_user_for_entitlement(user_id)
     subscription = await subscriptions.get_for_user_for_update(user_id)

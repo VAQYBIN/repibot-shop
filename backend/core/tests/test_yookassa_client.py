@@ -1,4 +1,4 @@
-"""YooKassa transport sends an immutable commercial snapshot to the provider."""
+"""Транспорт YooKassa отправляет провайдеру неизменяемый снимок заказа."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from repibot_core.services.payments import PaymentService
 
 
 async def test_create_payment_uses_basic_auth_idempotence_key_and_snapped_amount() -> None:
-    """A changed key or a float amount could charge twice or for a different sum."""
+    """Другой ключ или сумма во float списали бы дважды или не столько."""
     seen: dict[str, object] = {}
 
     async def handle(request: httpx.Request) -> httpx.Response:
@@ -61,7 +61,7 @@ async def test_create_payment_uses_basic_auth_idempotence_key_and_snapped_amount
 
 
 async def test_get_payment_parses_provider_truth_without_webhook_fields() -> None:
-    """Webhook data must never be able to turn an unverified payment into success."""
+    """Данные webhook не превращают непроверенный платёж в успешный."""
 
     async def handle(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v3/payments/payment-1"
@@ -92,7 +92,7 @@ async def test_get_payment_parses_provider_truth_without_webhook_fields() -> Non
 
 
 async def test_create_payment_omits_method_saving_when_not_requested() -> None:
-    """Sending a false flag can override YooKassa defaults for a later renewal flow."""
+    """Ложный флаг переопределил бы поведение YooKassa для будущего продления."""
     seen: dict[str, object] = {}
 
     async def handle(request: httpx.Request) -> httpx.Response:
@@ -129,7 +129,7 @@ async def test_create_payment_omits_method_saving_when_not_requested() -> None:
 
 
 async def test_mismatched_provider_response_id_is_rejected_before_database_access() -> None:
-    """Looking up by a substituted response id could mutate another attempt."""
+    """Поиск по подменённому id из ответа изменил бы чужую попытку."""
 
     class FailingSession:
         def begin(self) -> object:

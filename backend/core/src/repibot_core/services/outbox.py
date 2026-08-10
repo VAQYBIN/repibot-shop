@@ -97,7 +97,7 @@ class OutboxDispatcher:
 async def _mark_delivery(
     session: AsyncSession, payload: dict[str, Any], *, status: str, error: str | None
 ) -> None:
-    """Reflect an outbox terminal result in the independently queryable delivery row."""
+    """Переносит итог разбора очереди в строку доставки, которую можно опросить."""
     delivery_id = payload.get("delivery_id")
     if type(delivery_id) is not int:
         return

@@ -1,4 +1,4 @@
-"""Recurring YooKassa renewal attempts keep one stable cycle per expiry."""
+"""Автопродление YooKassa держит ровно один цикл на дату окончания."""
 
 from __future__ import annotations
 
@@ -184,13 +184,13 @@ async def _subscription(session: AsyncSession) -> tuple[Subscription, datetime]:
 async def test_final_failed_attempt_disables_auto_renew_when_setting_enabled(
     db_session: AsyncSession,
 ) -> None:
-    """Changing final-attempt handling or its unique cycle key must fail this test."""
+    """Правка последней попытки или ключа цикла обязана уронить этот тест."""
     subscription, anchor = await _subscription(db_session)
     renewals = AutoRenewalService(db_session, FailingYooKassa(), get_settings())
 
     calls = []
-    # The second and third attempts are 6h and 12h after the preceding
-    # attempt, equivalently -18h and -6h relative to expiry.
+    # Вторая и третья попытки идут через 6 и 12 часов после предыдущей,
+    # то есть за 18 и за 6 часов до срока.
     for offset in (-24, -18, -6):
         calls.append(await renewals.run(now=anchor + timedelta(hours=offset)))
     await db_session.refresh(subscription)
@@ -213,12 +213,12 @@ async def test_final_failed_attempt_disables_auto_renew_when_setting_enabled(
     )
     assert calls == [1, 1, 1]
     assert subscription.auto_renew_enabled is False
-    assert len(attempts) == 4  # one saved method + one deterministic attempt per configured offset
+    assert len(attempts) == 4  # один сохранённый способ и по одной попытке на каждое смещение
     assert len(failures) == 3
 
 
 async def test_saved_method_absence_skips_auto_renewal(db_session: AsyncSession) -> None:
-    """A missing method must prevent a provider request, not create a redirect payment."""
+    """Без сохранённой карты запроса к провайдеру быть не должно вовсе."""
     _, anchor = await _subscription(db_session)
     saved = await db_session.scalar(
         select(PaymentAttempt).where(PaymentAttempt.provider_key == "saved-method-key")
@@ -237,7 +237,7 @@ async def test_saved_method_absence_skips_auto_renewal(db_session: AsyncSession)
 
 
 async def test_manual_renewal_makes_old_cycle_a_noop(db_session: AsyncSession) -> None:
-    """Using an old expiry anchor after a manual renewal would charge the user twice."""
+    """Старая дата окончания после ручного продления списала бы деньги дважды."""
     subscription, anchor = await _subscription(db_session)
     subscription.expires_at = anchor + timedelta(days=30)
     await db_session.commit()
@@ -254,7 +254,7 @@ async def test_manual_renewal_makes_old_cycle_a_noop(db_session: AsyncSession) -
 async def test_timeout_replays_same_durable_cycle_without_creating_second_charge(
     db_session: AsyncSession,
 ) -> None:
-    """Timeout after request start must be recovered with the original idempotence key."""
+    """Таймаут после начала запроса добирается тем же ключом идемпотентности."""
     _, anchor = await _subscription(db_session)
     provider = ScriptedYooKassa(
         [TimeoutError("lost response"), _payment("recovered", YooKassaPaymentStatus.succeeded)]
@@ -276,7 +276,7 @@ async def test_timeout_replays_same_durable_cycle_without_creating_second_charge
 async def test_success_after_manual_renewal_is_recorded_and_fulfilled(
     db_session: AsyncSession,
 ) -> None:
-    """A charged stale response must never be silently dropped."""
+    """Списание по устаревшему циклу нельзя молча выбросить."""
     subscription, anchor = await _subscription(db_session)
 
     class ManualDuringRequest(ScriptedYooKassa):
@@ -319,7 +319,7 @@ async def test_success_after_manual_renewal_is_recorded_and_fulfilled(
 async def test_stale_confirmed_failure_does_not_disable_or_notify_new_cycle(
     db_session: AsyncSession,
 ) -> None:
-    """A declined old request is not a reason to turn off auto-renew after manual renewal."""
+    """Отказ старого запроса — не повод выключать автопродление после ручной оплаты."""
     subscription, anchor = await _subscription(db_session)
 
     class ManualDuringRequest(ScriptedYooKassa):
@@ -360,7 +360,7 @@ async def test_stale_confirmed_failure_does_not_disable_or_notify_new_cycle(
 async def test_fresh_run_finalizes_recorded_success_after_crash_before_finalizer(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A crash after persisting provider success must not strand a charged renewal."""
+    """Падение после записи успеха не должно бросить оплаченное продление."""
     subscription, anchor = await _subscription(db_session)
     provider = ScriptedYooKassa([_payment("crash-success", YooKassaPaymentStatus.succeeded)])
     interrupted = AutoRenewalService(db_session, provider, get_settings())
@@ -385,7 +385,7 @@ async def test_fresh_run_finalizes_recorded_success_after_crash_before_finalizer
 async def test_fresh_run_fulfills_recorded_success_after_local_ttl_expired(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Confirmed YooKassa truth must win over an expired local renewal order."""
+    """Подтверждённый ответ YooKassa важнее истёкшего местного заказа."""
     subscription, anchor = await _subscription(db_session)
     provider = ScriptedYooKassa([_payment("ttl-success", YooKassaPaymentStatus.succeeded)])
     interrupted = AutoRenewalService(db_session, provider, get_settings())
@@ -416,7 +416,7 @@ async def test_fresh_run_fulfills_recorded_success_after_local_ttl_expired(
 async def test_expired_subscription_runs_second_retry_and_overdue_run_catches_up_in_order(
     db_session: AsyncSession,
 ) -> None:
-    """Expiry cron must not suppress +6/+12 retries or collapse missed failure events."""
+    """Истечение подписки не отменяет поздние попытки и их уведомления."""
     subscription, anchor = await _subscription(db_session)
     provider = ScriptedYooKassa(
         [

@@ -83,13 +83,13 @@ class Settings(BaseSettings):
     referral_reward_mode: Literal["first", "every"] = "first"
     yookassa_order_ttl_minutes: int = Field(default=30, gt=0)
     stars_order_ttl_minutes: int = Field(default=15, gt=0)
-    # -24h before expiry, then 6h and 12h after the preceding retry.
+    # За 24 часа до срока, затем через 6 и 12 часов после предыдущей попытки.
     auto_renew_offsets_hours: tuple[int, int, int] = (-24, -18, -6)
     auto_renew_disable_after_final_failure: bool = True
 
     jwt_secret: SecretStr
-    # Shared only with the server-side Next runtime.  The cookie it signs is a
-    # presentation gate for /admin, never a credential accepted by the API.
+    # Общий только с серверной частью Next. Подписанная им cookie — гейт показа
+    # /admin, а не пропуск, который принимает API.
     admin_assertion_secret: SecretStr
     admin_assertion_ttl_seconds: int = Field(default=300, ge=60, le=900)
     encryption_key: SecretStr
@@ -174,9 +174,9 @@ class Settings(BaseSettings):
     @classmethod
     def _yookassa_api_base_url_is_https(cls, value: str) -> str:
         normalized = value.rstrip("/")
-        # Cleartext is never a deployment option.  The sole exception is an
-        # in-network test double whose compose service name cannot resolve on
-        # a public network and whose port is not published except to loopback.
+        # Открытый HTTP развёртыванию недоступен. Единственное исключение —
+        # заглушка внутри compose: её имя не разрешается за пределами сети, а
+        # порт наружу не публикуется.
         if normalized == "http://yookassa-fake:3000/v3":
             return normalized
         if not normalized.startswith("https://"):

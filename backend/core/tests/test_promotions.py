@@ -67,7 +67,7 @@ async def _pending_order(session: AsyncSession, user: User, plan: Plan, key: str
 async def test_max_one_promo_use_is_reserved_by_only_one_concurrent_order(
     db_session: AsyncSession, engine: AsyncEngine
 ) -> None:
-    """Dropping the promo row lock must not let two orders spend its last use."""
+    """Без блокировки строки два заказа потратили бы последнее применение."""
     plan = await _plan(db_session)
     first_user, second_user = (
         await _user(db_session, "promo001"),
@@ -88,7 +88,7 @@ async def test_max_one_promo_use_is_reserved_by_only_one_concurrent_order(
                 await PromotionService(session).reserve(
                     order=order, user_id=user_id, code=promo.code
                 )
-            except Exception as error:  # service error is the observable unavailable result
+            except Exception as error:  # ошибка сервиса и есть наблюдаемый признак недоступности
                 await session.rollback()
                 return getattr(error, "code", "unexpected")
             await session.commit()
@@ -102,7 +102,7 @@ async def test_max_one_promo_use_is_reserved_by_only_one_concurrent_order(
 async def test_percent_rounding_bonus_days_and_per_user_limit_are_saved_on_reservation(
     db_session: AsyncSession,
 ) -> None:
-    """Changing rounding, bonus, or user limit must change an order reservation outcome."""
+    """Правка округления, бонуса или лимита обязана менять исход резервирования."""
     plan = await _plan(db_session)
     user = await _user(db_session, "promo003")
     promo = await PromotionService(db_session).create(
@@ -122,7 +122,7 @@ async def test_percent_rounding_bonus_days_and_per_user_limit_are_saved_on_reser
 
 
 async def test_only_pending_expired_reservation_is_released(db_session: AsyncSession) -> None:
-    """Deleting consumed reservations on expiry would reopen already-paid promo uses."""
+    """Удаление погашенных резервов вернуло бы уже оплаченные применения."""
     plan = await _plan(db_session)
     user = await _user(db_session, "promo004")
     promo = await PromotionService(db_session).create(

@@ -1,4 +1,4 @@
-"""The E2E payment provider must preserve the commercial provider boundary."""
+"""Заглушка провайдера в E2E обязана сохранять границу настоящего."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from repibot_core.testing.yookassa import FakeYooKassa, create_yookassa_app
 
 
 async def test_fake_yookassa_creates_idempotently_and_exposes_provider_truth() -> None:
-    """A fake that changes the payment snapshot would hide amount/currency regressions."""
+    """Заглушка, меняющая снимок платежа, спрятала бы регресс суммы и валюты."""
     fake = FakeYooKassa()
 
     first = await fake.create_payment(
@@ -44,7 +44,7 @@ async def test_fake_yookassa_creates_idempotently_and_exposes_provider_truth() -
 
 
 async def test_fake_yookassa_can_hold_a_poll_while_a_webhook_changes_status() -> None:
-    """Without this interleaving, callback-versus-poll races never reach E2E."""
+    """Без такого чередования гонка webhook и опроса до E2E не доедет."""
     fake = FakeYooKassa()
     payment = await fake.create_payment(
         idempotence_key="race-key-9",
@@ -64,7 +64,7 @@ async def test_fake_yookassa_can_hold_a_poll_while_a_webhook_changes_status() ->
 
 
 async def test_fake_yookassa_keeps_recurring_payment_ids_distinct_for_one_method() -> None:
-    """A saved payment method identifies the instrument, never the provider payment."""
+    """Сохранённый способ оплаты называет инструмент, а не платёж."""
     fake = FakeYooKassa()
     first = await fake.create_payment(
         idempotence_key="renewal-24h",
@@ -90,7 +90,7 @@ async def test_fake_yookassa_keeps_recurring_payment_ids_distinct_for_one_method
 
 
 async def test_fake_yookassa_http_replay_keeps_the_original_commercial_snapshot() -> None:
-    """A changed-currency replay must not rewrite the payment the key already owns."""
+    """Повтор с другой валютой не переписывает платёж, уже занятый ключом."""
     app = create_yookassa_app()
     transport = httpx.ASGITransport(app=app)
     headers = {"Idempotence-Key": "immutable-replay-key"}

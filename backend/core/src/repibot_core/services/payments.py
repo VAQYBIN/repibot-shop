@@ -74,7 +74,7 @@ class CreatedOrder:
 
 @dataclass(frozen=True, slots=True)
 class CreatedStarsOrder:
-    """Pending Stars order and the opaque payload for its Telegram invoice."""
+    """Заказ Stars в ожидании и непрозрачный payload для инвойса Telegram."""
 
     order: Order
     invoice_payload: str | None
@@ -83,7 +83,7 @@ class CreatedStarsOrder:
 
 @dataclass(frozen=True, slots=True)
 class StarsInvoice:
-    """The server-controlled values sent to Telegram's SendInvoice method."""
+    """Значения для SendInvoice, которые определяет сервер, а не клиент."""
 
     title: str
     description: str
@@ -123,9 +123,9 @@ class PaymentService:
         отправить и провайдеру: ключ там привязан к пользователю, поэтому два
         разных покупателя с одинаковым UUID не разделят платёж.
         """
-        # SQLAlchemy opens a read-only transaction during API authentication.
-        # This service owns the following commercial transaction, so close the
-        # read-only one before beginning it.
+        # Проверка входа в API уже открыла транзакцию на чтение. Коммерческой
+        # транзакцией ниже владеет этот сервис, поэтому читающую нужно закрыть
+        # до её начала.
         if self._session.in_transaction():
             await self._session.commit()
         provider_key = self._provider_key(user_id, client_key)
@@ -189,7 +189,7 @@ class PaymentService:
                     if isinstance(value, str):
                         stored_confirmation_url = value
 
-        assert existing is not None  # transaction either created or found an order
+        assert existing is not None  # транзакция выше либо создала заказ, либо нашла его
         if existing.status is OrderStatus.expired or existing.expires_at <= datetime.now(UTC):
             raise ServiceError("заказ истёк", "order_expired")
         if existing.status is not OrderStatus.pending:
@@ -232,7 +232,7 @@ class PaymentService:
         client_key: str,
         promo_code: str | None,
     ) -> CreatedStarsOrder:
-        """Creates the server-side Stars invoice state without charging in the web app."""
+        """Готовит серверное состояние инвойса Stars; браузер денег не трогает."""
         if self._session.in_transaction():
             await self._session.commit()
         existing: Order | None = None
@@ -281,7 +281,8 @@ class PaymentService:
                     )
                 )
             if attempt is not None and attempt.handoff_token is None:
-                # Migration leaves historical attempts nullable; first API retry binds one safely.
+                # Миграция оставила старые попытки без токена; первый же повтор
+                # запроса безопасно выдаёт его.
                 attempt.handoff_token = token_urlsafe(32)
 
         assert existing is not None
@@ -300,7 +301,7 @@ class PaymentService:
         )
 
     async def next_stars_invoice(self, user_id: int, handoff_reference: str) -> StarsInvoice | None:
-        """Resolves the owner's requested opaque handoff without exposing invoice data to web."""
+        """Разбирает непрозрачную передачу владельца, не раскрывая инвойс браузеру."""
         if self._session.in_transaction():
             await self._session.commit()
         async with self._session.begin():
@@ -339,7 +340,7 @@ class PaymentService:
         currency: str,
         pre_checkout_id: str,
     ) -> int | None:
-        """Checks the pre-checkout query before Telegram is allowed to charge Stars."""
+        """Проверяет pre-checkout до того, как Telegram спишет звёзды."""
         return await self._validated_stars_attempt(
             invoice_payload=invoice_payload,
             user_id=user_id,
@@ -359,7 +360,7 @@ class PaymentService:
         currency: str,
         telegram_payment_charge_id: str,
     ) -> int | None:
-        """Records Telegram's successful-payment update for the shared finalizer."""
+        """Записывает successful_payment Telegram для общего финализатора."""
         return await self._validated_stars_attempt(
             invoice_payload=invoice_payload,
             user_id=user_id,
@@ -394,7 +395,7 @@ class PaymentService:
             await self._session.commit()
         async with self._session.begin():
             durable_id = telegram_payment_charge_id if mark_succeeded else pre_checkout_id
-            assert durable_id is not None  # narrowed by the boundary validation above
+            assert durable_id is not None  # сужено проверкой на границе выше
             await self._session.execute(
                 select(func.pg_advisory_xact_lock(self._stars_identity_lock_key(durable_id)))
             )
@@ -463,9 +464,9 @@ class PaymentService:
                 "telegram_payment_charge_id": telegram_payment_charge_id,
             }
             if attempt.status is PaymentStatus.pending:
-                # Telegram sends successful_payment only after pre-checkout.  A
-                # missing durable claim is therefore not enough evidence to
-                # settle an invoice (and would re-open the multi-use race).
+                # successful_payment приходит только после pre-checkout, поэтому
+                # попытка без сохранённой заявки — не доказательство оплаты:
+                # принять её значит снова сделать инвойс многоразовым.
                 if attempt.stars_pre_checkout_id is None:
                     return None
                 attempt.provider_payment_id = telegram_payment_charge_id
@@ -507,12 +508,12 @@ class PaymentService:
 
     @staticmethod
     def _provider_key(user_id: int, client_key: str) -> str:
-        """Stable, provider-safe representation of the user-scoped client key."""
+        """Устойчивое представление клиентского ключа, пригодное для провайдера."""
         return sha256(f"{user_id}:{client_key}".encode()).hexdigest()
 
     @staticmethod
     def _order_lock_key(user_id: int, client_key: str) -> int:
-        """Transaction lock serialising the otherwise-unlockable absent order row."""
+        """Блокировка транзакции: ещё не созданную строку заказа запереть нечем."""
         digest = sha256(f"order:{user_id}:{client_key}".encode()).digest()
         return int.from_bytes(digest[:8], byteorder="big", signed=True)
 
@@ -552,7 +553,7 @@ class PaymentService:
             if attempt_id is not None:
                 attempt = await self._attempts.get_for_update(attempt_id)
             else:
-                assert verified_yookassa_payment is not None  # for static narrowing
+                assert verified_yookassa_payment is not None  # для статического сужения типа
                 attempt = (
                     await self._session.execute(
                         select(PaymentAttempt)
@@ -676,9 +677,9 @@ class PaymentService:
             if reservation is not None:
                 await PromotionService(self._session).consume(order_id=order.id)
 
-            # The reward service accepts only fulfilled sources. Setting this
-            # before its call remains atomic: an exception rolls the transition
-            # and every entitlement back with the finalizer transaction.
+            # Награда начисляется только с оплаченного заказа, поэтому статус
+            # ставится до её вызова. Атомарность не страдает: исключение
+            # откатит и переход, и все начисления вместе с транзакцией.
             order.status = OrderStatus.fulfilled
             order.fulfilled_at = datetime.now(UTC)
             await self._stage_referral_bonus(order=order)
@@ -754,7 +755,7 @@ class PaymentService:
 
     @staticmethod
     def _is_recorded_yookassa_success(order: Order, attempt: PaymentAttempt) -> bool:
-        """Only an exact, already persisted provider truth may outlive local order TTL."""
+        """Пережить местный срок заказа вправе только записанный ответ провайдера."""
         payload = attempt.verified_payload or {}
         if (
             attempt.provider is not PaymentProvider.yookassa
@@ -829,9 +830,9 @@ class PaymentService:
             return order.duration_days_snapshot
         current_price_rub = subscription.entitlement_price_rub
         current_duration_days = subscription.entitlement_duration_days
-        # Migrations that introduced entitlement snapshots left legacy rows at
-        # 0/0.  Fall back only for that shape: a positive-duration zero-price
-        # entitlement is an intentional free grant and has no paid remainder.
+        # Миграция снимков права оставила старые строки с нулями. Запасной путь
+        # только для них: право с ненулевым сроком и нулевой ценой — это
+        # намеренно бесплатная выдача, оплаченного остатка у неё нет.
         if current_duration_days <= 0:
             previous_plan = await self._plans.get(subscription.plan_id)
             if previous_plan is None:  # pragma: no cover — plans are retained
@@ -851,10 +852,10 @@ class PaymentService:
             now=now,
             current_price_rub=current_price_rub,
             current_duration_days=current_duration_days,
-            # The preceding, already held value is exchanged into the paid
-            # purchase itself.  Bonus days are then appended, while the final
-            # entitlement snapshot below records the actual due/total grant
-            # for every *later* switch.
+            # Прежнее удерживаемое право обменивается на саму оплаченную
+            # покупку, бонусные дни добавляются следом. Снимок права ниже
+            # запоминает фактически уплаченное и всю выданную длительность —
+            # для будущих смен тарифа.
             new_price_rub=order.amount_due_rub,
             new_duration_days=order.duration_days_snapshot,
         )
@@ -873,5 +874,5 @@ class PaymentService:
         return SubscriptionEventType.purchase
 
     async def _stage_referral_bonus(self, *, order: Order) -> None:
-        """Compatibility seam for recovery-path tests; rules live in ReferralService."""
+        """Шов для тестов восстановления; сами правила живут в ReferralService."""
         await ReferralService(self._session, self._settings).credit_for_order(order.id)

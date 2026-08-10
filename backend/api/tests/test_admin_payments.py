@@ -1,4 +1,4 @@
-"""Administrative refund marks and explicit compensations."""
+"""Админская отметка возврата и явные компенсации."""
 
 from __future__ import annotations
 
@@ -136,7 +136,7 @@ async def test_admin_assertion_cookie_never_authorizes_payment_mutations(
     plain_user_id: int,
     engine: AsyncEngine,
 ) -> None:
-    """The UI-routing assertion is ignored even if a caller injects it into an API request."""
+    """Cookie для показа админки игнорируется, даже если её подсунуть в запрос API."""
     order = await _fulfilled_order(engine, user_id=plain_user_id, plan_id=month_plan)
 
     response = await api_client.post(

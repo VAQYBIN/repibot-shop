@@ -1,4 +1,4 @@
-"""The schema exporter must not depend on deployment secrets."""
+"""Выгрузка схемы не должна зависеть от секретов развёртывания."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from tools import export_openapi
 def test_export_openapi_supplies_required_settings_without_deployment_environment(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Removing the assertion placeholder must make this real export fail."""
+    """Без подставного секрета настоящая выгрузка обязана упасть."""
     for field in Settings.model_fields:
         monkeypatch.delenv(field.upper(), raising=False)
     monkeypatch.setattr(export_openapi, "ROOT", tmp_path)

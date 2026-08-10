@@ -148,12 +148,12 @@ export function grantE2eAdmin(email: string): void {
   if (!/^\d+$/.test(userId)) {
     throw new Error('не удалось найти E2E-пользователя для обновления роли')
   }
-  // The browser registered as an ordinary user, so its refresh must not reuse
-  // that cached principal after this deliberately isolated role update.
+  // Браузер зарегистрировался обычным пользователем, и после этой намеренно
+  // изолированной смены роли refresh не вправе переиспользовать старый кэш.
   runComposeCommand(['exec', '--no-TTY', 'valkey', 'valkey-cli', 'DEL', `principal:${userId}`])
 }
 
-/** Seed an expired code through the same Postgres schema used by checkout. */
+/** Кладёт истёкший промокод в ту же схему Postgres, что и оформление. */
 export function seedExpiredPromo(code: string): void {
   assertToken(code, 'promo code')
   runSql(
@@ -174,7 +174,7 @@ export function seedExpiredPromo(code: string): void {
   )
 }
 
-/** Insert a paid gift order plus the voucher consumed by the real redemption route. */
+/** Кладёт оплаченный подарочный заказ и ваучер для настоящего погашения. */
 export function seedGiftVoucher(email: string, code: string): void {
   assertToken(code, 'gift code')
   runSql(
@@ -201,7 +201,7 @@ export function seedGiftVoucher(email: string, code: string): void {
   )
 }
 
-/** Link a registered browser user to a deterministic, verified referrer. */
+/** Привязывает зарегистрированного пользователя к заранее известному рефереру. */
 export function seedReferrerFor(refereeEmail: string, referrerEmail: string): void {
   runSql(
     `INSERT INTO users (email, email_verified_at, referral_code)
@@ -219,8 +219,8 @@ export function seedReferrerFor(refereeEmail: string, referrerEmail: string): vo
 }
 
 /**
- * Create two already verified payments. Finalization runs in the API image
- * with a selected referral setting, not by changing the running web process.
+ * Создаёт два уже проверенных платежа. Финализация идёт в образе API
+ * с выбранным реферальным режимом, а не правкой работающего веб-процесса.
  */
 export function seedReferralOrders(email: string, marker: string): void {
   assertToken(marker, 'referral marker')
@@ -266,7 +266,7 @@ export function seedReferralOrders(email: string, marker: string): void {
   )
 }
 
-/** Finalize the two seeded attempts inside the isolated API image. */
+/** Финализирует обе посеянные попытки внутри изолированного образа API. */
 export function runReferralFinalization(email: string, mode: 'first' | 'every'): string {
   return runApiPython(
     `import asyncio
@@ -318,7 +318,7 @@ asyncio.run(main())`,
   )
 }
 
-/** Seed a saved manual method and a fixed future expiry for scheduler E2E. */
+/** Кладёт сохранённый способ оплаты и фиксированный срок для планировщика. */
 export function seedAutoRenewalSubscription(email: string, methodId: string, marker: string): void {
   assertToken(methodId, 'saved payment method')
   assertToken(marker, 'renewal marker')
@@ -385,7 +385,7 @@ export function seedAutoRenewalSubscription(email: string, methodId: string, mar
   )
 }
 
-/** Run production AutoRenewalService at a deterministic UTC instant. */
+/** Запускает боевой AutoRenewalService в заданный момент UTC. */
 export function runAutoRenewalAt(now: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$/.test(now)) {
     throw new Error('E2E auto-renew time must be an explicit UTC ISO timestamp')
@@ -422,7 +422,7 @@ asyncio.run(main())`,
   )
 }
 
-/** Repeat a concrete event in one transaction; per-channel rows must stay unique. */
+/** Повторяет событие в одной транзакции: строки по каналам обязаны остаться уникальными. */
 export function runNotificationDedup(orderId: number, kind: string): string {
   if (!Number.isSafeInteger(orderId) || orderId <= 0) {
     throw new Error('E2E notification order id must be a positive integer')
@@ -478,7 +478,7 @@ function runSql(sql: string, variables: Record<string, string> = {}): void {
   runComposeCommand(psqlCommand(variables), sql)
 }
 
-/** Run a scalar or pipe-delimited query only in the disposable E2E database. */
+/** Выполняет запрос только в одноразовой базе E2E. */
 export function querySql(sql: string, variables: Record<string, string> = {}): string {
   return runComposeOutput(
     [...psqlCommand(variables), '--tuples-only', '--no-align', '--field-separator=|'],

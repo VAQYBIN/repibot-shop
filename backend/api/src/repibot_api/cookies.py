@@ -19,9 +19,9 @@ OIDC_COOKIE_PATH = "/api/auth/telegram"
 # одной попытки входа, и переживать друг друга им незачем.
 OIDC_COOKIE_MAX_AGE = 600
 
-# This is routing evidence for Next.js only, not an API credential.  Its path
-# prevents it travelling with normal API requests and keeps its visibility to
-# the /admin server gate.
+# Это признак для маршрутизации в Next.js, а не пропуск в API. Путь не даёт
+# ей ездить с обычными запросами и оставляет её видимой только серверному
+# гейту /admin.
 ADMIN_ASSERTION_COOKIE = "repibot_admin_assertion"
 ADMIN_ASSERTION_COOKIE_PATH = "/admin"
 

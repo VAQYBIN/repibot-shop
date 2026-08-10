@@ -47,7 +47,7 @@ function handlers(extra: Record<string, unknown> = {}) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в кабинете', () => {
-  it('waits for subscription before creating a card order and then preserves elected auto-renew', async () => {
+  it('ждёт подписку перед заказом картой и сохраняет выбранное автопродление', async () => {
     let resolveSubscription: ((value: unknown) => void) | undefined
     const delayed = new Promise((resolve) => {
       resolveSubscription = resolve
@@ -93,7 +93,7 @@ describe('оплата в кабинете', () => {
     expect(posts).toBe(1)
     expect(body).toMatchObject({ save_payment_method: true })
   })
-  it('asks YooKassa to save a payment method when auto-renew is already elected', async () => {
+  it('просит YooKassa сохранить карту, когда автопродление уже включено', async () => {
     let body: unknown
     renderWithProviders(<PaymentsPage />, {
       handlers: handlers({
@@ -127,7 +127,7 @@ describe('оплата в кабинете', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
     expect(body).toMatchObject({ provider: 'yookassa', save_payment_method: true })
   })
-  it('shows a mapped rejected promo error returned by the order endpoint', async () => {
+  it('показывает переведённую ошибку отклонённого промокода', async () => {
     renderWithProviders(<PaymentsPage />, {
       handlers: handlers({
         '/api/me/orders': (request: Request) =>
@@ -140,7 +140,7 @@ describe('оплата в кабинете', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Оплатить картой' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Промокод недоступен')
   })
-  it('shows loading, real fetch error and retries payment data', async () => {
+  it('показывает загрузку, настоящую ошибку запроса и повторяет его', async () => {
     let attempts = 0
     renderWithProviders(<PaymentsPage />, {
       handlers: handlers({
@@ -157,13 +157,13 @@ describe('оплата в кабинете', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Повторить' }))
     expect(await screen.findByRole('button', { name: 'Оплатить картой' })).toBeVisible()
   })
-  it('uses profile English copy and keeps payment actions available at narrow viewport', async () => {
+  it('берёт английские тексты профиля и оставляет действия доступными на узком экране', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
     renderWithProviders(<PaymentsPage />, { handlers: handlers({ '/api/me': { language: 'en' } }) })
     expect(await screen.findByRole('heading', { name: 'Payments and gifts' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Pay by card' })).toBeVisible()
   })
-  it('sends promo, confirmed gift, voucher and auto-renew intents to the server and renders order states', async () => {
+  it('отправляет промокод, подтверждённый подарок, ваучер и автопродление и показывает состояния заказов', async () => {
     const requests: Request[] = []
     const order = (status: string, id: number) => ({
       id,
@@ -231,7 +231,7 @@ describe('оплата в кабинете', () => {
       ]),
     )
   })
-  it('opens the specific Stars handoff returned by the server', async () => {
+  it('открывает именно ту передачу в Stars, которую вернул сервер', async () => {
     const open = vi.fn()
     vi.stubGlobal('open', open)
     renderWithProviders(<PaymentsPage />, {
@@ -266,7 +266,7 @@ describe('оплата в кабинете', () => {
       'noopener,noreferrer',
     )
   })
-  it('opens a confirmed YooKassa URL only after server creates an order', async () => {
+  it('открывает ссылку YooKassa только после того, как сервер создал заказ', async () => {
     const open = vi.fn()
     vi.stubGlobal('open', open)
     renderWithProviders(<PaymentsPage />, {

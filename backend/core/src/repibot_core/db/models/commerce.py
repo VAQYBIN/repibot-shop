@@ -141,9 +141,9 @@ class PaymentAttempt(TimestampMixin, Base):
     provider_key: Mapped[str] = mapped_column(String(128))
     handoff_token: Mapped[str | None] = mapped_column(String(128), unique=True)
     provider_payment_id: Mapped[str | None] = mapped_column(String(255))
-    # Telegram first sends a pre-checkout query and only later a charge ID.
-    # Persisting both makes an invoice single-use before the charge and makes
-    # duplicate successful-payment updates prove they describe that same charge.
+    # Telegram присылает сначала pre-checkout, и только потом идентификатор
+    # списания. Храня оба, мы делаем инвойс одноразовым ещё до списания, а от
+    # повторного successful_payment требуем доказать, что речь о том же списании.
     stars_pre_checkout_id: Mapped[str | None] = mapped_column(String(255))
     stars_authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     telegram_payment_charge_id: Mapped[str | None] = mapped_column(String(255))
@@ -164,8 +164,8 @@ class PromoReservation(Base):
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
     promo_code_id: Mapped[int] = mapped_column(ForeignKey("promo_codes.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    # Legacy consumed reservations intentionally retain NULL after migration 0009:
-    # their paid entitlement is already final. Every new pending reservation stores an int.
+    # Резервы, погашенные до миграции 0009, намеренно остаются с NULL: их право
+    # уже выдано и пересчёту не подлежит. Новый резерв всегда пишет число.
     bonus_days_snapshot: Mapped[int | None] = mapped_column(Integer)
     reserved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -1,4 +1,4 @@
-"""Make each Telegram Stars invoice authorization and charge durable.
+"""Делает авторизацию и списание по каждому инвойсу Stars долговечными.
 
 Revision ID: 0010
 Revises: 0009

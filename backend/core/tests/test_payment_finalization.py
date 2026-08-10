@@ -173,7 +173,7 @@ async def test_two_finalizers_credit_days_and_outbox_once(
 async def test_stars_success_can_be_recovered_after_recording_before_finalization(
     db_session: AsyncSession,
 ) -> None:
-    """A crash after Telegram proof must leave a retryable, not permanently stuck, order."""
+    """Падение после доказательства Telegram оставляет заказ повторяемым."""
     plan = await _plan(db_session, "stars-retry")
     user = await _user(db_session, "stars001")
     created = await PaymentService(db_session).create_stars_order(
@@ -218,7 +218,7 @@ async def test_stars_success_can_be_recovered_after_recording_before_finalizatio
 async def test_concurrent_stars_precheckouts_claim_one_invoice_and_one_charge(
     db_session: AsyncSession, engine: AsyncEngine
 ) -> None:
-    """Removing the durable pre-checkout claim would let Telegram charge one invoice twice."""
+    """Без сохранённой заявки pre-checkout один инвойс оплатили бы дважды."""
     plan = await _plan(db_session, "stars-single-use")
     user = await _user(db_session, "stars003")
     created = await PaymentService(db_session).create_stars_order(
@@ -286,7 +286,7 @@ async def test_concurrent_stars_precheckouts_claim_one_invoice_and_one_charge(
 async def test_late_yookassa_success_cannot_become_ttl_bypass_proof(
     db_session: AsyncSession,
 ) -> None:
-    """Recording a late callback before the TTL gate would wrongly grant entitlement."""
+    """Запись позднего ответа до проверки срока выдала бы доступ незаслуженно."""
     plan = await _plan(db_session, "yookassa-late-callback")
     user = await _user(db_session, "yooka001")
     order = await OrderRepository(db_session).create_pending(
@@ -369,7 +369,7 @@ async def test_manual_same_plan_renewal_adds_purchased_days(
 async def test_promo_bonus_is_snapshotted_and_applied_once_after_renewal(
     db_session: AsyncSession, engine: AsyncEngine
 ) -> None:
-    """Reading PromoCode at finalization would change paid bonus or grant it again on retry."""
+    """Чтение промокода при финализации изменило бы оплаченный бонус или выдало его снова."""
     plan = await _plan(db_session, "bonus-renewal")
     user = await _user(db_session, "bonus0001")
     factory = create_session_factory(engine)
@@ -404,7 +404,7 @@ async def test_promo_bonus_is_snapshotted_and_applied_once_after_renewal(
 async def test_promo_bonus_follows_converted_purchase_on_plan_switch(
     db_session: AsyncSession, engine: AsyncEngine
 ) -> None:
-    """Applying bonus before switch conversion would leave it on the old plan's value."""
+    """Бонус до пересчёта остатка остался бы в ценах старого тарифа."""
     old_plan = await _plan(db_session, "bonus-old", price_rub=Decimal("300.00"))
     new_plan = await _plan(db_session, "bonus-new", price_rub=Decimal("600.00"))
     user = await _user(db_session, "bonus0002")
@@ -506,7 +506,7 @@ async def test_paid_plan_switch_uses_saved_previous_entitlement_value(
 async def test_discounted_bonus_entitlement_uses_actual_paid_value_on_later_switch(
     db_session: AsyncSession, engine: AsyncEngine
 ) -> None:
-    """Changing the snapshot to list price/base days would over-credit a later switch."""
+    """Снимок по прайсу вместо уплаченного выдал бы лишние дни при смене тарифа."""
     paid_plan = await _plan(db_session, "discounted-bonus-old")
     new_plan = await _plan(db_session, "discounted-bonus-new")
     user = await _user(db_session, "discbonus01")
@@ -555,15 +555,15 @@ async def test_discounted_bonus_entitlement_uses_actual_paid_value_on_later_swit
     await db_session.refresh(subscription)
 
     remaining = subscription.expires_at - datetime.now(UTC)
-    # 30/60 of the paid 150 ₽ equals 7 whole days of the 300 ₽/30d new plan,
-    # then the new 30-day purchase is applied.
+    # 30 из 60 оплаченных дней за 150 ₽ — это 7 целых дней нового тарифа
+    # по 300 ₽ за 30 дней, поверх которых ложится сама покупка.
     assert timedelta(days=36) < remaining <= timedelta(days=37)
 
 
 async def test_legacy_zero_entitlement_snapshot_falls_back_without_dividing_by_zero(
     db_session: AsyncSession, engine: AsyncEngine
 ) -> None:
-    """Pre-snapshot subscriptions must retain a conservative switch path instead of crashing."""
+    """Подписка без снимка права меняет тариф осторожно, а не падает."""
     old_plan = await _plan(db_session, "legacy-zero-old")
     new_plan = await _plan(db_session, "legacy-zero-new", price_rub=Decimal("600.00"))
     user = await _user(db_session, "legacy-zero-user")
@@ -591,8 +591,8 @@ async def test_legacy_zero_entitlement_snapshot_falls_back_without_dividing_by_z
     )
     assert subscription is not None
     remaining = subscription.expires_at - datetime.now(UTC)
-    # Legacy values fall back to the old 300 ₽/30d plan: 20 days retain ten
-    # days of value on the 600 ₽/30d target, plus the newly paid 30 days.
+    # Запасной путь берёт старый тариф 300 ₽ за 30 дней: 20 дней стоят
+    # десяти дней тарифа по 600 ₽ за 30 дней, плюс оплаченные 30.
     assert timedelta(days=39) < remaining <= timedelta(days=40)
 
 

@@ -89,7 +89,7 @@ def render_email_change(language: str, *, link: str, to: str) -> EmailMessage:
 def render_payment_notification(
     language: str, *, link: str, to: str, kind: str, plan: str
 ) -> EmailMessage:
-    """Localized commercial outcome without placing order data in the subject."""
+    """Локализованный итог оплаты; данных заказа в теме письма нет."""
     prefix = "payment.succeeded" if kind == "payment_succeeded" else "payment.failed"
     text = translate(language, f"{prefix}.body", plan=plan)
     html = _LAYOUT.render(

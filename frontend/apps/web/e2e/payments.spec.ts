@@ -126,8 +126,8 @@ test('admin payments остаётся server-gated и рендерится во 
   const email = uniqueEmail('payment-admin')
   await registerAndSignIn(page, email)
   grantE2eAdmin(email)
-  // A reload loses the access token, invokes backend refresh, and therefore
-  // receives the signed /admin assertion only after the actual role update.
+  // Перезагрузка теряет access-токен и вызывает refresh, поэтому подписанное
+  // утверждение для /admin приходит только после настоящей смены роли.
   await page.reload()
   await expect(page).toHaveURL(/\/account/)
 

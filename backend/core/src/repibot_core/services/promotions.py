@@ -114,7 +114,7 @@ class PromotionService:
         return PromotionQuote(promo.id, promo.code, discount, promo.bonus_days)
 
     async def reserve(self, *, order: Order, user_id: int, code: str) -> PromotionQuote:
-        """Reserve a code for an already-snapshotted order (also useful to recovery paths)."""
+        """Резервирует код под уже созданный снимок заказа; нужен и путям восстановления."""
         if order.purpose not in (OrderPurpose.purchase, OrderPurpose.renew):
             raise ServiceError("промокод недоступен", "promo_unavailable")
         quote = await self.prepare(user_id=user_id, code=code, gross_rub=order.gross_rub)

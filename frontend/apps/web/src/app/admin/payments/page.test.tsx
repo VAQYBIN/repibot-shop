@@ -8,7 +8,7 @@ import AdminPaymentsPage from './page'
 afterEach(() => vi.unstubAllGlobals())
 
 describe('админские корректировки оплаты', () => {
-  it('marks a completed refund without sending a compensation', async () => {
+  it('отмечает выполненный возврат, не отправляя компенсацию', async () => {
     const requests: Request[] = []
     renderWithProviders(<AdminPaymentsPage />, {
       handlers: {
@@ -37,7 +37,7 @@ describe('админские корректировки оплаты', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Отметка возврата сохранена')
   })
 
-  it('requires an explicit dialog confirmation before sending compensation', async () => {
+  it('требует явного подтверждения в диалоге перед отправкой компенсации', async () => {
     const requests: Request[] = []
     renderWithProviders(<AdminPaymentsPage />, {
       handlers: {

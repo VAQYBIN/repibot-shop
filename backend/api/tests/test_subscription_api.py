@@ -91,7 +91,7 @@ async def test_auto_renew_reads_and_updates_only_current_subscription(
     month_plan: int,
     engine: AsyncEngine,
 ) -> None:
-    """Using a client-supplied user id here would let one subscriber change another's billing."""
+    """Идентификатор из запроса дал бы одному подписчику менять чужие списания."""
     async with create_session_factory(engine)() as session:
         starts_at = datetime.now(UTC)
         session.add(

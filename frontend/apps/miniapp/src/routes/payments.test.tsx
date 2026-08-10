@@ -21,7 +21,7 @@ const PLAN = {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в Mini App', () => {
-  it('requests a saved YooKassa payment method only when the loaded subscription elected auto-renew', async () => {
+  it('просит сохранить карту, только если в загруженной подписке включено автопродление', async () => {
     let body: unknown
     stubFetch((request) => {
       const path = new URL(request.url).pathname
@@ -71,7 +71,7 @@ describe('оплата в Mini App', () => {
       expect(body).toMatchObject({ provider: 'yookassa', save_payment_method: true }),
     )
   })
-  it('closes a successful gift confirmation so a second Continue cannot create another order', async () => {
+  it('закрывает подтверждение подарка, чтобы второе «Продолжить» не создало второй заказ', async () => {
     const posts: Request[] = []
     stubFetch((request) => {
       const path = new URL(request.url).pathname
@@ -107,7 +107,7 @@ describe('оплата в Mini App', () => {
     expect(screen.queryByRole('dialog', { name: 'Подтвердить подарок?' })).not.toBeInTheDocument()
     expect(posts).toHaveLength(1)
   })
-  it('requires confirmation before a Mini App gift sends purpose=gift', async () => {
+  it('требует подтверждения, прежде чем отправить purpose=gift', async () => {
     const requests: Request[] = []
     stubFetch((request) => {
       const path = new URL(request.url).pathname
@@ -143,7 +143,7 @@ describe('оплата в Mini App', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Продолжить' }))
     expect(await requests[0]?.json()).toMatchObject({ purpose: 'gift', provider: 'yookassa' })
   })
-  it('hands the server confirmation URL to Telegram for a card order', async () => {
+  it('отдаёт Telegram серверную ссылку оплаты для заказа картой', async () => {
     const openLink = vi.fn()
     vi.stubGlobal('Telegram', { WebApp: { openLink } })
     stubFetch((request) => {
@@ -176,7 +176,7 @@ describe('оплата в Mini App', () => {
     await userEvent.click(await screen.findByRole('button', { name: /оплатить картой/i }))
     expect(openLink).toHaveBeenCalledWith('https://yookassa.test/confirm')
   })
-  it('hands Stars payment to the bot instead of opening a browser settlement', async () => {
+  it('отдаёт оплату Stars боту, а не открывает расчёт в браузере', async () => {
     const open = vi.fn()
     const openTelegramLink = vi.fn()
     vi.stubGlobal('open', open)

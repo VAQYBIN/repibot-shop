@@ -1,4 +1,4 @@
-"""Telegram Stars are confirmed in the bot, never in the Mini App."""
+"""Оплата Stars подтверждается в боте, а не в Mini App."""
 
 from __future__ import annotations
 

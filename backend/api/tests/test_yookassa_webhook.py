@@ -1,4 +1,4 @@
-"""YooKassa callbacks are hints: provider data remains the source of truth."""
+"""Callback YooKassa — только подсказка; истина остаётся у провайдера."""
 
 from __future__ import annotations
 
@@ -109,7 +109,7 @@ async def _promo_reservation_count(engine: AsyncEngine, order_id: int) -> int:
 async def test_webhook_fetches_provider_truth_before_finalizing(
     api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Trusting webhook amount/status would let a forged callback grant access."""
+    """Доверие сумме из webhook дало бы доступ по поддельному вызову."""
     from repibot_api.routers import webhooks
 
     fake = FakeYooKassa()
@@ -134,7 +134,7 @@ async def test_webhook_rejects_provider_amount_or_currency_mismatch(
     amount: str,
     currency: str,
 ) -> None:
-    """A success status alone cannot settle an order with a different commercial snapshot."""
+    """Один лишь статус «успех» не закрывает заказ с другой суммой."""
     from repibot_api.routers import webhooks
 
     fake = FakeYooKassa()
@@ -151,7 +151,7 @@ async def test_webhook_rejects_provider_amount_or_currency_mismatch(
 async def test_duplicate_webhook_is_deduplicated_by_verified_provider_state(
     api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A provider retry must not create a second finalization side effect."""
+    """Повтор от провайдера не должен дать второй эффект финализации."""
     from repibot_api.routers import webhooks
 
     fake = FakeYooKassa()
@@ -177,7 +177,7 @@ async def test_duplicate_webhook_is_deduplicated_by_verified_provider_state(
 async def test_expired_order_is_marked_expired_and_never_fulfilled(
     api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Provider success after the 30-minute window must not resurrect the commercial order."""
+    """Успех после тридцати минут не воскрешает истёкший заказ."""
     from repibot_api.routers import webhooks
 
     fake = FakeYooKassa()
@@ -195,7 +195,7 @@ async def test_expired_order_is_marked_expired_and_never_fulfilled(
 async def test_retry_recovers_after_local_finalizer_crash_without_stranding_attempt(
     api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A crash after provider GET must roll back verification with the unfinished order."""
+    """Падение после запроса к провайдеру откатывает проверку вместе с заказом."""
     from repibot_api.routers import webhooks
     from repibot_core.services.payments import PaymentService
 

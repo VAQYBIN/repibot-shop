@@ -112,7 +112,7 @@ async def test_create_manual_yookassa_order_returns_confirm_url(
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """Without server-side snapshotting, a client price field could buy a cheaper plan."""
+    """Без серверного снимка поле цены от клиента купило бы тариф дешевле."""
     response = await api_client.post(
         "/api/me/orders", json=_payload(month_plan), headers=user_headers
     )
@@ -165,7 +165,7 @@ async def test_provider_client_is_closed_before_the_response_is_returned(
 
 
 async def test_orders_require_authentication(api_client: AsyncClient, month_plan: int) -> None:
-    """Removing current_context must not expose a payment-start endpoint."""
+    """Снятый current_context открыл бы вход в оплату кому угодно."""
     response = await api_client.post("/api/me/orders", json=_payload(month_plan))
 
     assert response.status_code == 401
@@ -175,7 +175,7 @@ async def test_orders_require_authentication(api_client: AsyncClient, month_plan
 async def test_unconfigured_yookassa_is_a_stable_provider_error(
     api_client: AsyncClient, user_headers: dict[str, str], month_plan: int
 ) -> None:
-    """A missing provider configuration must not leak as an internal error."""
+    """Ненастроенный провайдер не должен выглядеть внутренней ошибкой."""
     response = await api_client.post(
         "/api/me/orders", json=_payload(month_plan), headers=user_headers
     )
@@ -196,7 +196,7 @@ async def test_create_order_rejects_unavailable_plan(
     field: str,
     value: bool,
 ) -> None:
-    """Changing an active, visible paid plan into an unavailable one must block checkout."""
+    """Ставший недоступным тариф закрывает оформление, а не продаётся дальше."""
     async with create_session_factory(engine)() as session:
         await session.execute(update(Plan).where(Plan.id == month_plan).values({field: value}))
         await session.commit()
@@ -216,7 +216,7 @@ async def test_gift_order_is_paid_without_a_promo(
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """A gift is a paid order purpose, not a promo side-effect."""
+    """Подарок — назначение оплаченного заказа, а не побочный эффект промокода."""
     response = await api_client.post(
         "/api/me/orders", json=_payload(month_plan, purpose="gift"), headers=user_headers
     )
@@ -232,7 +232,7 @@ async def test_same_client_key_returns_same_order(
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """Removing idempotency would create two payable orders for one click retry."""
+    """Без идемпотентности повторный клик создал бы два оплачиваемых заказа."""
     first = await api_client.post("/api/me/orders", json=_payload(month_plan), headers=user_headers)
     second = await api_client.post(
         "/api/me/orders", json=_payload(month_plan), headers=user_headers
@@ -251,7 +251,7 @@ async def test_maximum_length_client_key_is_safe_for_provider_idempotency(
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """Extending an accepted 128-character key must not overflow provider_key."""
+    """Принятый ключ в 128 символов не должен переполнять provider_key."""
     response = await api_client.post(
         "/api/me/orders", json=_payload(month_plan, key="k" * 128), headers=user_headers
     )
@@ -266,7 +266,7 @@ async def test_concurrent_first_retries_return_the_same_order(
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """Two concurrent absent-order reads must not surface the unique constraint as 500."""
+    """Два одновременных чтения отсутствующего заказа не должны отдать 500."""
     requests = [
         api_client.post(
             "/api/me/orders",
@@ -292,7 +292,7 @@ async def test_fulfilled_order_replay_never_reopens_provider_payment(
     fake_yookassa: FakeYooKassa,
     engine: AsyncEngine,
 ) -> None:
-    """A completed order replay must not overwrite callback verification data."""
+    """Повтор завершённого заказа не должен переписать данные проверки платежа."""
     created = await api_client.post(
         "/api/me/orders", json=_payload(month_plan), headers=user_headers
     )
@@ -327,7 +327,7 @@ async def test_same_key_replay_is_not_limited_after_unique_creates(
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """Rate limiting replays would reject a harmless network retry as a new checkout."""
+    """Ограничивать повторы значит отклонять безобидный сетевой ретрай."""
     first = await api_client.post("/api/me/orders", json=_payload(month_plan), headers=user_headers)
     for index in range(4):
         response = await api_client.post(
@@ -353,7 +353,7 @@ async def test_order_creation_is_limited_by_user_and_ip(
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """Removing either rate-limit key lets a signed-in script create unlimited payments."""
+    """Без любого из двух ключей скрипт под входом наделает платежей без счёта."""
     for index in range(5):
         response = await api_client.post(
             "/api/me/orders",
@@ -379,7 +379,7 @@ async def test_list_and_get_orders_are_scoped_to_current_user(
     month_plan: int,
     fake_yookassa: FakeYooKassa,
 ) -> None:
-    """A missing user predicate would expose another person's checkout history."""
+    """Забытый фильтр по пользователю показал бы чужую историю заказов."""
     created = await api_client.post(
         "/api/me/orders", json=_payload(month_plan), headers=user_headers
     )

@@ -79,14 +79,14 @@ class SubscriptionService:
         return _view(subscription, plan, user.remnawave_subscription_url if user else None)
 
     async def auto_renew_enabled(self, user_id: int) -> bool:
-        """Returns the current user's setting only when recurring renewal is meaningful."""
+        """Отдаёт настройку, только когда автопродление вообще имеет смысл."""
         subscription = await self._subscriptions.get_for_user(user_id)
         self._validate_auto_renew_subscription(subscription)
         assert subscription is not None
         return subscription.auto_renew_enabled
 
     async def set_auto_renew_enabled(self, user_id: int, enabled: bool) -> bool:
-        """Changes exactly one locked subscription, never a caller-supplied account."""
+        """Меняет ровно одну заблокированную подписку, а не чужой аккаунт из запроса."""
         if self._session.in_transaction():
             await self._session.commit()
         async with self._session.begin():
@@ -393,11 +393,10 @@ def _remainder_days(
     ноль, и делить не на что. Поэтому триал не превращается в дни платного
     тарифа, а оплаченный остаток не переезжает в триал.
     """
-    # Rows created before entitlement snapshots defaulted both fields to zero.
-    # A non-positive *duration* identifies that legacy state.  A current
-    # entitlement with a positive duration and a zero actual price (for
-    # example a fully discounted grant) intentionally has no transferable
-    # paid value and must not be silently repriced from the current Plan.
+    # Строки, созданные до появления снимков права, оставили оба поля нулевыми.
+    # Такое состояние узнаётся по неположительному сроку. Право с ненулевым
+    # сроком и нулевой ценой — например, полностью скидочная выдача — переносить
+    # нечего, и подставлять ему текущую цену тарифа нельзя.
     if entitlement_duration_days <= 0:
         current_price_rub = current_plan.price_rub
         current_duration_days = current_plan.duration_days

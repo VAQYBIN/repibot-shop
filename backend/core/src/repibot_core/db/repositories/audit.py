@@ -39,7 +39,7 @@ class AuditRepository:
         await self._session.flush()
 
     async def compensation_with_key(self, order_id: int, idempotency_key: str) -> AuditLog | None:
-        """Find a prior compensation while its order row is locked by the caller."""
+        """Ищет прежнюю компенсацию, пока строка заказа заперта вызывающим."""
         statement = (
             select(AuditLog)
             .where(
@@ -54,7 +54,7 @@ class AuditRepository:
         return (await self._session.execute(statement)).scalar_one_or_none()
 
     async def compensation_for_action(self, order_id: int, action: str) -> AuditLog | None:
-        """Find the one durable compensation for an order/action pair.
+        """Ищет единственную записанную компенсацию для пары «заказ и действие».
 
         The caller holds the order row lock, which serializes absent-row checks
         and inserts without relying on an application-only race-prone lookup.

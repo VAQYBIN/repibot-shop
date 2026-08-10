@@ -88,7 +88,7 @@ async def redeem_gift(
 
 
 async def stars_handoff_url(redis: Redis, handoff_reference: str) -> str:
-    """Static deep link triggers the bot; no payment identifier crosses the browser boundary."""
+    """Постоянная ссылка будит бота; идентификатор оплаты браузер не пересекает."""
     settings = get_settings()
     async with httpx.AsyncClient(timeout=BOT_TIMEOUT_SECONDS) as client:
         username = await BotApi(settings, redis, client=client).username()

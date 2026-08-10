@@ -140,7 +140,7 @@ def test_commerce_settings_have_safe_defaults(monkeypatch: pytest.MonkeyPatch) -
 def test_e2e_yookassa_http_is_limited_to_its_compose_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Permitting arbitrary cleartext URLs would turn an E2E convenience into a payment risk."""
+    """Разрешить любой открытый адрес значит превратить удобство E2E в риск оплаты."""
     settings = _build(
         monkeypatch,
         YOOKASSA_SHOP_ID="e2e-shop",

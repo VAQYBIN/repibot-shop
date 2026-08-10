@@ -22,14 +22,14 @@ const ORDER = {
 } as const
 
 describe('formatOrderAmount', () => {
-  it('formats the amount due returned by the YooKassa order', () => {
-    // Replacing amount_due_rub with gross_rub would make the paid amount wrong
-    // whenever the API applies a promotion.
+  it('форматирует сумму к оплате из заказа YooKassa', () => {
+    // Подстановка gross_rub вместо amount_due_rub врала бы об уплаченной сумме
+    // каждый раз, когда API применил промокод.
     expect(formatOrderAmount(ORDER, 'ru')).toBe('254,15 ₽')
     expect(formatOrderAmount(ORDER, 'en')).toBe('RUB 254.15')
   })
 
-  it('uses Stars data from the response when Telegram must issue an invoice', () => {
+  it('берёт данные Stars из ответа, когда инвойс выставляет Telegram', () => {
     expect(formatOrderAmount({ ...ORDER, telegram_invoice_required: true }, 'ru')).toBe('199 звёзд')
     expect(formatOrderAmount({ ...ORDER, telegram_invoice_required: true }, 'en')).toBe('199 stars')
   })
@@ -42,11 +42,11 @@ describe('formatPaymentStatus', () => {
     ['expired', 'ru', 'Срок оплаты истёк'],
     ['canceled', 'en', 'Cancelled'],
     ['refunded', 'ru', 'Возвращён'],
-  ] as const)('localizes the %s status from an order response', (status, language, expected) => {
+  ] as const)('локализует статус %s из ответа с заказом', (status, language, expected) => {
     expect(formatPaymentStatus({ ...ORDER, status }, language)).toBe(expected)
   })
 
-  it('does not invent a success status for an unknown response status', () => {
+  it('не выдумывает успех для неизвестного статуса из ответа', () => {
     expect(formatPaymentStatus({ ...ORDER, status: 'provider_pending' }, 'en')).toBe(
       'Payment pending',
     )

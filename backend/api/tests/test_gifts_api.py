@@ -59,7 +59,7 @@ async def _plan(session: AsyncSession, code: str, price: str) -> Plan:
 async def test_redeeming_gift_into_other_active_plan_keeps_current_plan_and_converts_days(
     db_session: AsyncSession,
 ) -> None:
-    """Replacing an active different plan with a gift would discard paid access."""
+    """Замена активного тарифа подарком выбросила бы оплаченный доступ."""
     gift_plan = await _plan(db_session, "gift-plan", "300.00")
     current_plan = await _plan(db_session, "current-plan", "600.00")
     buyer, recipient = await _user(db_session, "buyer001"), await _user(db_session, "recipient001")
@@ -102,7 +102,7 @@ async def test_redeeming_gift_into_other_active_plan_keeps_current_plan_and_conv
 async def test_gift_redeems_once_and_grants_its_plan_without_a_subscription(
     db_session: AsyncSession,
 ) -> None:
-    """Removing the voucher state check would let the same code grant a second subscription."""
+    """Без проверки состояния ваучер выдал бы вторую подписку тем же кодом."""
     plan = await _plan(db_session, "gift-new", "300.00")
     buyer, recipient = await _user(db_session, "buyer002"), await _user(db_session, "recipient002")
     order = await OrderRepository(db_session).create_pending(
@@ -131,7 +131,7 @@ async def test_gift_redeems_once_and_grants_its_plan_without_a_subscription(
 async def test_customer_can_redeem_once_and_cannot_list_someone_elses_voucher(
     api_client: AsyncClient, user_headers: dict[str, str], telegram_user_headers: dict[str, str]
 ) -> None:
-    """No ownership filtering leaks a code; no voucher lock permits double spending."""
+    """Без фильтра по владельцу утечёт код, без блокировки — двойное погашение."""
     denied = await api_client.get("/api/me/gifts", headers=telegram_user_headers)
     assert denied.status_code == 200
     assert denied.json() == []
@@ -144,7 +144,7 @@ async def test_customer_can_redeem_once_and_cannot_list_someone_elses_voucher(
 async def test_admin_promo_crud_requires_admin(
     api_client: AsyncClient, user_headers: dict[str, str]
 ) -> None:
-    """Making promo creation public would let a buyer change checkout pricing."""
+    """Публичное создание промокода дало бы покупателю менять цену."""
     response = await api_client.post(
         "/api/admin/promos", json={"code": "NOPE", "percent_off": 10}, headers=user_headers
     )
@@ -152,7 +152,7 @@ async def test_admin_promo_crud_requires_admin(
 
 
 async def test_openapi_documents_gift_and_promo_contracts(api_client: AsyncClient) -> None:
-    """Removing a public route from the published schema breaks generated clients."""
+    """Публичный маршрут вне схемы ломает сгенерированных клиентов."""
     schema = (await api_client.get("/openapi.json")).json()
 
     assert set(schema["paths"]["/api/me/gifts"]) == {"get"}

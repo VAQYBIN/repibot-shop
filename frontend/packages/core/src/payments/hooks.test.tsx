@@ -58,7 +58,7 @@ function createWrapper() {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('hooks заказов и оплаты', () => {
-  it('loads only the authenticated user order history under the orders key', async () => {
+  it('грузит историю заказов только текущего пользователя', async () => {
     const fetchMock = vi.fn(async (_request: Request) => Response.json([ORDER]))
     vi.stubGlobal('fetch', fetchMock)
     const { queryClient, Wrapper } = createWrapper()
@@ -72,7 +72,7 @@ describe('hooks заказов и оплаты', () => {
     expect(queryClient.getQueryData(['orders'])).toEqual([ORDER])
   })
 
-  it('creates a YooKassa order, replaces its order cache and invalidates dependent data', async () => {
+  it('создаёт заказ YooKassa, заменяет его в кэше и сбрасывает зависимые данные', async () => {
     const fetchMock = vi.fn(async (_request: Request) => Response.json(ORDER, { status: 201 }))
     vi.stubGlobal('fetch', fetchMock)
     const { queryClient, Wrapper } = createWrapper()
@@ -107,7 +107,7 @@ describe('hooks заказов и оплаты', () => {
     expect(queryClient.getQueryState(['subscription'])?.isInvalidated).toBe(true)
   })
 
-  it('maps a stable payment API error into the chosen language', async () => {
+  it('переводит устойчивый код ошибки оплаты на выбранный язык', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -128,7 +128,7 @@ describe('hooks заказов и оплаты', () => {
     ).rejects.toThrow('Payment provider is unavailable')
   })
 
-  it('redeems a gift and refreshes both the subscription and voucher history', async () => {
+  it('погашает подарок и обновляет подписку вместе с историей ваучеров', async () => {
     const fetchMock = vi.fn(async (_request: Request) => Response.json(SUBSCRIPTION))
     vi.stubGlobal('fetch', fetchMock)
     const { queryClient, Wrapper } = createWrapper()
@@ -148,7 +148,7 @@ describe('hooks заказов и оплаты', () => {
     expect(queryClient.getQueryState(['gifts'])?.isInvalidated).toBe(true)
   })
 
-  it('rolls back the optimistic auto-renew switch when the server rejects it', async () => {
+  it('откатывает оптимистичное переключение автопродления при отказе сервера', async () => {
     let rejectRequest: ((value: Response) => void) | undefined
     vi.stubGlobal(
       'fetch',
@@ -181,7 +181,7 @@ describe('hooks заказов и оплаты', () => {
     expect(queryClient.getQueryData(['subscription'])).toEqual(SUBSCRIPTION)
   })
 
-  it('keeps the auto-renew value confirmed by the typed endpoint', async () => {
+  it('оставляет значение автопродления, подтверждённое эндпоинтом', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (_request: Request) => Response.json({ auto_renew_enabled: false })),

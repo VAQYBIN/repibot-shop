@@ -84,7 +84,7 @@ export function Payments() {
     setAccepted(promo !== '')
     if (provider === 'yookassa' && created.confirmation_url)
       openTelegramUrl(created.confirmation_url)
-    // Mini App never settles Stars in a browser. Telegram's bot owns the invoice.
+    // Mini App не проводит оплату Stars в браузере: инвойс выставляет бот.
     if (created.telegram_invoice_required) {
       setStars(true)
       if (created.telegram_handoff_url) openTelegramUrl(created.telegram_handoff_url, true)

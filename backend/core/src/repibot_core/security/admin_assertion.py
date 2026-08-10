@@ -1,8 +1,9 @@
-"""A short-lived signed claim for Next's admin-route presentation gate.
+"""Короткое подписанное утверждение для гейта админских страниц в Next.
 
-The assertion is deliberately not an API credential.  Backend mutations keep
-using the access-token role dependency; this cookie only lets Next discard an
-admin-page request before it can render sensitive markup.
+Пропуском в API оно намеренно не является: изменения на бэкенде
+по-прежнему проверяют роль по access-токену. Эта cookie нужна лишь
+затем, чтобы Next отбросил запрос страницы до того, как отрисует
+чувствительную разметку.
 """
 
 from __future__ import annotations
@@ -21,11 +22,10 @@ def _base64url(value: bytes) -> str:
 
 
 def create_admin_assertion(secret: str, *, expires_at: datetime) -> str:
-    """Signs the exact compact claim which the Next proxy verifies.
+    """Подписывает ровно то утверждение, которое проверяет прокси Next.
 
-    Keeping this as `base64url(JSON).base64url(HMAC)` avoids placing a JWT
-    dependency in the web bundle while retaining a conventional, unambiguous
-    HMAC-SHA256 wire format.
+    Формат `base64url(JSON).base64url(HMAC)` избавляет веб-сборку от
+    зависимости на JWT и остаётся привычным однозначным HMAC-SHA256.
     """
     claims = {
         "exp": int(expires_at.timestamp()),

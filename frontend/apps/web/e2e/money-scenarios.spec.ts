@@ -154,9 +154,7 @@ test('подарочный ваучер применяется ровно оди
   expect(querySql("SELECT count(*) FROM gift_vouchers WHERE code = :'code'", { code })).toBe('1')
 })
 
-test('first referral mode credits a referrer only for the first verified card order', async ({
-  page,
-}) => {
+test('режим first начисляет рефереру только за первый подтверждённый заказ', async ({ page }) => {
   const email = uniqueEmail('referral-first')
   await registerAndSignIn(page, email)
   seedReferrerFor(email, uniqueEmail('referrer-first'))
@@ -184,9 +182,7 @@ test('first referral mode credits a referrer only for the first verified card or
   ).toBe('3')
 })
 
-test('every referral mode credits each paid origin in the isolated API container', async ({
-  page,
-}) => {
+test('режим every начисляет за каждый оплаченный заказ', async ({ page }) => {
   const email = uniqueEmail('referral-every')
   await registerAndSignIn(page, email)
   seedReferrerFor(email, uniqueEmail('referrer-every'))
@@ -215,7 +211,7 @@ test('every referral mode credits each paid origin in the isolated API container
   await expect(page.getByText('Месяц', { exact: true })).toBeVisible()
 })
 
-test('auto-renewal uses -24/-18/-6 cycles, keeps the saved method, and deduplicates each channel', async ({
+test('автопродление идёт циклами -24/-18/-6, держит сохранённую карту и не дублирует каналы', async ({
   page,
 }) => {
   const email = uniqueEmail('auto-renew')

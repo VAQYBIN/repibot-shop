@@ -78,7 +78,7 @@ def test_broker_disables_socket_read_timeout() -> None:
 async def test_poll_recovers_a_succeeded_payment_without_a_webhook(
     postgres_url: str, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A lost webhook must not strand a successfully paid, non-expired order."""
+    """Потерянный webhook не должен бросить оплаченный неистёкший заказ."""
     from repibot_core.db.models import (
         Order,
         OrderStatus,
@@ -143,7 +143,7 @@ async def test_poll_recovers_a_succeeded_payment_without_a_webhook(
 async def test_pending_payment_claim_is_exclusive_between_overlapping_polls(
     db_session: AsyncSession, engine: AsyncEngine
 ) -> None:
-    """Two poll workers must not fetch the same pending provider payment concurrently."""
+    """Два опрашивающих воркера не тянут один и тот же платёж разом."""
     from repibot_core import tasks as core_tasks
     from repibot_core.db.models import (
         PaymentProvider,
@@ -197,7 +197,7 @@ async def test_pending_payment_claim_is_exclusive_between_overlapping_polls(
 async def test_poll_recovers_recorded_stars_success_after_expiry_without_telegram_replay(
     postgres_url: str, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A paid Stars attempt must finalize before the expiry sweep can discard it."""
+    """Оплаченная попытка Stars финализируется раньше, чем её просрочат."""
     from repibot_core.db.models import (
         Order,
         OrderStatus,

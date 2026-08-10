@@ -1,4 +1,4 @@
-"""Referral rewards are days with an immutable paid-order origin."""
+"""Реферальная награда — дни с неизменяемым источником в оплаченном заказе."""
 
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ async def _paid_attempt(
 async def test_first_mode_rewards_only_first_successful_referee_order(
     db_session: AsyncSession,
 ) -> None:
-    """A referee's later paid order must not create a second first-mode origin."""
+    """Вторая оплата приглашённого не создаёт второй источник в режиме first."""
     plan = await _plan(db_session, "first-plan")
     referrer = await _user(db_session, "first-referrer")
     referee = await _user(db_session, "first-referee", referrer=referrer)
@@ -133,7 +133,7 @@ async def test_gift_order_never_creates_referral_reward(db_session: AsyncSession
 
 
 async def test_referral_service_has_order_credit_entrypoint(db_session: AsyncSession) -> None:
-    """The finalizer delegates the rule to the dedicated referral service."""
+    """Финализатор отдаёт правило отдельному реферальному сервису."""
     service = ReferralService(db_session, Settings())
 
     assert await service.credit_for_order(999_999) is None

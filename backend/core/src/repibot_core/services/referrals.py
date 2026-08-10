@@ -1,4 +1,4 @@
-"""Referral days awarded from immutable, successfully fulfilled orders."""
+"""Реферальные дни начисляются с неизменяемых оплаченных заказов."""
 
 from __future__ import annotations
 
@@ -23,10 +23,10 @@ from repibot_core.settings import Settings, get_settings
 
 
 class ReferralService:
-    """Creates exactly one days-only reward for an eligible order origin.
+    """Создаёт ровно одну награду в днях на подходящий заказ-источник.
 
-    The caller is the payment finalizer and therefore already owns its commercial
-    transaction. This service deliberately does not commit or call the panel.
+    Вызывает его финализатор оплаты, который уже владеет коммерческой
+    транзакцией, поэтому сервис намеренно не коммитит и не ходит в панель.
     """
 
     def __init__(self, session: AsyncSession, settings: Settings | None = None) -> None:
@@ -37,11 +37,11 @@ class ReferralService:
         self._entitlements = SubscriptionService(session, self._settings, provisioning=None)
 
     async def credit_for_order(self, order_id: int) -> ReferralReward | None:
-        """Award the referrer once for a fulfilled, non-gift order.
+        """Награждает реферера один раз за оплаченный заказ, кроме подарка.
 
-        The source duration is read from ``Order.duration_days_snapshot`` rather
-        than from the mutable Plan. The purchaser advisory lock makes the
-        first-mode check serial even when two of their payments finalize at once.
+        Длительность берётся из ``Order.duration_days_snapshot``, а не из
+        изменяемого тарифа. Блокировка покупателя делает проверку режима
+        ``first`` последовательной, даже если две его оплаты финализируются разом.
         """
         order = await self._session.scalar(
             select(Order).where(Order.id == order_id).with_for_update()
@@ -70,9 +70,9 @@ class ReferralService:
         if existing is not None:
             return existing
 
-        # A row lock cannot protect the "no previous reward" case. The same
-        # transaction-scoped lock used for first subscription creation closes
-        # that gap and is intentionally acquired before looking for the reward.
+        # Блокировка строки не защищает случай «награды ещё не было»: запирать
+        # нечего. Эту дыру закрывает та же транзакционная блокировка, что и при
+        # создании первой подписки, и берётся она намеренно до поиска награды.
         await self._subscriptions.lock_user_for_entitlement(purchaser.id)
         if self._settings.referral_reward_mode == "first":
             previous = await self._session.scalar(

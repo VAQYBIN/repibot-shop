@@ -1,4 +1,4 @@
-"""Protect the complete immutable commercial order intent.
+"""Защищает весь неизменяемый коммерческий замысел заказа.
 
 Revision ID: 0011
 Revises: 0010

@@ -184,7 +184,7 @@ async def reconcile_pending_payments() -> dict[str, int]:
 
 @broker.task(schedule=[{"cron": "*/10 * * * *"}])
 async def attempt_auto_renewals() -> dict[str, int]:
-    """Attempts due YooKassa renewal cycles; every cycle is locally idempotent."""
+    """Отрабатывает подошедшие циклы продления; каждый цикл идемпотентен."""
     from repibot_core.services.payment_notifications import AutoRenewalService
 
     # Оплата картой отключается пустыми реквизитами, и это рабочая

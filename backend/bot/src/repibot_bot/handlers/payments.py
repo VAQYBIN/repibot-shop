@@ -1,4 +1,4 @@
-"""Telegram Stars boundary: Telegram proves payment, core grants the entitlement."""
+"""Граница Telegram Stars: Telegram доказывает оплату, core выдаёт доступ."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ class StarsPaymentService(Protocol):
 async def handle_pre_checkout(
     query: PreCheckoutQuery, user: User, payment_service: StarsPaymentService
 ) -> None:
-    """Lets Telegram charge only the exact pending Stars attempt of its owner."""
+    """Разрешает списание только по конкретной ожидающей попытке её владельца."""
     attempt_id = await payment_service.authorize_stars_attempt(
         invoice_payload=query.invoice_payload,
         user_id=user.id,
@@ -68,7 +68,7 @@ async def handle_pre_checkout(
 async def handle_successful_payment(
     message: Message, user: User, payment_service: StarsPaymentService
 ) -> None:
-    """Records the signed Telegram update then reuses the provider-neutral finalizer."""
+    """Записывает подписанное обновление и зовёт общий для провайдеров финализатор."""
     payment = message.successful_payment
     if payment is None:
         return
@@ -89,7 +89,7 @@ async def handle_stars_handoff(
     user: User,
     payment_service: StarsPaymentService,
 ) -> None:
-    """Issues the invoice only in the authenticated Telegram chat of its owner."""
+    """Выставляет инвойс только в подтверждённом чате его владельца."""
     if (
         message.chat.type != "private"
         or user.telegram_id is None

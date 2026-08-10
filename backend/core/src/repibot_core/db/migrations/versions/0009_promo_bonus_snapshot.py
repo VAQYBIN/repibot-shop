@@ -16,9 +16,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # SHARE ROW EXCLUSIVE conflicts with the ROW EXCLUSIVE locks needed for
-    # checkout inserts. Lock both tables before inspection: an in-flight
-    # pre-0009 checkout cannot create its order/reservation between count and ALTER.
+    # SHARE ROW EXCLUSIVE конфликтует с ROW EXCLUSIVE, который нужен вставкам
+    # оформления. Обе таблицы запираются до осмотра: начатое до 0009
+    # оформление не создаст заказ и резерв между подсчётом и ALTER.
     op.execute(sa.text("LOCK TABLE orders, promo_reservations IN SHARE ROW EXCLUSIVE MODE"))
     pending = op.get_bind().scalar(
         sa.text(
