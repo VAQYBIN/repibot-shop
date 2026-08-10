@@ -50,7 +50,8 @@ Telegram активирует триал и получает ссылку под
 
 ```bash
 cp .env.example .env
-# заполнить BOT_TOKEN, BOT_WEBHOOK_SECRET, REMNAWAVE_TOKEN, JWT_SECRET, ENCRYPTION_KEY
+# заполнить BOT_TOKEN, BOT_WEBHOOK_SECRET, REMNAWAVE_TOKEN, JWT_SECRET,
+# ADMIN_ASSERTION_SECRET, ENCRYPTION_KEY
 docker compose up -d
 curl http://localhost/health
 ```

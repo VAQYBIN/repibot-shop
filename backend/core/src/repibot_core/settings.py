@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 Language = Literal["ru", "en"]
 
 # Минимум для HMAC-SHA256 по RFC 7518 — 32 байта.
-MIN_JWT_SECRET_LENGTH = 32
+MIN_HMAC_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     auto_renew_disable_after_final_failure: bool = True
 
     jwt_secret: SecretStr
+    # Shared only with the server-side Next runtime.  The cookie it signs is a
+    # presentation gate for /admin, never a credential accepted by the API.
+    admin_assertion_secret: SecretStr
+    admin_assertion_ttl_seconds: int = Field(default=300, ge=60, le=900)
     encryption_key: SecretStr
 
     access_token_ttl_minutes: int = 15
@@ -134,9 +138,20 @@ class Settings(BaseSettings):
         здесь, а не в напоминании в документации: процесс со слабым ключом не
         должен стартовать вовсе.
         """
-        if len(value.get_secret_value()) < MIN_JWT_SECRET_LENGTH:
+        if len(value.get_secret_value()) < MIN_HMAC_SECRET_LENGTH:
             msg = (
-                f"JWT_SECRET короче {MIN_JWT_SECRET_LENGTH} символов; "
+                f"JWT_SECRET короче {MIN_HMAC_SECRET_LENGTH} символов; "
+                "сгенерируйте: openssl rand -hex 32"
+            )
+            raise ValueError(msg)
+        return value
+
+    @field_validator("admin_assertion_secret")
+    @classmethod
+    def _admin_assertion_secret_is_long_enough(cls, value: SecretStr) -> SecretStr:
+        if len(value.get_secret_value()) < MIN_HMAC_SECRET_LENGTH:
+            msg = (
+                f"ADMIN_ASSERTION_SECRET короче {MIN_HMAC_SECRET_LENGTH} символов; "
                 "сгенерируйте: openssl rand -hex 32"
             )
             raise ValueError(msg)

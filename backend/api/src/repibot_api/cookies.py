@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Response
+
+from repibot_core.security.admin_assertion import create_admin_assertion
 
 REFRESH_COOKIE = "repibot_refresh"
 # Путь ограничен единственным потребителем: браузер не пошлёт cookie ни на один
@@ -16,6 +18,12 @@ OIDC_COOKIE_PATH = "/api/auth/telegram"
 # Столько же, сколько живёт state в Valkey: cookie и запись — две половины
 # одной попытки входа, и переживать друг друга им незачем.
 OIDC_COOKIE_MAX_AGE = 600
+
+# This is routing evidence for Next.js only, not an API credential.  Its path
+# prevents it travelling with normal API requests and keeps its visibility to
+# the /admin server gate.
+ADMIN_ASSERTION_COOKIE = "repibot_admin_assertion"
+ADMIN_ASSERTION_COOKIE_PATH = "/admin"
 
 
 def set_refresh_cookie(
@@ -40,6 +48,34 @@ def clear_refresh_cookie(response: Response, *, secure: bool) -> None:
         secure=secure,
         samesite="lax",
         path=COOKIE_PATH,
+        max_age=0,
+    )
+
+
+def set_admin_assertion_cookie(
+    response: Response, *, secret: str, ttl_seconds: int, secure: bool
+) -> None:
+    expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
+    response.set_cookie(
+        ADMIN_ASSERTION_COOKIE,
+        create_admin_assertion(secret, expires_at=expires_at),
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        path=ADMIN_ASSERTION_COOKIE_PATH,
+        max_age=ttl_seconds,
+        expires=int(expires_at.timestamp()),
+    )
+
+
+def clear_admin_assertion_cookie(response: Response, *, secure: bool) -> None:
+    response.set_cookie(
+        ADMIN_ASSERTION_COOKIE,
+        "",
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        path=ADMIN_ASSERTION_COOKIE_PATH,
         max_age=0,
     )
 

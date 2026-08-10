@@ -17,6 +17,7 @@ REQUIRED_ENV = {
     "REMNAWAVE_TOKEN": "panel-token",
     # Длина не случайна: короткий ключ подписи настройки отвергают.
     "JWT_SECRET": "0123456789abcdef0123456789abcdef",
+    "ADMIN_ASSERTION_SECRET": "abcdef0123456789abcdef0123456789",
     "ENCRYPTION_KEY": "encryption-key",
     "PUBLIC_WEB_URL": "https://example.org",
     "PUBLIC_APP_URL": "https://example.org/app",
@@ -82,6 +83,21 @@ def test_short_jwt_secret_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
         _build(monkeypatch, JWT_SECRET="слишком короткий")
 
     assert "openssl rand -hex 32" in str(exc.value)
+
+
+def test_admin_assertion_settings_require_a_strong_secret_and_short_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _build(monkeypatch)
+
+    assert (
+        settings.admin_assertion_secret.get_secret_value() == REQUIRED_ENV["ADMIN_ASSERTION_SECRET"]
+    )
+    assert settings.admin_assertion_ttl_seconds == 300
+    with pytest.raises(ValidationError):
+        _build(monkeypatch, ADMIN_ASSERTION_SECRET="too-short")
+    with pytest.raises(ValidationError):
+        _build(monkeypatch, ADMIN_ASSERTION_TTL_SECONDS="901")
 
 
 def test_admin_ids_parse_from_comma_separated_string(monkeypatch: pytest.MonkeyPatch) -> None:

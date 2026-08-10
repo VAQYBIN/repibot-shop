@@ -97,8 +97,9 @@ cp .env.example .env
 ```
 
 Обязательно заполнить: `BOT_TOKEN`, `BOT_WEBHOOK_SECRET`, `BOT_WEBHOOK_BASE_URL`,
-`REMNAWAVE_BASE_URL`, `REMNAWAVE_TOKEN`, `JWT_SECRET`, `ENCRYPTION_KEY`,
-`POSTGRES_PASSWORD`, `PUBLIC_WEB_URL`, `PUBLIC_APP_URL`.
+`REMNAWAVE_BASE_URL`, `REMNAWAVE_TOKEN`, `JWT_SECRET`,
+`ADMIN_ASSERTION_SECRET`, `ENCRYPTION_KEY`, `POSTGRES_PASSWORD`,
+`PUBLIC_WEB_URL`, `PUBLIC_APP_URL`.
 
 `TELEGRAM_OIDC_CLIENT_ID` и `TELEGRAM_OIDC_CLIENT_SECRET` необязательны: без них
 работают все остальные способы входа, а кнопки «Войти через Telegram» на сайте
@@ -180,6 +181,22 @@ mailpit`, затем `EMAIL_SENDER=smtp`, `SMTP_HOST=mailpit`, `SMTP_PORT=1025` 
 `REFRESH_TOKEN_TTL_DAYS` (30). Access-токен живёт в памяти вкладки, refresh —
 в httpOnly-cookie. Увеличивать первый не стоит: заблокированный пользователь
 теряет доступ не позже, чем истечёт его access-токен.
+
+`ADMIN_ASSERTION_SECRET` — отдельный HMAC-SHA256-ключ не короче 32 символов;
+не переиспользуйте для него `JWT_SECRET`. Compose передаёт его поимённо только
+в API и server-side Next, а не в клиентский JavaScript. После browser login или
+refresh API ставит для администратора короткую HttpOnly-cookie
+`repibot_admin_assertion` с `Path=/admin`; по умолчанию она живёт пять минут,
+а `ADMIN_ASSERTION_TTL_SECONDS` допускает только 60–900 секунд. При logout,
+неудачном refresh или следующем refresh после понижения роли cookie гасится.
+
+Next проверяет подпись и срок только до рендера `/admin/payments`: отсутствующая,
+подменённая или истёкшая cookie ведёт на `/login` без разметки платёжной
+админки. Это не разрешение на API: `/api/admin/*` продолжает требовать обычный
+access-токен и backend `require_role(admin)`. Поэтому смена роли действует на
+мутации немедленно, а на отображение — при следующем refresh либо не дольше
+TTL assertion. Убедитесь, что прокси/CDN не срезает `Cookie` на `/admin` и
+`Set-Cookie` на `/api/auth/*`.
 
 Первый админ назначается через `ADMIN_TELEGRAM_IDS` — список идентификаторов
 Telegram через запятую. Свой ID можно узнать у @userinfobot. Роль поднимается не

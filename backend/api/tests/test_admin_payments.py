@@ -129,6 +129,29 @@ async def test_payment_admin_routes_reject_support(
     assert response.status_code == 403
 
 
+async def test_admin_assertion_cookie_never_authorizes_payment_mutations(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    month_plan: int,
+    plain_user_id: int,
+    engine: AsyncEngine,
+) -> None:
+    """The UI-routing assertion is ignored even if a caller injects it into an API request."""
+    order = await _fulfilled_order(engine, user_id=plain_user_id, plan_id=month_plan)
+
+    response = await api_client.post(
+        f"/api/admin/orders/{order.id}/refund-mark",
+        json={"reference": "rf_cookie", "comment": "must still require backend admin"},
+        headers={
+            **user_headers,
+            "Cookie": "repibot_admin_assertion=not-an-api-credential",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "forbidden"
+
+
 async def test_revoke_days_compensation_is_audited_and_idempotent(
     api_client: AsyncClient,
     admin_headers: dict[str, str],

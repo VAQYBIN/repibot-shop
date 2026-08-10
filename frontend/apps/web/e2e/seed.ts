@@ -144,10 +144,350 @@ export function resetRegistrationRateLimit(): void {
  */
 export function grantE2eAdmin(email: string): void {
   runSql("UPDATE users SET role = 'admin', updated_at = now() WHERE email = :'email'", { email })
+  const userId = querySql("SELECT id FROM users WHERE email = :'email'", { email })
+  if (!/^\d+$/.test(userId)) {
+    throw new Error('не удалось найти E2E-пользователя для обновления роли')
+  }
+  // The browser registered as an ordinary user, so its refresh must not reuse
+  // that cached principal after this deliberately isolated role update.
+  runComposeCommand(['exec', '--no-TTY', 'valkey', 'valkey-cli', 'DEL', `principal:${userId}`])
+}
+
+/** Seed an expired code through the same Postgres schema used by checkout. */
+export function seedExpiredPromo(code: string): void {
+  assertToken(code, 'promo code')
+  runSql(
+    `INSERT INTO promo_codes (
+       code, percent_off, bonus_days, max_uses, per_user_limit, is_active, starts_at, expires_at
+     ) VALUES (
+       :'code', 20, 0, NULL, NULL, true,
+       now() - interval '2 days', now() - interval '1 minute'
+     )
+     ON CONFLICT (code) DO UPDATE SET
+       percent_off = EXCLUDED.percent_off,
+       bonus_days = EXCLUDED.bonus_days,
+       is_active = EXCLUDED.is_active,
+       starts_at = EXCLUDED.starts_at,
+       expires_at = EXCLUDED.expires_at,
+       updated_at = now()`,
+    { code },
+  )
+}
+
+/** Insert a paid gift order plus the voucher consumed by the real redemption route. */
+export function seedGiftVoucher(email: string, code: string): void {
+  assertToken(code, 'gift code')
+  runSql(
+    `WITH gift_order AS (
+       INSERT INTO orders (
+         user_id, purpose, plan_id, plan_code_snapshot, plan_name_snapshot,
+         duration_days_snapshot, price_rub_snapshot, price_stars_snapshot,
+         gross_rub, discount_rub, amount_due_rub, promo_code_id, client_key,
+         expires_at, status, fulfilled_at
+       )
+       SELECT users.id, 'gift', plans.id, plans.code, plans.name,
+              plans.duration_days, plans.price_rub, plans.price_stars,
+              plans.price_rub, 0.00, plans.price_rub, NULL,
+              concat('e2e-gift-', :'code'), now() + interval '1 day', 'fulfilled', now()
+       FROM users
+       JOIN plans ON plans.code = 'month'
+       WHERE users.email = :'email'
+       RETURNING id, user_id
+     )
+     INSERT INTO gift_vouchers (order_id, code, purchased_by_user_id, expires_at)
+     SELECT id, :'code', user_id, now() + interval '365 days'
+     FROM gift_order`,
+    { email, code },
+  )
+}
+
+/** Link a registered browser user to a deterministic, verified referrer. */
+export function seedReferrerFor(refereeEmail: string, referrerEmail: string): void {
+  runSql(
+    `INSERT INTO users (email, email_verified_at, referral_code)
+     VALUES (
+       :'referrer_email', now(), substring(md5(:'referrer_email') FROM 1 FOR 16)
+     )
+     ON CONFLICT (email) DO UPDATE SET email_verified_at = EXCLUDED.email_verified_at;
+
+     UPDATE users AS referee
+     SET referred_by_id = referrer.id, updated_at = now()
+     FROM users AS referrer
+     WHERE referee.email = :'referee_email' AND referrer.email = :'referrer_email'`,
+    { referee_email: refereeEmail, referrer_email: referrerEmail },
+  )
+}
+
+/**
+ * Create two already verified payments. Finalization runs in the API image
+ * with a selected referral setting, not by changing the running web process.
+ */
+export function seedReferralOrders(email: string, marker: string): void {
+  assertToken(marker, 'referral marker')
+  runSql(
+    `WITH paid_orders AS (
+       INSERT INTO orders (
+         user_id, purpose, plan_id, plan_code_snapshot, plan_name_snapshot,
+         duration_days_snapshot, price_rub_snapshot, price_stars_snapshot,
+         gross_rub, discount_rub, amount_due_rub, promo_code_id, client_key,
+         expires_at, status
+       )
+       SELECT users.id, 'purchase', plans.id, plans.code, plans.name,
+              plans.duration_days, plans.price_rub, plans.price_stars,
+              plans.price_rub, 0.00, plans.price_rub, NULL, keys.client_key,
+              now() + interval '1 day', 'pending'
+       FROM users
+       JOIN plans ON plans.code = 'month'
+       CROSS JOIN (
+         VALUES
+           (concat('e2e-referral-', :'marker', '-one')),
+           (concat('e2e-referral-', :'marker', '-two'))
+       ) AS keys(client_key)
+       WHERE users.email = :'email'
+       RETURNING id, client_key
+     )
+     INSERT INTO payment_attempts (
+       order_id, provider, attempt_no, provider_key, provider_payment_id,
+       status, verified_payload, verified_at
+     )
+     SELECT id, 'yookassa', 1,
+            concat('e2e-referral-key-', client_key),
+            concat('e2e-referral-payment-', client_key),
+            'succeeded',
+            jsonb_build_object(
+              'amount', '299.00',
+              'currency', 'RUB',
+              'status', 'succeeded',
+              'payment_method_id', 'e2e-referral-method'
+            ),
+            now()
+     FROM paid_orders`,
+    { email, marker },
+  )
+}
+
+/** Finalize the two seeded attempts inside the isolated API image. */
+export function runReferralFinalization(email: string, mode: 'first' | 'every'): string {
+  return runApiPython(
+    `import asyncio
+import os
+
+from sqlalchemy import select
+
+from repibot_core.db.engine import create_engine, create_session_factory
+from repibot_core.db.models import Order, PaymentAttempt, User
+from repibot_core.services.payments import PaymentService
+from repibot_core.settings import get_settings
+
+
+async def main() -> None:
+    settings = get_settings().model_copy(
+        update={"referral_reward_mode": os.environ["E2E_REFERRAL_MODE"]}
+    )
+    engine = create_engine(settings.database_url)
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            attempts = list(
+                (
+                    await session.scalars(
+                        select(PaymentAttempt.id)
+                        .join(Order, Order.id == PaymentAttempt.order_id)
+                        .join(User, User.id == Order.user_id)
+                        .where(
+                            User.email == os.environ["E2E_REFERRAL_EMAIL"],
+                            Order.client_key.like("e2e-referral-%"),
+                        )
+                        .order_by(PaymentAttempt.id)
+                    )
+                ).all()
+            )
+            await session.commit()
+            if len(attempts) != 2:
+                raise RuntimeError(f"expected two referral attempts, got {len(attempts)}")
+            service = PaymentService(session, settings)
+            for attempt_id in attempts:
+                await service.finalize_success(attempt_id)
+            print(f"finalized={len(attempts)} mode={settings.referral_reward_mode}")
+    finally:
+        await engine.dispose()
+
+
+asyncio.run(main())`,
+    { E2E_REFERRAL_EMAIL: email, E2E_REFERRAL_MODE: mode },
+  )
+}
+
+/** Seed a saved manual method and a fixed future expiry for scheduler E2E. */
+export function seedAutoRenewalSubscription(email: string, methodId: string, marker: string): void {
+  assertToken(methodId, 'saved payment method')
+  assertToken(marker, 'renewal marker')
+  runSql(
+    `UPDATE users
+     SET telegram_id = (900000000 + (abs(hashtext(:'marker')) % 1000000000))::bigint,
+         updated_at = now()
+     WHERE email = :'email';
+
+     INSERT INTO subscriptions (
+       user_id, plan_id, status, started_at, expires_at, auto_renew_enabled,
+       source, entitlement_price_rub, entitlement_duration_days
+     )
+     SELECT users.id, plans.id, 'active', TIMESTAMPTZ '2029-12-01 00:00:00+00',
+            TIMESTAMPTZ '2030-01-01 00:00:00+00', true,
+            'purchase', plans.price_rub, plans.duration_days
+     FROM users
+     JOIN plans ON plans.code = 'month'
+     WHERE users.email = :'email'
+     ON CONFLICT (user_id) DO UPDATE SET
+       plan_id = EXCLUDED.plan_id,
+       status = EXCLUDED.status,
+       started_at = EXCLUDED.started_at,
+       expires_at = EXCLUDED.expires_at,
+       auto_renew_enabled = EXCLUDED.auto_renew_enabled,
+       source = EXCLUDED.source,
+       entitlement_price_rub = EXCLUDED.entitlement_price_rub,
+       entitlement_duration_days = EXCLUDED.entitlement_duration_days,
+       updated_at = now();
+
+     WITH initial_order AS (
+       INSERT INTO orders (
+         user_id, purpose, plan_id, plan_code_snapshot, plan_name_snapshot,
+         duration_days_snapshot, price_rub_snapshot, price_stars_snapshot,
+         gross_rub, discount_rub, amount_due_rub, promo_code_id, client_key,
+         expires_at, status, fulfilled_at
+       )
+       SELECT users.id, 'purchase', plans.id, plans.code, plans.name,
+              plans.duration_days, plans.price_rub, plans.price_stars,
+              plans.price_rub, 0.00, plans.price_rub, NULL,
+              concat('e2e-renew-seed-', :'marker'), now() + interval '1 day', 'fulfilled', now()
+       FROM users
+       JOIN plans ON plans.code = 'month'
+       WHERE users.email = :'email'
+       RETURNING id
+     )
+     INSERT INTO payment_attempts (
+       order_id, provider, attempt_no, provider_key, provider_payment_id,
+       status, verified_payload, verified_at
+     )
+     SELECT id, 'yookassa', 1,
+            concat('e2e-renew-initial-key-', :'marker'),
+            concat('e2e-renew-initial-payment-', :'marker'),
+            'succeeded',
+            jsonb_build_object(
+              'amount', '299.00',
+              'currency', 'RUB',
+              'status', 'succeeded',
+              'payment_method_id', :'method_id'
+            ),
+            now()
+     FROM initial_order`,
+    { email, method_id: methodId, marker },
+  )
+}
+
+/** Run production AutoRenewalService at a deterministic UTC instant. */
+export function runAutoRenewalAt(now: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$/.test(now)) {
+    throw new Error('E2E auto-renew time must be an explicit UTC ISO timestamp')
+  }
+  return runApiPython(
+    `import asyncio
+import os
+from datetime import datetime
+
+from repibot_core.db.engine import create_engine, create_session_factory
+from repibot_core.integrations.yookassa.client import create_yookassa_client
+from repibot_core.services.payment_notifications import AutoRenewalService
+from repibot_core.settings import get_settings
+
+
+async def main() -> None:
+    settings = get_settings()
+    engine = create_engine(settings.database_url)
+    client = create_yookassa_client()
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            calls = await AutoRenewalService(session, client, settings).run(
+                now=datetime.fromisoformat(os.environ["E2E_RENEWAL_NOW"])
+            )
+            print(f"calls={calls}")
+    finally:
+        await client.aclose()
+        await engine.dispose()
+
+
+asyncio.run(main())`,
+    { E2E_RENEWAL_NOW: now },
+  )
+}
+
+/** Repeat a concrete event in one transaction; per-channel rows must stay unique. */
+export function runNotificationDedup(orderId: number, kind: string): string {
+  if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+    throw new Error('E2E notification order id must be a positive integer')
+  }
+  assertToken(kind, 'notification kind')
+  return runApiPython(
+    `import asyncio
+import os
+
+from repibot_core.db.engine import create_engine, create_session_factory
+from repibot_core.services.payment_notifications import NotificationService
+from repibot_core.settings import get_settings
+
+
+async def main() -> None:
+    settings = get_settings()
+    engine = create_engine(settings.database_url)
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            async with session.begin():
+                service = NotificationService(session)
+                first = await service.enqueue_payment_event(
+                    int(os.environ["E2E_NOTIFICATION_ORDER_ID"]),
+                    os.environ["E2E_NOTIFICATION_KIND"],
+                )
+                second = await service.enqueue_payment_event(
+                    int(os.environ["E2E_NOTIFICATION_ORDER_ID"]),
+                    os.environ["E2E_NOTIFICATION_KIND"],
+                )
+                print(f"staged={first},{second}")
+    finally:
+        await engine.dispose()
+
+
+asyncio.run(main())`,
+    {
+      E2E_NOTIFICATION_ORDER_ID: String(orderId),
+      E2E_NOTIFICATION_KIND: kind,
+    },
+  )
+}
+
+function assertToken(value: string, label: string): void {
+  if (!/^[A-Za-z0-9_-]{1,96}$/.test(value)) {
+    throw new Error(
+      `${label} may contain only ASCII letters, digits, underscores, and hyphens in E2E seed data`,
+    )
+  }
 }
 
 function runSql(sql: string, variables: Record<string, string> = {}): void {
-  const command = [
+  runComposeCommand(psqlCommand(variables), sql)
+}
+
+/** Run a scalar or pipe-delimited query only in the disposable E2E database. */
+export function querySql(sql: string, variables: Record<string, string> = {}): string {
+  return runComposeOutput(
+    [...psqlCommand(variables), '--tuples-only', '--no-align', '--field-separator=|'],
+    sql,
+  ).trim()
+}
+
+function psqlCommand(variables: Record<string, string>): string[] {
+  return [
     'exec',
     '--no-TTY',
     'postgres',
@@ -162,11 +502,10 @@ function runSql(sql: string, variables: Record<string, string> = {}): void {
     'ON_ERROR_STOP=1',
     ...Object.entries(variables).flatMap(([key, value]) => ['--set', `${key}=${value}`]),
   ]
-  runComposeCommand(command, sql)
 }
 
-function runComposeCommand(args: string[], input?: string): void {
-  const command = [
+function composeCommand(args: string[]): string[] {
+  return [
     'compose',
     '--project-name',
     PROJECT,
@@ -177,6 +516,10 @@ function runComposeCommand(args: string[], input?: string): void {
     'dev',
     ...args,
   ]
+}
+
+function runComposeCommand(args: string[], input?: string): void {
+  const command = composeCommand(args)
   try {
     execFileSync('docker', command, {
       cwd: ROOT,
@@ -190,4 +533,27 @@ function runComposeCommand(args: string[], input?: string): void {
     }
     throw new Error('команда сквозного compose-стека завершилась с ошибкой')
   }
+}
+
+function runComposeOutput(args: string[], input?: string): string {
+  const command = composeCommand(args)
+  try {
+    return execFileSync('docker', command, {
+      cwd: ROOT,
+      input,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'inherit'],
+    })
+  } catch (error) {
+    const code = (error as { code?: string }).code
+    if (code === 'ENOENT') {
+      throw new Error('посеву сквозных тестов нужен Docker: команда docker не найдена')
+    }
+    throw new Error('команда сквозного compose-стека завершилась с ошибкой')
+  }
+}
+
+function runApiPython(script: string, environment: Record<string, string>): string {
+  const env = Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`])
+  return runComposeOutput(['exec', '--no-TTY', ...env, 'api', 'python', '-'], script)
 }

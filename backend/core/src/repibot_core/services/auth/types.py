@@ -36,3 +36,6 @@ class IssuedSession:
     session_id: UUID
     access_expires_in: int
     refresh_expires_at: datetime | None
+    # The router uses this only to mint/clear the short-lived Next route gate.
+    # API authorization always reloads the role through PrincipalCache.
+    is_admin: bool

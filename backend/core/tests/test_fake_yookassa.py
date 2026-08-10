@@ -59,3 +59,29 @@ async def test_fake_yookassa_can_hold_a_poll_while_a_webhook_changes_status() ->
     fake.release_gets()
 
     assert (await poll).status is YooKassaPaymentStatus.succeeded
+
+
+async def test_fake_yookassa_keeps_recurring_payment_ids_distinct_for_one_method() -> None:
+    """A saved payment method identifies the instrument, never the provider payment."""
+    fake = FakeYooKassa()
+    first = await fake.create_payment(
+        idempotence_key="renewal-24h",
+        amount_rub=Decimal("299.00"),
+        return_url="http://localhost/renewal",
+        description="renewal one",
+        save_payment_method=False,
+        payment_method_id="saved-method-1",
+    )
+    second = await fake.create_payment(
+        idempotence_key="renewal-plus-6h",
+        amount_rub=Decimal("299.00"),
+        return_url="http://localhost/renewal",
+        description="renewal two",
+        save_payment_method=False,
+        payment_method_id="saved-method-1",
+    )
+
+    assert first.id != second.id
+    assert first.payment_method_id == second.payment_method_id == "saved-method-1"
+    assert await fake.get_payment(first.id) == first
+    assert await fake.get_payment(second.id) == second

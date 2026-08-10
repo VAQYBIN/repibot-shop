@@ -82,17 +82,17 @@ services:
       valkey:
         condition: service_healthy
 
-  # Ни env_file, ни environment — намеренно. Веб-приложение отдаёт разметку
-  # и ходит в API через nginx по относительным путям, конфигурация ему не нужна.
-  # Подключить сюда общий .env значило бы положить токен бота и ключ подписи
-  # в процесс, который их не использует. Когда понадобится адрес или ключ —
-  # они добавляются поимённо через environment, а не файлом целиком.
+  # Вебу не нужен общий .env: он не должен получить токен бота, JWT или ключи
+  # платежей. Единственный named secret нужен Next Proxy для проверки HMAC
+  # assertion на /admin; этот cookie никогда не авторизует API-мутацию.
   web:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
     restart: unless-stopped
     depends_on: [api]
+    environment:
+      ADMIN_ASSERTION_SECRET: ${ADMIN_ASSERTION_SECRET}
 
   # Только для разработки и сквозных тестов: SMTP-приёмник с веб-интерфейсом.
   # Профиль dev означает, что обычный `docker compose up` его не поднимает.

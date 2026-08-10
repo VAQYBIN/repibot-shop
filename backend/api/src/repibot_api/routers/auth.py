@@ -19,8 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from repibot_api.cookies import (
     OIDC_COOKIE,
     REFRESH_COOKIE,
+    clear_admin_assertion_cookie,
     clear_oidc_cookie,
     clear_refresh_cookie,
+    set_admin_assertion_cookie,
     set_oidc_cookie,
     set_refresh_cookie,
 )
@@ -85,14 +87,32 @@ def _services(
     return auth, PasswordAuth(session, settings, auth), TelegramAuth(session, settings, auth)
 
 
-def _respond(response: Response, issued: IssuedSession) -> TokenResponse:
-    if issued.refresh_token is not None and issued.refresh_expires_at is not None:
-        set_refresh_cookie(
+def _set_browser_session_cookies(response: Response, issued: IssuedSession) -> None:
+    """Sets UI-facing cookies from the same backend role truth as the session."""
+    if issued.refresh_token is None or issued.refresh_expires_at is None:
+        return
+
+    settings = get_settings()
+    secure = settings.environment == "production"
+    set_refresh_cookie(
+        response,
+        issued.refresh_token,
+        expires_at=issued.refresh_expires_at,
+        secure=secure,
+    )
+    if issued.is_admin:
+        set_admin_assertion_cookie(
             response,
-            issued.refresh_token,
-            expires_at=issued.refresh_expires_at,
-            secure=get_settings().environment == "production",
+            secret=settings.admin_assertion_secret.get_secret_value(),
+            ttl_seconds=settings.admin_assertion_ttl_seconds,
+            secure=secure,
         )
+    else:
+        clear_admin_assertion_cookie(response, secure=secure)
+
+
+def _respond(response: Response, issued: IssuedSession) -> TokenResponse:
+    _set_browser_session_cookies(response, issued)
     return TokenResponse(access_token=issued.access_token, expires_in=issued.access_expires_in)
 
 
@@ -210,6 +230,7 @@ async def refresh(
         # Ротация не удалась — cookie гасится, иначе браузер будет повторять
         # запрос с мёртвым токеном до истечения срока.
         clear_refresh_cookie(response, secure=settings.environment == "production")
+        clear_admin_assertion_cookie(response, secure=settings.environment == "production")
         raise api_error_from(error) from error
     return _respond(response, issued)
 
@@ -223,7 +244,9 @@ async def logout(
 ) -> None:
     auth, _, _ = _services(session, principals)
     await auth.logout(context.session_id)
-    clear_refresh_cookie(response, secure=get_settings().environment == "production")
+    secure = get_settings().environment == "production"
+    clear_refresh_cookie(response, secure=secure)
+    clear_admin_assertion_cookie(response, secure=secure)
 
 
 @router.post("/password/forgot", status_code=202, response_model=AcceptedResponse)
@@ -451,12 +474,6 @@ async def telegram_callback(
     # refresh по только что поставленной cookie. В строке он попал бы в историю
     # браузера и в журнал прокси.
     redirect = RedirectResponse(f"{settings.public_web_url}/account", status_code=307)
-    if issued.refresh_token is not None and issued.refresh_expires_at is not None:
-        set_refresh_cookie(
-            redirect,
-            issued.refresh_token,
-            expires_at=issued.refresh_expires_at,
-            secure=settings.environment == "production",
-        )
+    _set_browser_session_cookies(redirect, issued)
     clear_oidc_cookie(redirect, secure=settings.environment == "production")
     return redirect

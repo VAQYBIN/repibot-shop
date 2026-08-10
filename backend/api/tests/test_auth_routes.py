@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import text
+from sqlalchemy import text, update
+from sqlalchemy.ext.asyncio import AsyncEngine
 
+from repibot_core.db.models import User, UserRole
 from repibot_core.testing.initdata import build_init_data
 
 pytestmark = pytest.mark.docker
@@ -31,6 +33,16 @@ async def _register_and_verify(client: AsyncClient, email: str = "user@example.o
     token = link.split("token=")[1]
     confirmed = await client.post("/api/auth/verify-email", json={"token": token})
     assert confirmed.status_code == 200
+
+
+async def _set_email_role(engine: AsyncEngine, role: UserRole) -> None:
+    from repibot_core.db.engine import create_session_factory
+
+    async with create_session_factory(engine)() as session:
+        await session.execute(
+            update(User).where(User.email == "user@example.org").values(role=role)
+        )
+        await session.commit()
 
 
 async def test_registration_answers_202_without_leaking_anything(api_client: AsyncClient) -> None:
@@ -74,6 +86,74 @@ async def test_login_sets_httponly_cookie_scoped_to_refresh(api_client: AsyncCli
     assert "Path=/api/auth/refresh" in cookie
     # Токен не должен появиться в теле ответа: там его достала бы любая XSS.
     assert "refresh" not in body
+
+
+async def test_admin_login_sets_a_short_lived_assertion_scoped_to_admin(
+    api_client: AsyncClient, engine: AsyncEngine
+) -> None:
+    """A browser admin receives routing evidence, not another API credential."""
+    await _register_and_verify(api_client)
+    await _set_email_role(engine, UserRole.admin)
+
+    response = await api_client.post(
+        "/api/auth/login", json={"email": "user@example.org", "password": PASSWORD}
+    )
+
+    assert response.status_code == 200
+    admin_cookie = next(
+        value
+        for value in response.headers.get_list("set-cookie")
+        if value.startswith("repibot_admin_assertion=")
+    )
+    assert "HttpOnly" in admin_cookie
+    assert "SameSite=lax" in admin_cookie
+    assert "Path=/admin" in admin_cookie
+    assert "Max-Age=300" in admin_cookie
+
+
+async def test_refresh_clears_admin_assertion_after_role_revocation(
+    api_client: AsyncClient, engine: AsyncEngine
+) -> None:
+    await _register_and_verify(api_client)
+    await _set_email_role(engine, UserRole.admin)
+    await api_client.post(
+        "/api/auth/login", json={"email": "user@example.org", "password": PASSWORD}
+    )
+    await _set_email_role(engine, UserRole.user)
+
+    response = await api_client.post("/api/auth/refresh", headers={"Origin": ORIGIN})
+
+    assert response.status_code == 200
+    admin_cookie = next(
+        value
+        for value in response.headers.get_list("set-cookie")
+        if value.startswith("repibot_admin_assertion=")
+    )
+    assert "Path=/admin" in admin_cookie
+    assert "Max-Age=0" in admin_cookie
+
+
+async def test_logout_clears_the_admin_assertion_cookie(
+    api_client: AsyncClient, engine: AsyncEngine
+) -> None:
+    await _register_and_verify(api_client)
+    await _set_email_role(engine, UserRole.admin)
+    login = await api_client.post(
+        "/api/auth/login", json={"email": "user@example.org", "password": PASSWORD}
+    )
+
+    response = await api_client.post(
+        "/api/auth/logout", headers={"Authorization": f"Bearer {login.json()['access_token']}"}
+    )
+
+    assert response.status_code == 204
+    admin_cookie = next(
+        value
+        for value in response.headers.get_list("set-cookie")
+        if value.startswith("repibot_admin_assertion=")
+    )
+    assert "Path=/admin" in admin_cookie
+    assert "Max-Age=0" in admin_cookie
 
 
 async def test_login_before_verification_returns_403(api_client: AsyncClient) -> None:

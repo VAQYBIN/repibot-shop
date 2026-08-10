@@ -76,7 +76,13 @@ class AuthService:
         )
         await self._session.commit()
 
-        return self._pack(user.id, row.id, raw_refresh, expires_at if raw_refresh else None)
+        return self._pack(
+            user.id,
+            row.id,
+            raw_refresh,
+            expires_at if raw_refresh else None,
+            is_admin=user.role is UserRole.admin,
+        )
 
     async def refresh(
         self, raw_token: str, *, user_agent: str | None, ip: str | None
@@ -109,7 +115,13 @@ class AuthService:
             row.ip = ip
         await self._session.commit()
 
-        return self._pack(row.user_id, row.id, new_raw, row.expires_at)
+        return self._pack(
+            row.user_id,
+            row.id,
+            new_raw,
+            row.expires_at,
+            is_admin=user.role is UserRole.admin,
+        )
 
     async def logout(self, session_id: UUID) -> None:
         row = await self._sessions.get(session_id)
@@ -199,6 +211,8 @@ class AuthService:
         session_id: UUID,
         raw_refresh: str | None,
         refresh_expires_at: datetime | None,
+        *,
+        is_admin: bool,
     ) -> IssuedSession:
         ttl = self._settings.access_token_ttl_minutes
         return IssuedSession(
@@ -212,4 +226,5 @@ class AuthService:
             session_id=session_id,
             access_expires_in=ttl * 60,
             refresh_expires_at=refresh_expires_at,
+            is_admin=is_admin,
         )

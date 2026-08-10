@@ -93,16 +93,20 @@ def test_dev_only_services_are_behind_a_profile(compose: dict[str, Any]) -> None
     assert mailpit.get("profiles") == ["dev"]
 
 
-def test_frontend_service_does_not_receive_backend_secrets(compose: dict[str, Any]) -> None:
-    """Веб-приложению нужна разметка, а не токен бота и ключ подписи.
+def test_frontend_service_receives_only_its_named_server_side_secret(
+    compose: dict[str, Any],
+) -> None:
+    """Вебу не нужен общий .env, но Next обязан проверить admin assertion.
 
     Подключение общего .env выглядит безобидно и кладёт все секреты в процесс,
-    который их не использует, — лишняя поверхность на ровном месте.
+    который их не использует, — лишняя поверхность на ровном месте. Единственное
+    исключение — отдельный HMAC-ключ, которым Next проверяет routing-only
+    assertion; ключи JWT, бота и платежей туда не попадают.
     """
     web = compose["services"]["web"]
 
     assert "env_file" not in web
-    assert "environment" not in web
+    assert web["environment"] == {"ADMIN_ASSERTION_SECRET": "${ADMIN_ASSERTION_SECRET}"}
 
 
 def test_no_literal_secrets_in_compose() -> None:

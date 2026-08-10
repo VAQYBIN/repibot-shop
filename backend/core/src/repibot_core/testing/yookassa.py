@@ -42,7 +42,7 @@ class FakeYooKassa:
         del description, save_payment_method
         if idempotence_key in self._keys:
             return self._payments[self._keys[idempotence_key]]
-        payment_id = payment_method_id or f"fake-payment-{next(self._ids)}"
+        payment_id = f"fake-payment-{next(self._ids)}"
         payment = YooKassaPayment(
             id=payment_id,
             status=YooKassaPaymentStatus.pending,

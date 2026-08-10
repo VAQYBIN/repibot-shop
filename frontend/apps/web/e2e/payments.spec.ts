@@ -10,7 +10,7 @@ const PASSWORD = 'надёжный пароль для платежного сц
 const VERIFY_LINK = /https?:\/\/\S+\/verify-email\S+/
 const FAKE_YOOKASSA_URL = process.env.E2E_YOOKASSA_URL ?? 'http://127.0.0.1:3002'
 
-test.beforeAll(() => resetRegistrationRateLimit())
+test.beforeEach(() => resetRegistrationRateLimit())
 
 function uniqueEmail(prefix: string): string {
   return `${prefix}-${Date.now()}@example.com`
@@ -108,12 +108,28 @@ test('неуспешный платёж не выдаёт подписку', asy
   await expect(page.getByText('Подписки пока нет')).toBeVisible()
 })
 
+test('обычный пользователь не получает server-rendered экран admin payments по прямому URL', async ({
+  page,
+}) => {
+  await registerAndSignIn(page, uniqueEmail('payment-nonadmin'))
+
+  await page.goto('/admin/payments')
+
+  await expect(page).toHaveURL(/\/login/)
+  await expect(page.getByRole('heading', { name: 'Платежи и корректировки' })).toHaveCount(0)
+  expect(await page.content()).not.toContain('Платежи и корректировки')
+})
+
 test('admin payments остаётся server-gated и рендерится во всех visual-вариантах', async ({
   page,
 }) => {
   const email = uniqueEmail('payment-admin')
   await registerAndSignIn(page, email)
   grantE2eAdmin(email)
+  // A reload loses the access token, invokes backend refresh, and therefore
+  // receives the signed /admin assertion only after the actual role update.
+  await page.reload()
+  await expect(page).toHaveURL(/\/account/)
 
   await page.goto('/admin/payments')
   await expect(page.getByRole('heading', { name: 'Платежи и корректировки' })).toBeVisible()
