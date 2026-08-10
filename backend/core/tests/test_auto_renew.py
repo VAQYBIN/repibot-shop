@@ -189,7 +189,9 @@ async def test_final_failed_attempt_disables_auto_renew_when_setting_enabled(
     renewals = AutoRenewalService(db_session, FailingYooKassa(), get_settings())
 
     calls = []
-    for offset in (-24, 6, 12):
+    # The second and third attempts are 6h and 12h after the preceding
+    # attempt, equivalently -18h and -6h relative to expiry.
+    for offset in (-24, -18, -6):
         calls.append(await renewals.run(now=anchor + timedelta(hours=offset)))
     await db_session.refresh(subscription)
 
@@ -397,8 +399,9 @@ async def test_fresh_run_fulfills_recorded_success_after_local_ttl_expired(
 
     order = await db_session.scalar(select(Order).where(Order.client_key.like("auto-renew:%")))
     assert order is not None
+    # Срок заказа неизменяем; к моменту прогона ниже он и так позади, поэтому
+    # истечение достаточно отразить статусом.
     order.status = OrderStatus.expired
-    order.expires_at = anchor - timedelta(days=8)
     subscription.expires_at = anchor + timedelta(days=30)
     await db_session.commit()
 

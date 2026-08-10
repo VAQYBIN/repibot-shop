@@ -125,6 +125,10 @@ class PaymentAttempt(TimestampMixin, Base):
         ),
         UniqueConstraint("provider", "provider_key", name="uq_attempts_provider_key"),
         UniqueConstraint("provider", "provider_payment_id", name="uq_attempts_provider_payment_id"),
+        UniqueConstraint("stars_pre_checkout_id", name="uq_attempts_stars_pre_checkout_id"),
+        UniqueConstraint(
+            "telegram_payment_charge_id", name="uq_attempts_telegram_payment_charge_id"
+        ),
         CheckConstraint("attempt_no > 0", name="ck_attempts_number_positive"),
     )
 
@@ -137,6 +141,12 @@ class PaymentAttempt(TimestampMixin, Base):
     provider_key: Mapped[str] = mapped_column(String(128))
     handoff_token: Mapped[str | None] = mapped_column(String(128), unique=True)
     provider_payment_id: Mapped[str | None] = mapped_column(String(255))
+    # Telegram first sends a pre-checkout query and only later a charge ID.
+    # Persisting both makes an invoice single-use before the charge and makes
+    # duplicate successful-payment updates prove they describe that same charge.
+    stars_pre_checkout_id: Mapped[str | None] = mapped_column(String(255))
+    stars_authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    telegram_payment_charge_id: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus, name="payment_status", native_enum=True), default=PaymentStatus.pending
     )

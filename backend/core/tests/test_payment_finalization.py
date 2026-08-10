@@ -24,12 +24,14 @@ from repibot_core.db.models import (
     Subscription,
     SubscriptionEvent,
     SubscriptionEventType,
+    SubscriptionSource,
     TrafficResetStrategy,
     User,
 )
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
+from repibot_core.domain.subscriptions import SubscriptionState
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.services.payments import FinalizationResult, PaymentService
 from repibot_core.services.promotions import PromotionInput, PromotionService
@@ -183,17 +185,102 @@ async def test_stars_success_can_be_recovered_after_recording_before_finalizatio
     )
     assert created.invoice_payload is not None
 
+    authorized = await PaymentService(db_session).authorize_stars_attempt(
+        invoice_payload=created.invoice_payload,
+        user_id=user.id,
+        total_amount=199,
+        currency="XTR",
+        pre_checkout_id="checkout-recovery",
+    )
+    assert authorized is not None
+
     first = await PaymentService(db_session).confirm_stars_success(
-        invoice_payload=created.invoice_payload, user_id=user.id, total_amount=199
+        invoice_payload=created.invoice_payload,
+        user_id=user.id,
+        total_amount=199,
+        currency="XTR",
+        telegram_payment_charge_id="tg-charge-recovery",
     )
     recovered = await PaymentService(db_session).confirm_stars_success(
-        invoice_payload=created.invoice_payload, user_id=user.id, total_amount=199
+        invoice_payload=created.invoice_payload,
+        user_id=user.id,
+        total_amount=199,
+        currency="XTR",
+        telegram_payment_charge_id="tg-charge-recovery",
     )
 
     assert first is not None
     assert recovered == first
     result = await PaymentService(db_session).finalize_success(recovered)
     assert result is not None and result.already_finalized is False
+
+
+async def test_concurrent_stars_precheckouts_claim_one_invoice_and_one_charge(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Removing the durable pre-checkout claim would let Telegram charge one invoice twice."""
+    plan = await _plan(db_session, "stars-single-use")
+    user = await _user(db_session, "stars003")
+    created = await PaymentService(db_session).create_stars_order(
+        user_id=user.id,
+        plan_id=plan.id,
+        purpose=OrderPurpose.purchase,
+        client_key="stars-single-use-order",
+        promo_code=None,
+    )
+    assert created.invoice_payload is not None
+    invoice_payload = created.invoice_payload
+    factory = create_session_factory(engine)
+
+    async def authorize(pre_checkout_id: str) -> int | None:
+        async with factory() as session:
+            return await PaymentService(session).authorize_stars_attempt(
+                invoice_payload=invoice_payload,
+                user_id=user.id,
+                total_amount=199,
+                currency="XTR",
+                pre_checkout_id=pre_checkout_id,
+            )
+
+    first, second = await asyncio.gather(authorize("checkout-one"), authorize("checkout-two"))
+
+    assert sorted(result is None for result in (first, second)) == [False, True]
+    attempt_id = first if first is not None else second
+    assert attempt_id is not None
+
+    async with factory() as session:
+        confirmed = await PaymentService(session).confirm_stars_success(
+            invoice_payload=created.invoice_payload,
+            user_id=user.id,
+            total_amount=199,
+            currency="XTR",
+            telegram_payment_charge_id="tg-charge-single-use",
+        )
+        duplicate = await PaymentService(session).confirm_stars_success(
+            invoice_payload=created.invoice_payload,
+            user_id=user.id,
+            total_amount=199,
+            currency="XTR",
+            telegram_payment_charge_id="tg-charge-single-use",
+        )
+        substituted = await PaymentService(session).confirm_stars_success(
+            invoice_payload=created.invoice_payload,
+            user_id=user.id,
+            total_amount=199,
+            currency="XTR",
+            telegram_payment_charge_id="tg-charge-substituted",
+        )
+        attempt = await session.get(PaymentAttempt, attempt_id)
+
+    assert confirmed == duplicate == attempt_id
+    assert substituted is None
+    assert attempt is not None
+    assert attempt.telegram_payment_charge_id == "tg-charge-single-use"
+    assert attempt.verified_payload == {
+        "amount": 199,
+        "currency": "XTR",
+        "telegram_payment_charge_id": "tg-charge-single-use",
+    }
 
 
 async def test_late_yookassa_success_cannot_become_ttl_bypass_proof(
@@ -413,6 +500,99 @@ async def test_paid_plan_switch_uses_saved_previous_entitlement_value(
     # 20 дней старого тарифа по 10 ₽/день = 10 дней нового по 20 ₽/день,
     # после чего добавляются 30 оплаченных дней. Цена, поднятая до 1200 ₽,
     # дала бы около 70 дней и нарушила бы это условие.
+    assert timedelta(days=39) < remaining <= timedelta(days=40)
+
+
+async def test_discounted_bonus_entitlement_uses_actual_paid_value_on_later_switch(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Changing the snapshot to list price/base days would over-credit a later switch."""
+    paid_plan = await _plan(db_session, "discounted-bonus-old")
+    new_plan = await _plan(db_session, "discounted-bonus-new")
+    user = await _user(db_session, "discbonus01")
+    promotions = PromotionService(db_session)
+    promo = await promotions.create(
+        PromotionInput(code="HALF-PLUS-30", percent_off=50, bonus_days=30)
+    )
+    quote = await promotions.prepare(
+        user_id=user.id, code=promo.code, gross_rub=paid_plan.price_rub
+    )
+    order = await OrderRepository(db_session).create_pending(
+        user_id=user.id,
+        plan=paid_plan,
+        purpose=OrderPurpose.purchase,
+        client_key="discounted-bonus-order",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+        gross_rub=paid_plan.price_rub,
+        discount_rub=quote.discount_rub,
+        promo_code_id=promo.id,
+    )
+    await promotions.reserve_prepared(order=order, user_id=user.id, quote=quote)
+    attempt = await PaymentAttemptRepository(db_session).get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key="discounted-bonus-attempt",
+        status=PaymentStatus.succeeded,
+        verified_payload={"amount": "150.00", "currency": "RUB"},
+        verified_at=datetime.now(UTC),
+    )
+    await db_session.commit()
+    factory = create_session_factory(engine)
+
+    await _finalize(factory, attempt.id)
+    subscription = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    assert subscription is not None
+    assert subscription.entitlement_price_rub == Decimal("150.00")
+    assert subscription.entitlement_duration_days == 60
+
+    subscription.expires_at = datetime.now(UTC) + timedelta(days=30)
+    await db_session.commit()
+    switch = await _verified_attempt(db_session, user=user, plan=new_plan, key="discounted-switch")
+    await _finalize(factory, switch)
+    await db_session.refresh(subscription)
+
+    remaining = subscription.expires_at - datetime.now(UTC)
+    # 30/60 of the paid 150 ₽ equals 7 whole days of the 300 ₽/30d new plan,
+    # then the new 30-day purchase is applied.
+    assert timedelta(days=36) < remaining <= timedelta(days=37)
+
+
+async def test_legacy_zero_entitlement_snapshot_falls_back_without_dividing_by_zero(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Pre-snapshot subscriptions must retain a conservative switch path instead of crashing."""
+    old_plan = await _plan(db_session, "legacy-zero-old")
+    new_plan = await _plan(db_session, "legacy-zero-new", price_rub=Decimal("600.00"))
+    user = await _user(db_session, "legacy-zero-user")
+    db_session.add(
+        Subscription(
+            user_id=user.id,
+            plan_id=old_plan.id,
+            status=SubscriptionState.pending_provision,
+            started_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(days=20, minutes=1),
+            source=SubscriptionSource.purchase,
+            entitlement_price_rub=Decimal("0.00"),
+            entitlement_duration_days=0,
+        )
+    )
+    await db_session.commit()
+    attempt = await _verified_attempt(
+        db_session, user=user, plan=new_plan, key="legacy-zero-switch"
+    )
+
+    await _finalize(create_session_factory(engine), attempt)
+
+    subscription = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    assert subscription is not None
+    remaining = subscription.expires_at - datetime.now(UTC)
+    # Legacy values fall back to the old 300 ₽/30d plan: 20 days retain ten
+    # days of value on the 600 ₽/30d target, plus the newly paid 30 days.
     assert timedelta(days=39) < remaining <= timedelta(days=40)
 
 

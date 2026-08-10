@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from importlib.util import find_spec
+from secrets import token_urlsafe
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,7 +21,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_bot.handlers.payments import build_payment_router
 from repibot_bot.main import build_dispatcher
-from repibot_core.db.models import Order, OrderStatus, PaymentAttempt, TrafficResetStrategy, User
+from repibot_core.db.models import (
+    Order,
+    OrderStatus,
+    PaymentAttempt,
+    PaymentProvider,
+    TrafficResetStrategy,
+    User,
+)
+from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.services.payments import FinalizationResult, PaymentService
 
@@ -33,15 +42,33 @@ class FakePayments:
     finalized: list[int] = field(default_factory=list)
 
     async def authorize_stars_attempt(
-        self, *, invoice_payload: str, user_id: int, total_amount: int
+        self,
+        *,
+        invoice_payload: str,
+        user_id: int,
+        total_amount: int,
+        currency: str,
+        pre_checkout_id: str,
     ) -> int | None:
-        self.seen = (invoice_payload, user_id, total_amount)
+        self.seen = (invoice_payload, user_id, total_amount, currency, pre_checkout_id)
         return self.approved
 
     async def confirm_stars_success(
-        self, *, invoice_payload: str, user_id: int, total_amount: int
+        self,
+        *,
+        invoice_payload: str,
+        user_id: int,
+        total_amount: int,
+        currency: str,
+        telegram_payment_charge_id: str,
     ) -> int | None:
-        self.seen = (invoice_payload, user_id, total_amount)
+        self.seen = (
+            invoice_payload,
+            user_id,
+            total_amount,
+            currency,
+            telegram_payment_charge_id,
+        )
         return self.approved
 
     async def finalize_success(self, attempt_id: int) -> None:
@@ -160,7 +187,9 @@ def _pre_checkout_update(payload: str, amount: int) -> Update:
     )
 
 
-async def _stars_order(session: AsyncSession) -> tuple[User, Order, str]:
+async def _stars_order(
+    session: AsyncSession, *, expires_at: datetime | None = None
+) -> tuple[User, Order, str]:
     plan = await PlanRepository(session).create(
         code="stars-month",
         name={"ru": "Month", "en": "Month"},
@@ -180,6 +209,24 @@ async def _stars_order(session: AsyncSession) -> tuple[User, Order, str]:
     user = User(telegram_id=700_001, referral_code="STARS001", language="ru")
     session.add(user)
     await session.commit()
+    if expires_at is not None:
+        # Сервис умеет выдать только будущий срок, а неизменяемый снимок не
+        # позволяет исправить его после создания.
+        order = await OrderRepository(session).create_pending(
+            user_id=user.id,
+            plan=plan,
+            client_key="stars-test-order",
+            expires_at=expires_at,
+        )
+        attempt = await PaymentAttemptRepository(session).get_or_create(
+            order_id=order.id,
+            provider=PaymentProvider.stars,
+            attempt_no=1,
+            provider_key=token_urlsafe(32),
+            handoff_token=token_urlsafe(32),
+        )
+        await session.commit()
+        return user, order, f"stars.{attempt.provider_key}"
     created = await PaymentService(session).create_stars_order(
         user_id=user.id,
         plan_id=plan.id,
@@ -204,10 +251,12 @@ async def test_successful_stars_payment_finalizes_the_attempt() -> None:
     message = MagicMock()
     message.successful_payment.invoice_payload = "opaque-attempt"
     message.successful_payment.total_amount = 199
+    message.successful_payment.currency = "XTR"
+    message.successful_payment.telegram_payment_charge_id = "tg-charge-91"
 
     await handle_successful_payment(message, user=_owner(), payment_service=payment_service)
 
-    assert payment_service.seen == ("opaque-attempt", 7, 199)
+    assert payment_service.seen == ("opaque-attempt", 7, 199, "XTR", "tg-charge-91")
     assert payment_service.finalized == [91]
 
 
@@ -220,6 +269,8 @@ async def test_pre_checkout_rejects_expired_or_inactive_attempt() -> None:
     query = MagicMock()
     query.invoice_payload = "expired-attempt"
     query.total_amount = 199
+    query.currency = "XTR"
+    query.id = "checkout-expired"
     query.answer = AsyncMock()
 
     await handle_pre_checkout(query, user=_owner(), payment_service=payment_service)
@@ -236,6 +287,8 @@ async def test_pre_checkout_rejects_wrong_stars_amount() -> None:
     query = MagicMock()
     query.invoice_payload = "opaque-attempt"
     query.total_amount = 198
+    query.currency = "XTR"
+    query.id = "checkout-wrong-amount"
     query.answer = AsyncMock()
 
     await handle_pre_checkout(query, user=_owner(), payment_service=payment_service)
@@ -252,6 +305,8 @@ async def test_duplicate_or_foreign_successful_payment_is_not_finalized() -> Non
     message = MagicMock()
     message.successful_payment.invoice_payload = "opaque-attempt"
     message.successful_payment.total_amount = 199
+    message.successful_payment.currency = "XTR"
+    message.successful_payment.telegram_payment_charge_id = "tg-charge-foreign"
     stranger = User(id=8, telegram_id=800_001, referral_code="STARS002", language="ru")
 
     await handle_successful_payment(message, user=stranger, payment_service=payment_service)
@@ -354,6 +409,13 @@ async def test_successful_payment_feed_update_finalizes_persisted_order_once(
     bot = Bot(token="123456:test-token", session=RecordingSession())
     dispatcher = _dispatcher()
 
+    await dispatcher.feed_update(
+        bot,
+        _pre_checkout_update(payload, 199),
+        user=user,
+        payment_service=PaymentService(db_session),
+    )
+
     class FailingFinalizer(PaymentService):
         async def finalize_success(
             self, *args: object, **kwargs: object
@@ -405,13 +467,15 @@ async def test_pre_checkout_feed_update_rejects_invalid_signature(
 async def test_pre_checkout_feed_update_rejects_invalid_persisted_attempt(
     db_session: AsyncSession, case: str
 ) -> None:
-    user, order, payload = await _stars_order(db_session)
+    # Срок заказа входит в неизменяемый снимок, поэтому истёкший случай
+    # собирается сразу таким, а не правкой уже созданной строки.
+    user, order, payload = await _stars_order(
+        db_session,
+        expires_at=(datetime.now(UTC) - timedelta(seconds=1) if case == "expired" else None),
+    )
     amount = 199
     owner = user
-    if case == "expired":
-        order.expires_at = datetime.now(UTC) - timedelta(seconds=1)
-        await db_session.commit()
-    elif case == "wrong_owner":
+    if case == "wrong_owner":
         owner = User(id=user.id + 1, telegram_id=800_001, referral_code="STARS003", language="ru")
     elif case == "wrong_state":
         order.status = OrderStatus.canceled

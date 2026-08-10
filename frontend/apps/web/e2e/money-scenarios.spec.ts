@@ -215,7 +215,7 @@ test('every referral mode credits each paid origin in the isolated API container
   await expect(page.getByText('Месяц', { exact: true })).toBeVisible()
 })
 
-test('auto-renewal uses -24/+6/+12 cycles, keeps the saved method, and deduplicates each channel', async ({
+test('auto-renewal uses -24/-18/-6 cycles, keeps the saved method, and deduplicates each channel', async ({
   page,
 }) => {
   const email = uniqueEmail('auto-renew')
@@ -236,7 +236,7 @@ test('auto-renewal uses -24/+6/+12 cycles, keeps the saved method, and deduplica
   expect(firstPayment).toMatch(/^fake-payment-\d+$/)
 
   await setFakePaymentStatus(page, firstPayment, 'canceled')
-  runAutoRenewalAt('2030-01-01T06:00:00+00:00')
+  runAutoRenewalAt('2029-12-31T06:00:00+00:00')
   const secondPayment = querySql(
     `SELECT attempt.provider_payment_id
      FROM payment_attempts attempt
@@ -248,7 +248,7 @@ test('auto-renewal uses -24/+6/+12 cycles, keeps the saved method, and deduplica
   expect(secondPayment).toMatch(/^fake-payment-\d+$/)
 
   await setFakePaymentStatus(page, secondPayment, 'canceled')
-  runAutoRenewalAt('2030-01-01T12:00:00+00:00')
+  runAutoRenewalAt('2029-12-31T18:00:00+00:00')
   const thirdPayment = querySql(
     `SELECT attempt.provider_payment_id
      FROM payment_attempts attempt
@@ -260,7 +260,7 @@ test('auto-renewal uses -24/+6/+12 cycles, keeps the saved method, and deduplica
   expect(thirdPayment).toMatch(/^fake-payment-\d+$/)
 
   await setFakePaymentStatus(page, thirdPayment, 'canceled')
-  runAutoRenewalAt('2030-01-01T12:00:00+00:00')
+  runAutoRenewalAt('2029-12-31T18:00:00+00:00')
 
   const attempts = rows(
     `SELECT attempt.attempt_no::text, attempt.status::text, attempt.provider_payment_id,

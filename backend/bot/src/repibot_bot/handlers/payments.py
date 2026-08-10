@@ -26,11 +26,23 @@ class StarsPaymentService(Protocol):
     ) -> StarsInvoiceView | None: ...
 
     async def authorize_stars_attempt(
-        self, *, invoice_payload: str, user_id: int, total_amount: int
+        self,
+        *,
+        invoice_payload: str,
+        user_id: int,
+        total_amount: int,
+        currency: str,
+        pre_checkout_id: str,
     ) -> int | None: ...
 
     async def confirm_stars_success(
-        self, *, invoice_payload: str, user_id: int, total_amount: int
+        self,
+        *,
+        invoice_payload: str,
+        user_id: int,
+        total_amount: int,
+        currency: str,
+        telegram_payment_charge_id: str,
     ) -> int | None: ...
 
     async def finalize_success(self, attempt_id: int) -> object: ...
@@ -44,6 +56,8 @@ async def handle_pre_checkout(
         invoice_payload=query.invoice_payload,
         user_id=user.id,
         total_amount=query.total_amount,
+        currency=query.currency,
+        pre_checkout_id=query.id,
     )
     if attempt_id is None:
         await query.answer(ok=False, error_message=_INACTIVE_INVOICE)
@@ -62,6 +76,8 @@ async def handle_successful_payment(
         invoice_payload=payment.invoice_payload,
         user_id=user.id,
         total_amount=payment.total_amount,
+        currency=payment.currency,
+        telegram_payment_charge_id=payment.telegram_payment_charge_id,
     )
     if attempt_id is not None:
         await payment_service.finalize_success(attempt_id)

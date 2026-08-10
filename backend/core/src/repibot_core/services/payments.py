@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from secrets import token_urlsafe
-from typing import Protocol
+from typing import Any, Protocol
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -331,24 +331,42 @@ class PaymentService:
             )
 
     async def authorize_stars_attempt(
-        self, *, invoice_payload: str, user_id: int, total_amount: int
+        self,
+        *,
+        invoice_payload: str,
+        user_id: int,
+        total_amount: int,
+        currency: str,
+        pre_checkout_id: str,
     ) -> int | None:
         """Checks the pre-checkout query before Telegram is allowed to charge Stars."""
         return await self._validated_stars_attempt(
             invoice_payload=invoice_payload,
             user_id=user_id,
             total_amount=total_amount,
+            currency=currency,
+            pre_checkout_id=pre_checkout_id,
+            telegram_payment_charge_id=None,
             mark_succeeded=False,
         )
 
     async def confirm_stars_success(
-        self, *, invoice_payload: str, user_id: int, total_amount: int
+        self,
+        *,
+        invoice_payload: str,
+        user_id: int,
+        total_amount: int,
+        currency: str,
+        telegram_payment_charge_id: str,
     ) -> int | None:
         """Records Telegram's successful-payment update for the shared finalizer."""
         return await self._validated_stars_attempt(
             invoice_payload=invoice_payload,
             user_id=user_id,
             total_amount=total_amount,
+            currency=currency,
+            pre_checkout_id=None,
+            telegram_payment_charge_id=telegram_payment_charge_id,
             mark_succeeded=True,
         )
 
@@ -358,14 +376,28 @@ class PaymentService:
         invoice_payload: str,
         user_id: int,
         total_amount: int,
+        currency: str,
+        pre_checkout_id: str | None,
+        telegram_payment_charge_id: str | None,
         mark_succeeded: bool,
     ) -> int | None:
         reference = self._stars_invoice_reference(invoice_payload)
-        if reference is None or isinstance(total_amount, bool):
+        if (
+            reference is None
+            or type(total_amount) is not int
+            or currency != "XTR"
+            or (not mark_succeeded and not self._valid_stars_provider_id(pre_checkout_id))
+            or (mark_succeeded and not self._valid_stars_provider_id(telegram_payment_charge_id))
+        ):
             return None
         if self._session.in_transaction():
             await self._session.commit()
         async with self._session.begin():
+            durable_id = telegram_payment_charge_id if mark_succeeded else pre_checkout_id
+            assert durable_id is not None  # narrowed by the boundary validation above
+            await self._session.execute(
+                select(func.pg_advisory_xact_lock(self._stars_identity_lock_key(durable_id)))
+            )
             attempt_id = await self._session.scalar(
                 select(PaymentAttempt.id).where(
                     PaymentAttempt.provider == PaymentProvider.stars,
@@ -398,18 +430,56 @@ class PaymentService:
                 attempt.provider is not PaymentProvider.stars
                 or order.status is not OrderStatus.pending
                 or order.user_id != user_id
-                or type(total_amount) is not int
                 or total_amount != order.price_stars_snapshot
             ):
                 return None
-            if attempt.status is PaymentStatus.pending and mark_succeeded:
-                attempt.status = PaymentStatus.succeeded
-                attempt.verified_payload = {"amount": total_amount, "currency": "XTR"}
-                attempt.verified_at = datetime.now(UTC)
-            elif attempt.status is PaymentStatus.succeeded and mark_succeeded:
-                if attempt.verified_payload != {"amount": total_amount, "currency": "XTR"}:
+            if not mark_succeeded:
+                assert pre_checkout_id is not None
+                claimed = await self._session.scalar(
+                    select(PaymentAttempt.id).where(
+                        PaymentAttempt.stars_pre_checkout_id == pre_checkout_id
+                    )
+                )
+                if claimed is not None and claimed != attempt.id:
                     return None
-            elif attempt.status is not PaymentStatus.pending:
+                if attempt.stars_pre_checkout_id is None:
+                    attempt.stars_pre_checkout_id = pre_checkout_id
+                    attempt.stars_authorized_at = datetime.now(UTC)
+                elif attempt.stars_pre_checkout_id != pre_checkout_id:
+                    return None
+                return attempt.id
+
+            assert telegram_payment_charge_id is not None
+            existing_charge = await self._session.scalar(
+                select(PaymentAttempt.id).where(
+                    PaymentAttempt.telegram_payment_charge_id == telegram_payment_charge_id
+                )
+            )
+            if existing_charge is not None and existing_charge != attempt.id:
+                return None
+            expected_payload = {
+                "amount": total_amount,
+                "currency": "XTR",
+                "telegram_payment_charge_id": telegram_payment_charge_id,
+            }
+            if attempt.status is PaymentStatus.pending:
+                # Telegram sends successful_payment only after pre-checkout.  A
+                # missing durable claim is therefore not enough evidence to
+                # settle an invoice (and would re-open the multi-use race).
+                if attempt.stars_pre_checkout_id is None:
+                    return None
+                attempt.provider_payment_id = telegram_payment_charge_id
+                attempt.telegram_payment_charge_id = telegram_payment_charge_id
+                attempt.status = PaymentStatus.succeeded
+                attempt.verified_payload = expected_payload
+                attempt.verified_at = datetime.now(UTC)
+            elif attempt.status is PaymentStatus.succeeded:
+                if (
+                    attempt.telegram_payment_charge_id != telegram_payment_charge_id
+                    or attempt.verified_payload != expected_payload
+                ):
+                    return None
+            else:
                 return None
             return attempt.id
 
@@ -425,6 +495,15 @@ class PaymentService:
         if len(reference) < 32 or not all(char.isalnum() or char in "-_" for char in reference):
             return None
         return reference
+
+    @staticmethod
+    def _valid_stars_provider_id(value: str | None) -> bool:
+        return isinstance(value, str) and bool(value) and len(value) <= 255
+
+    @staticmethod
+    def _stars_identity_lock_key(value: str) -> int:
+        digest = sha256(f"stars:{value}".encode()).digest()
+        return int.from_bytes(digest[:8], byteorder="big", signed=True)
 
     @staticmethod
     def _provider_key(user_id: int, client_key: str) -> str:
@@ -548,9 +627,18 @@ class PaymentService:
 
             if order.purpose is not OrderPurpose.gift:
                 subscription = locked_subscriptions[order.user_id]
-                entitlement_days = self._entitlement_days(order, subscription)
+                # Резервы, погашенные до миграции 0009, снимка бонуса не имеют.
+                reserved_bonus = (
+                    reservation.bonus_days_snapshot if reservation is not None else None
+                )
+                bonus_days = max(reserved_bonus or 0, 0)
+                # Снимок права описывает всю выданную длительность, включая
+                # бонус: иначе будущая смена тарифа поделит остаток на
+                # завышенную дневную стоимость и выдаст лишние дни.
+                total_entitlement_days = order.duration_days_snapshot + bonus_days
+                entitlement_days = await self._entitlement_days(order, subscription)
                 event_type = self._event_type(order, subscription)
-                applied = await self._entitlements.apply_entitlement(
+                await self._entitlements.apply_entitlement(
                     order.user_id,
                     plan,
                     entitlement_days,
@@ -558,10 +646,11 @@ class PaymentService:
                     event_type=event_type,
                     actor=SubscriptionActor.system,
                     origin_attempt_id=attempt.id,
+                    entitlement_price_rub=order.amount_due_rub,
+                    entitlement_duration_days=total_entitlement_days,
                 )
-                bonus_days = reservation.bonus_days_snapshot if reservation is not None else None
-                if bonus_days is not None and bonus_days > 0:
-                    applied = await self._entitlements.apply_entitlement(
+                if bonus_days > 0:
+                    await self._entitlements.apply_entitlement(
                         order.user_id,
                         plan,
                         bonus_days,
@@ -570,12 +659,9 @@ class PaymentService:
                         actor=SubscriptionActor.system,
                         origin_attempt_id=None,
                         comment="бонусные дни по промокоду",
+                        entitlement_price_rub=order.amount_due_rub,
+                        entitlement_duration_days=total_entitlement_days,
                     )
-                # Новый остаток тоже должен знать согласованную при покупке
-                # стоимость, иначе будущая смена тарифа прочитает Plan после
-                # редактирования цены в админке.
-                applied.entitlement_price_rub = order.price_rub_snapshot
-                applied.entitlement_duration_days = order.duration_days_snapshot
                 await self._outbox.add(TOPIC_PROVISION, {"user_id": order.user_id})
             elif existing_voucher is None:
                 self._session.add(
@@ -649,7 +735,22 @@ class PaymentService:
             and attempt.status is PaymentStatus.succeeded
             and payload.get("currency") == "XTR"
             and payload.get("amount") == order.price_stars_snapshot
+            and PaymentService._stars_charge_matches(attempt, payload)
         )
+
+    @staticmethod
+    def _stars_charge_matches(attempt: PaymentAttempt, payload: dict[str, Any]) -> bool:
+        """Сверяет идентификатор списания, если попытка его знает.
+
+        До миграции 0010 успех Stars записывался без него. Отказать такой
+        строке значит забрать доступ у того, с кого Telegram уже списал звёзды:
+        подтверждение оплаты уже принято, и повтор ловится не здесь, а в
+        _validated_stars_attempt.
+        """
+        charge_id = attempt.telegram_payment_charge_id
+        if charge_id is None:
+            return True
+        return bool(charge_id) and payload.get("telegram_payment_charge_id") == charge_id
 
     @staticmethod
     def _is_recorded_yookassa_success(order: Order, attempt: PaymentAttempt) -> bool:
@@ -714,27 +815,52 @@ class PaymentService:
                     "сумма подтверждённой оплаты не совпадает с заказом", "payment_mismatch"
                 )
         elif attempt.provider is PaymentProvider.stars:
-            if currency != "XTR" or amount != order.price_stars_snapshot:
+            if (
+                currency != "XTR"
+                or amount != order.price_stars_snapshot
+                or not self._stars_charge_matches(attempt, payload)
+            ):
                 raise ServiceError(
                     "сумма подтверждённой оплаты не совпадает с заказом", "payment_mismatch"
                 )
 
-    def _entitlement_days(self, order: Order, subscription: Subscription | None) -> int:
+    async def _entitlement_days(self, order: Order, subscription: Subscription | None) -> int:
         if subscription is None or subscription.plan_id == order.plan_id:
             return order.duration_days_snapshot
-        if subscription.entitlement_price_rub <= 0 or order.price_rub_snapshot <= 0:
+        current_price_rub = subscription.entitlement_price_rub
+        current_duration_days = subscription.entitlement_duration_days
+        # Migrations that introduced entitlement snapshots left legacy rows at
+        # 0/0.  Fall back only for that shape: a positive-duration zero-price
+        # entitlement is an intentional free grant and has no paid remainder.
+        if current_duration_days <= 0:
+            previous_plan = await self._plans.get(subscription.plan_id)
+            if previous_plan is None:  # pragma: no cover — plans are retained
+                return order.duration_days_snapshot
+            current_price_rub = previous_plan.price_rub
+            current_duration_days = previous_plan.duration_days
+        if (
+            current_price_rub <= 0
+            or current_duration_days <= 0
+            or order.amount_due_rub <= 0
+            or order.duration_days_snapshot <= 0
+        ):
             return order.duration_days_snapshot
+        now = datetime.now(UTC)
         carried = convert_remainder(
             expires_at=subscription.expires_at,
-            now=datetime.now(UTC),
-            current_price_rub=subscription.entitlement_price_rub,
-            current_duration_days=subscription.entitlement_duration_days,
-            new_price_rub=order.price_rub_snapshot,
+            now=now,
+            current_price_rub=current_price_rub,
+            current_duration_days=current_duration_days,
+            # The preceding, already held value is exchanged into the paid
+            # purchase itself.  Bonus days are then appended, while the final
+            # entitlement snapshot below records the actual due/total grant
+            # for every *later* switch.
+            new_price_rub=order.amount_due_rub,
             new_duration_days=order.duration_days_snapshot,
         )
         # apply_entitlement продлевает от expires_at. Перед этим переносим
         # именно денежный остаток старого права, затем добавляем купленный срок.
-        subscription.expires_at = datetime.now(UTC) + timedelta(days=carried)
+        subscription.expires_at = now + timedelta(days=carried)
         return order.duration_days_snapshot
 
     def _event_type(self, order: Order, subscription: Subscription | None) -> SubscriptionEventType:

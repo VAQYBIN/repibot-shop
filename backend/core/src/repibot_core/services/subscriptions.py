@@ -6,6 +6,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -201,9 +202,17 @@ class SubscriptionService:
         origin_attempt_id: int | None,
         actor_user_id: int | None = None,
         comment: str | None = None,
+        entitlement_price_rub: Decimal | None = None,
+        entitlement_duration_days: int | None = None,
     ) -> Subscription:
         """Меняет подписку и пишет журнал без commit и сетевых вызовов."""
         now = datetime.now(UTC)
+        snapshot_price_rub = (
+            plan.price_rub if entitlement_price_rub is None else entitlement_price_rub
+        )
+        snapshot_duration_days = (
+            plan.duration_days if entitlement_duration_days is None else entitlement_duration_days
+        )
         subscription = await self._subscriptions.get_for_user(user_id)
         current_expires_at = subscription.expires_at if subscription is not None else None
         expires_at = (
@@ -222,15 +231,15 @@ class SubscriptionService:
                 started_at=now,
                 expires_at=expires_at,
                 source=source,
-                entitlement_price_rub=plan.price_rub,
-                entitlement_duration_days=plan.duration_days,
+                entitlement_price_rub=snapshot_price_rub,
+                entitlement_duration_days=snapshot_duration_days,
             )
         else:
             subscription.plan_id = plan.id
             subscription.expires_at = expires_at
             subscription.status = SubscriptionState.pending_provision
-            subscription.entitlement_price_rub = plan.price_rub
-            subscription.entitlement_duration_days = plan.duration_days
+            subscription.entitlement_price_rub = snapshot_price_rub
+            subscription.entitlement_duration_days = snapshot_duration_days
 
         await self._subscriptions.add_event(
             user_id=user_id,
@@ -271,7 +280,12 @@ class SubscriptionService:
         now = datetime.now(UTC)
         if self._settings.plan_change_keeps_remainder and current_plan is not None:
             days = _remainder_days(
-                current_plan, new_plan, expires_at=subscription.expires_at, now=now
+                current_plan,
+                new_plan,
+                expires_at=subscription.expires_at,
+                now=now,
+                entitlement_price_rub=subscription.entitlement_price_rub,
+                entitlement_duration_days=subscription.entitlement_duration_days,
             )
             # Остаток уже посчитан от текущей даты окончания, поэтому она
             # обнуляется: иначе оплаченное время учтётся дважды.
@@ -365,7 +379,13 @@ class SubscriptionService:
 
 
 def _remainder_days(
-    current_plan: Plan, new_plan: Plan, *, expires_at: datetime, now: datetime
+    current_plan: Plan,
+    new_plan: Plan,
+    *,
+    expires_at: datetime,
+    now: datetime,
+    entitlement_price_rub: Decimal,
+    entitlement_duration_days: int,
 ) -> int:
     """Остаток текущего тарифа, пересчитанный в дни нового.
 
@@ -373,13 +393,30 @@ def _remainder_days(
     ноль, и делить не на что. Поэтому триал не превращается в дни платного
     тарифа, а оплаченный остаток не переезжает в триал.
     """
-    if current_plan.price_rub <= 0 or new_plan.price_rub <= 0:
+    # Rows created before entitlement snapshots defaulted both fields to zero.
+    # A non-positive *duration* identifies that legacy state.  A current
+    # entitlement with a positive duration and a zero actual price (for
+    # example a fully discounted grant) intentionally has no transferable
+    # paid value and must not be silently repriced from the current Plan.
+    if entitlement_duration_days <= 0:
+        current_price_rub = current_plan.price_rub
+        current_duration_days = current_plan.duration_days
+    else:
+        current_price_rub = entitlement_price_rub
+        current_duration_days = entitlement_duration_days
+
+    if (
+        current_price_rub <= 0
+        or current_duration_days <= 0
+        or new_plan.price_rub <= 0
+        or new_plan.duration_days <= 0
+    ):
         return 0
     return convert_remainder(
         expires_at=expires_at,
         now=now,
-        current_price_rub=current_plan.price_rub,
-        current_duration_days=current_plan.duration_days,
+        current_price_rub=current_price_rub,
+        current_duration_days=current_duration_days,
         new_price_rub=new_plan.price_rub,
         new_duration_days=new_plan.duration_days,
     )

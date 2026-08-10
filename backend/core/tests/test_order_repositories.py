@@ -12,7 +12,13 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from repibot_core.db.engine import create_session_factory
-from repibot_core.db.models import PaymentProvider, Plan, TrafficResetStrategy, User
+from repibot_core.db.models import (
+    OrderPurpose,
+    PaymentProvider,
+    Plan,
+    TrafficResetStrategy,
+    User,
+)
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 
 pytestmark = pytest.mark.docker
@@ -196,5 +202,31 @@ async def test_order_snapshot_fields_cannot_be_mutated(db_session: AsyncSession)
     )
 
     order.price_rub_snapshot = Decimal("1.00")
+    with pytest.raises(DBAPIError, match="order commercial snapshot is immutable"):
+        await db_session.flush()
+
+
+@pytest.mark.parametrize("field", ("user_id", "purpose", "client_key", "expires_at"))
+async def test_order_intent_fields_cannot_be_mutated(db_session: AsyncSession, field: str) -> None:
+    """The immutable commercial decision includes owner, purpose, key, and TTL."""
+    plan = await _plan(db_session)
+    user = await _user(db_session)
+    order = await OrderRepository(db_session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key=f"immutable-intent-{field}",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+    )
+
+    if field == "user_id":
+        other = await _user(db_session, code="order002")
+        order.user_id = other.id
+    elif field == "purpose":
+        order.purpose = OrderPurpose.gift
+    elif field == "client_key":
+        order.client_key = "different-idempotency-key"
+    else:
+        order.expires_at += timedelta(minutes=10)
+
     with pytest.raises(DBAPIError, match="order commercial snapshot is immutable"):
         await db_session.flush()

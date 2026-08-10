@@ -83,7 +83,8 @@ class Settings(BaseSettings):
     referral_reward_mode: Literal["first", "every"] = "first"
     yookassa_order_ttl_minutes: int = Field(default=30, gt=0)
     stars_order_ttl_minutes: int = Field(default=15, gt=0)
-    auto_renew_offsets_hours: tuple[int, int, int] = (-24, 6, 12)
+    # -24h before expiry, then 6h and 12h after the preceding retry.
+    auto_renew_offsets_hours: tuple[int, int, int] = (-24, -18, -6)
     auto_renew_disable_after_final_failure: bool = True
 
     jwt_secret: SecretStr

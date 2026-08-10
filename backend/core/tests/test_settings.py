@@ -133,7 +133,7 @@ def test_commerce_settings_have_safe_defaults(monkeypatch: pytest.MonkeyPatch) -
     assert settings.referral_reward_mode == "first"
     assert settings.yookassa_order_ttl_minutes == 30
     assert settings.stars_order_ttl_minutes == 15
-    assert settings.auto_renew_offsets_hours == (-24, 6, 12)
+    assert settings.auto_renew_offsets_hours == (-24, -18, -6)
     assert settings.auto_renew_disable_after_final_failure is True
 
 
