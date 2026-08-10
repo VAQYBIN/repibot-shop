@@ -164,7 +164,6 @@ async def create_order(
                 purpose=OrderPurpose(payload.purpose),
                 client_key=payload.idempotency_key,
                 promo_code=payload.promo_code,
-                save_payment_method=payload.save_payment_method,
                 yookassa=yookassa,
             )
         return order_response(yookassa_order.order, yookassa_order.confirmation_url)

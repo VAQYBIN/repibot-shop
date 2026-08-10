@@ -21,7 +21,7 @@ const PLAN = {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в Mini App', () => {
-  it('просит сохранить карту, только если в загруженной подписке включено автопродление', async () => {
+  it('не решает за плательщика, запоминать ли карту', async () => {
     let body: unknown
     stubFetch((request) => {
       const path = new URL(request.url).pathname
@@ -67,9 +67,10 @@ describe('оплата в Mini App', () => {
     })
     renderWithProviders(<Payments />)
     await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
-    await waitFor(() =>
-      expect(body).toMatchObject({ provider: 'yookassa', save_payment_method: true }),
-    )
+    // Галочку «запомнить карту» показывает форма YooKassa; прислать флаг
+    // значит запомнить карту без согласия плательщика.
+    await waitFor(() => expect(body).toMatchObject({ provider: 'yookassa' }))
+    expect(body).not.toHaveProperty('save_payment_method')
   })
   it('закрывает подтверждение подарка, чтобы второе «Продолжить» не создало второй заказ', async () => {
     const posts: Request[] = []

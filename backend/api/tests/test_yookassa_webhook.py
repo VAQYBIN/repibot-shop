@@ -170,6 +170,8 @@ async def test_duplicate_webhook_is_deduplicated_by_verified_provider_state(
         "amount": "254.15",
         "currency": "RUB",
         "payment_method_id": None,
+        "payment_method_saved": False,
+        "payment_method_title": None,
         "status": "succeeded",
     }
 

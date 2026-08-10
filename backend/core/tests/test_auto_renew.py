@@ -21,10 +21,10 @@ from repibot_core.db.models import (
     TrafficResetStrategy,
     User,
 )
-from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.domain.subscriptions import SubscriptionState
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
+from repibot_core.services.payment_methods import PaymentMethodService
 from repibot_core.services.payment_notifications import AutoRenewalService
 from repibot_core.settings import get_settings
 
@@ -162,20 +162,11 @@ async def _subscription(session: AsyncSession) -> tuple[Subscription, datetime]:
         entitlement_duration_days=plan.duration_days,
     )
     session.add(subscription)
-    order = await OrderRepository(session).create_pending(
-        user_id=user.id,
-        plan=plan,
-        client_key="saved-method",
-        expires_at=anchor,
-    )
-    await PaymentAttemptRepository(session).get_or_create(
-        order_id=order.id,
-        provider=PaymentProvider.yookassa,
-        attempt_no=1,
-        provider_key="saved-method-key",
-        status=PaymentStatus.succeeded,
-        verified_payload={"amount": "300.00", "currency": "RUB", "payment_method_id": "method-1"},
-        verified_at=datetime.now(UTC),
+    await session.flush()
+    # Карта живёт своей строкой, а не выводится из payload прошлой оплаты:
+    # payment_method.id приходит и у платежей без сохранения.
+    await PaymentMethodService(session).save(
+        user.id, provider_method_id="method-1", title="Bank card *4444"
     )
     await session.commit()
     return subscription, anchor
@@ -213,18 +204,16 @@ async def test_final_failed_attempt_disables_auto_renew_when_setting_enabled(
     )
     assert calls == [1, 1, 1]
     assert subscription.auto_renew_enabled is False
-    assert len(attempts) == 4  # один сохранённый способ и по одной попытке на каждое смещение
+    assert len(attempts) == 3  # по одной попытке на каждое настроенное смещение
     assert len(failures) == 3
 
 
 async def test_saved_method_absence_skips_auto_renewal(db_session: AsyncSession) -> None:
     """Без сохранённой карты запроса к провайдеру быть не должно вовсе."""
-    _, anchor = await _subscription(db_session)
-    saved = await db_session.scalar(
-        select(PaymentAttempt).where(PaymentAttempt.provider_key == "saved-method-key")
-    )
-    assert saved is not None
-    saved.verified_payload = {"amount": "300.00", "currency": "RUB"}
+    subscription, anchor = await _subscription(db_session)
+    await PaymentMethodService(db_session).revoke(subscription.user_id)
+    # Отвязка гасит и автопродление, но проверяем именно отсутствие карты.
+    subscription.auto_renew_enabled = True
     await db_session.commit()
     provider = RecordingYooKassa()
 

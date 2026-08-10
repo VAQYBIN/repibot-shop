@@ -91,19 +91,16 @@ describe('оплата в кабинете', () => {
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
     expect(posts).toBe(1)
-    expect(body).toMatchObject({ save_payment_method: true })
+    expect(body).toMatchObject({ provider: 'yookassa', purpose: 'purchase' })
   })
-  it('просит YooKassa сохранить карту, когда автопродление уже включено', async () => {
-    let body: unknown
+  it('не решает за плательщика, запоминать ли карту', async () => {
+    let body: Record<string, unknown> | undefined
     renderWithProviders(<PaymentsPage />, {
       handlers: handlers({
-        '/api/me/subscription': {
-          ...SUBSCRIPTION,
-          subscription: { ...SUBSCRIPTION.subscription, auto_renew_enabled: true },
-        },
+        '/api/me/subscription': SUBSCRIPTION,
         '/api/me/orders': async (request: Request) => {
           if (request.method === 'GET') return []
-          body = await request.json()
+          body = (await request.json()) as Record<string, unknown>
           return {
             id: 15,
             purpose: 'renew',
@@ -125,7 +122,10 @@ describe('оплата в кабинете', () => {
       }),
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
-    expect(body).toMatchObject({ provider: 'yookassa', save_payment_method: true })
+    // Галочку «запомнить карту» показывает форма YooKassa. Прислать этот флаг
+    // значит отнять выбор у плательщика и запомнить карту без его согласия.
+    expect(body).toMatchObject({ provider: 'yookassa' })
+    expect(body).not.toHaveProperty('save_payment_method')
   })
   it('показывает переведённую ошибку отклонённого промокода', async () => {
     renderWithProviders(<PaymentsPage />, {

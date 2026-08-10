@@ -961,11 +961,6 @@ export interface components {
             promo_code?: string | null;
             /** Idempotency Key */
             idempotency_key: string;
-            /**
-             * Save Payment Method
-             * @default false
-             */
-            save_payment_method: boolean;
         };
         /** DeviceResponse */
         DeviceResponse: {

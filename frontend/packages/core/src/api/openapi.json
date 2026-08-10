@@ -1959,11 +1959,6 @@
             "maxLength": 128,
             "minLength": 1,
             "title": "Idempotency Key"
-          },
-          "save_payment_method": {
-            "type": "boolean",
-            "title": "Save Payment Method",
-            "default": false
           }
         },
         "type": "object",

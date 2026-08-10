@@ -26,6 +26,7 @@ from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptR
 from repibot_core.db.repositories.outbox import OutboxRepository
 from repibot_core.domain.subscriptions import SubscriptionState
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
+from repibot_core.services.payment_methods import PaymentMethodService
 from repibot_core.settings import Settings, get_settings
 
 # Суффикс называет транспорт, поэтому разбирающему очередь не нужен второй
@@ -517,22 +518,10 @@ class AutoRenewalService:
         )
 
     async def _saved_method(self, user_id: int) -> str | None:
-        attempts = list(
-            (
-                await self._session.scalars(
-                    select(PaymentAttempt)
-                    .join(Order, Order.id == PaymentAttempt.order_id)
-                    .where(
-                        Order.user_id == user_id,
-                        PaymentAttempt.provider == PaymentProvider.yookassa,
-                        PaymentAttempt.status == PaymentStatus.succeeded,
-                    )
-                    .order_by(PaymentAttempt.id.desc())
-                )
-            ).all()
-        )
-        for attempt in attempts:
-            method = (attempt.verified_payload or {}).get("payment_method_id")
-            if isinstance(method, str) and method:
-                return method
-        return None
+        """Действующая карта пользователя.
+
+        Раньше здесь перебирались payload прошлых попыток, но YooKassa
+        присылает payment_method.id и у платежей без сохранения: списание по
+        такому идентификатору провайдер не примет.
+        """
+        return await PaymentMethodService(self._session).current_method_id(user_id)

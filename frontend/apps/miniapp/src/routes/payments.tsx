@@ -75,7 +75,6 @@ export function Payments() {
         purpose,
         provider,
         promo_code: promo || null,
-        save_payment_method: provider === 'yookassa' && current?.auto_renew_enabled === true,
         idempotency_key: crypto.randomUUID(),
       })
     } catch {

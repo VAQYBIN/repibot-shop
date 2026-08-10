@@ -33,6 +33,7 @@ from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
 from repibot_core.domain.subscriptions import SubscriptionState
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
+from repibot_core.services.payment_methods import PaymentMethodService
 from repibot_core.services.payments import FinalizationResult, PaymentService
 from repibot_core.services.promotions import PromotionInput, PromotionService
 from repibot_core.services.provisioning import TOPIC_PROVISION
@@ -621,3 +622,92 @@ async def test_referral_bonus_is_added_after_purchased_duration(
         .where(OutboxMessage.topic == TOPIC_PROVISION)
     )
     assert provisioning == 1
+
+
+async def _yookassa_attempt_with_card(
+    session: AsyncSession, *, user: User, plan: Plan, key: str, saved: bool
+) -> int:
+    order = await OrderRepository(session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key=f"order-{key}",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+    )
+    payload: dict[str, object] = {
+        "amount": str(order.amount_due_rub),
+        "currency": "RUB",
+        "payment_method_id": f"method-{key}",
+        "payment_method_saved": saved,
+    }
+    if saved:
+        payload["payment_method_title"] = "Bank card *4444"
+    attempt = await PaymentAttemptRepository(session).get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key=f"payment-{key}",
+        status=PaymentStatus.succeeded,
+        verified_payload=payload,
+        verified_at=datetime.now(UTC),
+    )
+    await session.commit()
+    return attempt.id
+
+
+async def test_checked_box_saves_the_card_and_turns_auto_renew_on(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Иначе автоплатёж не включился бы никогда: карте взяться неоткуда."""
+    plan = await _plan(db_session, "card-on")
+    user = await _user(db_session, "card0001")
+    attempt = await _yookassa_attempt_with_card(
+        db_session, user=user, plan=plan, key="card-on", saved=True
+    )
+
+    await _finalize(create_session_factory(engine), attempt)
+
+    card = await PaymentMethodService(db_session).current(user.id)
+    subscription = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    assert card is not None and card.title == "Bank card *4444"
+    assert subscription is not None and subscription.auto_renew_enabled is True
+
+
+async def test_unchecked_box_keeps_the_previous_card_and_setting(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Снятая галочка означает «эту карту не запоминать», а не «отвязать прежнюю»."""
+    plan = await _plan(db_session, "card-keep")
+    user = await _user(db_session, "card0002")
+    first = await _yookassa_attempt_with_card(
+        db_session, user=user, plan=plan, key="card-keep-1", saved=True
+    )
+    await _finalize(create_session_factory(engine), first)
+
+    second = await _yookassa_attempt_with_card(
+        db_session, user=user, plan=plan, key="card-keep-2", saved=False
+    )
+    await _finalize(create_session_factory(engine), second)
+
+    methods = PaymentMethodService(db_session)
+    subscription = await db_session.scalar(
+        select(Subscription).where(Subscription.user_id == user.id)
+    )
+    assert await methods.current_method_id(user.id) == "method-card-keep-1"
+    assert subscription is not None and subscription.auto_renew_enabled is True
+
+
+async def test_provider_method_id_alone_never_becomes_a_saved_card(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """YooKassa присылает payment_method.id и у платежей без сохранения."""
+    plan = await _plan(db_session, "card-off")
+    user = await _user(db_session, "card0003")
+    attempt = await _yookassa_attempt_with_card(
+        db_session, user=user, plan=plan, key="card-off", saved=False
+    )
+
+    await _finalize(create_session_factory(engine), attempt)
+
+    assert await PaymentMethodService(db_session).current(user.id) is None

@@ -295,7 +295,6 @@ class CreateOrderRequest(BaseModel):
     provider: Literal["yookassa", "stars"]
     promo_code: str | None = Field(default=None, min_length=1, max_length=64)
     idempotency_key: str = Field(min_length=1, max_length=128)
-    save_payment_method: bool = False
 
 
 class OrderResponse(BaseModel):

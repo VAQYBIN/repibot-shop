@@ -34,6 +34,7 @@ from repibot_core.db.repositories.subscriptions import SubscriptionRepository
 from repibot_core.domain.subscriptions import convert_remainder
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
 from repibot_core.services.errors import ServiceError
+from repibot_core.services.payment_methods import PaymentMethodService
 from repibot_core.services.payment_notifications import NotificationService
 from repibot_core.services.promotions import PromotionService
 from repibot_core.services.provisioning import TOPIC_PROVISION
@@ -114,7 +115,6 @@ class PaymentService:
         purpose: OrderPurpose,
         client_key: str,
         promo_code: str | None,
-        save_payment_method: bool,
         yookassa: YooKassaCreator,
     ) -> CreatedOrder:
         """Создаёт ровно один серверный снимок и YooKassa-платёж для него.
@@ -202,7 +202,9 @@ class PaymentService:
             amount_rub=existing.amount_due_rub,
             return_url=self._settings.public_app_url,
             description=f"Re:Pibot: {existing.plan_code_snapshot}",
-            save_payment_method=save_payment_method,
+            # Флаг намеренно не передаётся: без него YooKassa показывает на
+            # форме галочку «запомнить карту», и решает плательщик, а не мы.
+            save_payment_method=False,
         )
         if payment.currency != "RUB" or payment.amount_rub != existing.amount_due_rub:
             raise ServiceError("провайдер вернул неверную сумму", "provider_unavailable")
@@ -674,6 +676,8 @@ class PaymentService:
                     )
                 )
 
+            await self._remember_card(order.user_id, attempt)
+
             if reservation is not None:
                 await PromotionService(self._session).consume(order_id=order.id)
 
@@ -753,6 +757,24 @@ class PaymentService:
             return True
         return bool(charge_id) and payload.get("telegram_payment_charge_id") == charge_id
 
+    async def _remember_card(self, user_id: int, attempt: PaymentAttempt) -> None:
+        """Сохраняет карту, если плательщик отметил галочку на форме провайдера.
+
+        Снятая галочка ничего не отменяет: она означает «эту карту не
+        запоминать», а не «отвязать прежнюю». Отвязка — только явным действием
+        в кабинете.
+        """
+        payload = attempt.verified_payload or {}
+        method_id = payload.get("payment_method_id")
+        if payload.get("payment_method_saved") is not True or not isinstance(method_id, str):
+            return
+        title = payload.get("payment_method_title")
+        await PaymentMethodService(self._session).save(
+            user_id,
+            provider_method_id=method_id,
+            title=title if isinstance(title, str) else None,
+        )
+
     @staticmethod
     def _is_recorded_yookassa_success(order: Order, attempt: PaymentAttempt) -> bool:
         """Пережить местный срок заказа вправе только записанный ответ провайдера."""
@@ -783,6 +805,10 @@ class PaymentService:
             "currency": payment.currency,
             "status": payment.status.value,
             "payment_method_id": payment.payment_method_id,
+            # Решение плательщика приходит только здесь, а финализатор работает
+            # уже без сети — значит его нужно донести до него снимком.
+            "payment_method_saved": payment.payment_method_saved,
+            "payment_method_title": payment.payment_method_title,
         }
         attempt.verified_at = datetime.now(UTC)
 

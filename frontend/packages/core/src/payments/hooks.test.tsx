@@ -87,7 +87,6 @@ describe('hooks заказов и оплаты', () => {
         provider: 'yookassa',
         promo_code: 'WELCOME',
         idempotency_key: 'order-41',
-        save_payment_method: true,
       })
     })
 
@@ -100,7 +99,6 @@ describe('hooks заказов и оплаты', () => {
       provider: 'yookassa',
       promo_code: 'WELCOME',
       idempotency_key: 'order-41',
-      save_payment_method: true,
     })
     expect(queryClient.getQueryData(['orders'])).toEqual([ORDER])
     expect(queryClient.getQueryState(['orders'])?.isInvalidated).toBe(true)
@@ -123,7 +121,6 @@ describe('hooks заказов и оплаты', () => {
         purpose: 'renew',
         provider: 'yookassa',
         idempotency_key: 'renew-41',
-        save_payment_method: false,
       }),
     ).rejects.toThrow('Payment provider is unavailable')
   })
