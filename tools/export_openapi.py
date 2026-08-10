@@ -27,6 +27,7 @@ _PLACEHOLDERS = {
     # Не короче 32 символов: настройки отвергают слабый ключ подписи, и заглушка
     # обязана проходить ту же проверку, что реальное значение.
     "JWT_SECRET": "schema-export-placeholder-key-32b",
+    "ADMIN_ASSERTION_SECRET": "schema-export-admin-assertion-key-32b",
     "ENCRYPTION_KEY": "schema-export-placeholder",
     "PUBLIC_WEB_URL": "https://example.invalid",
     "PUBLIC_APP_URL": "https://example.invalid/app",
