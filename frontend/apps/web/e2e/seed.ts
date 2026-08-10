@@ -318,7 +318,13 @@ asyncio.run(main())`,
   )
 }
 
-/** Кладёт сохранённый способ оплаты и фиксированный срок для планировщика. */
+/**
+ * Кладёт действующую карту и фиксированный срок для планировщика.
+ *
+ * Карта живёт отдельной строкой `saved_payment_methods`: именно её берёт
+ * автопродление, а не `payment_method_id` из исторических попыток. Посев без
+ * этой строки оставил бы подписку без способа списания, и цикл не начался бы.
+ */
 export function seedAutoRenewalSubscription(email: string, methodId: string, marker: string): void {
   assertToken(methodId, 'saved payment method')
   assertToken(marker, 'renewal marker')
@@ -327,6 +333,12 @@ export function seedAutoRenewalSubscription(email: string, methodId: string, mar
      SET telegram_id = (900000000 + (abs(hashtext(:'marker')) % 1000000000))::bigint,
          updated_at = now()
      WHERE email = :'email';
+
+     INSERT INTO saved_payment_methods (user_id, provider, provider_method_id, title)
+     SELECT users.id, 'yookassa', :'method_id', 'Bank card *4444'
+     FROM users
+     WHERE users.email = :'email'
+     ON CONFLICT DO NOTHING;
 
      INSERT INTO subscriptions (
        user_id, plan_id, status, started_at, expires_at, auto_renew_enabled,

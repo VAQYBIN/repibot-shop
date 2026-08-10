@@ -56,6 +56,19 @@ async function createCardOrder(page: Page): Promise<string> {
   return (await latest.json()).id as string
 }
 
+/**
+ * Выбирает за плательщика галочку «запомнить карту» на следующей оплате.
+ *
+ * Настоящую галочку показывает форма провайдера, которой на стенде нет:
+ * заглушка запоминает решение заранее и отдаёт его в ответе о платеже.
+ */
+async function setSavedCardChoice(page: Page, saved: boolean): Promise<void> {
+  const chosen = await page.request.post(`${FAKE_YOOKASSA_URL}/__e2e/cards/save-next`, {
+    data: { saved },
+  })
+  expect(chosen.ok()).toBe(true)
+}
+
 async function setFakePaymentStatus(
   page: Page,
   paymentId: string,
@@ -79,6 +92,29 @@ async function confirmCardPayment(page: Page, paymentId: string): Promise<void> 
 function rows(sql: string, variables: Record<string, string> = {}): string[][] {
   const output = querySql(sql, variables)
   return output === '' ? [] : output.split('\n').map((line) => line.split('|'))
+}
+
+/** Все строки карт пользователя: название и признак «действует». */
+function savedCards(email: string): string[][] {
+  return rows(
+    `SELECT saved.title, (saved.revoked_at IS NULL)::text
+     FROM saved_payment_methods saved
+     JOIN users ON users.id = saved.user_id
+     WHERE users.email = :'email'
+     ORDER BY saved.id`,
+    { email },
+  )
+}
+
+/** Настройка автопродления в базе — она же источник состояния переключателя. */
+function autoRenewFlag(email: string): string {
+  return querySql(
+    `SELECT subscriptions.auto_renew_enabled::text
+     FROM subscriptions
+     JOIN users ON users.id = subscriptions.user_id
+     WHERE users.email = :'email'`,
+    { email },
+  )
 }
 
 test('просроченный промокод отклоняется API и не создаёт заказ в изолированном стеке', async ({
@@ -305,4 +341,52 @@ test('автопродление идёт циклами -24/-18/-6, держи�
 
   await page.goto('/account/payments')
   await expect(page.getByRole('switch', { name: 'Автопродление' })).not.toBeChecked()
+})
+
+test('галочка «запомнить карту» включает автоплатёж, оплата без неё ничего не меняет, отвязка выключает', async ({
+  page,
+}) => {
+  const email = uniqueEmail('saved-card')
+  await registerAndSignIn(page, email)
+
+  // До первой оплаты карты нет, а без подписки переключателю нечего показывать.
+  await page.goto('/account/payments')
+  await expect(page.getByText('Карта не привязана', { exact: true })).toBeVisible()
+  await expect(page.getByRole('switch', { name: 'Автопродление' })).toHaveCount(0)
+  expect(savedCards(email)).toEqual([])
+
+  // Плательщик отметил галочку на форме провайдера.
+  await setSavedCardChoice(page, true)
+  await confirmCardPayment(page, await createCardOrder(page))
+
+  await page.goto('/account/payments')
+  await expect(page.getByText('Bank card *4444', { exact: true })).toBeVisible()
+  const toggle = page.getByRole('switch', { name: 'Автопродление' })
+  await expect(toggle).toBeEnabled()
+  await expect(toggle).toBeChecked()
+  expect(savedCards(email)).toEqual([['Bank card *4444', 'true']])
+  expect(autoRenewFlag(email)).toBe('true')
+
+  // Вторая оплата без галочки: она означает «эту карту не запоминать», а не
+  // «забыть прежнюю», поэтому ни строки карты, ни настройки не прибавится.
+  await setSavedCardChoice(page, false)
+  await confirmCardPayment(page, await createCardOrder(page))
+
+  await page.goto('/account/payments')
+  await expect(page.getByText('Bank card *4444', { exact: true })).toBeVisible()
+  await expect(page.getByRole('switch', { name: 'Автопродление' })).toBeChecked()
+  expect(savedCards(email)).toEqual([['Bank card *4444', 'true']])
+  expect(autoRenewFlag(email)).toBe('true')
+
+  // Отвязка идёт через подтверждение: кнопка в окне называется так же, как та,
+  // что его открыла, поэтому вторая ищется внутри самого окна.
+  await page.getByRole('button', { name: 'Отвязать карту' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Отвязать карту' }).click()
+
+  await expect(page.getByText('Карта не привязана', { exact: true })).toBeVisible()
+  const disabled = page.getByRole('switch', { name: 'Автопродление' })
+  await expect(disabled).toBeDisabled()
+  await expect(disabled).not.toBeChecked()
+  expect(savedCards(email)).toEqual([['Bank card *4444', 'false']])
+  expect(autoRenewFlag(email)).toBe('false')
 })
