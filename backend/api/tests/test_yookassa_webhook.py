@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from repibot_core.db.engine import create_session_factory
 from repibot_core.db.models import (
+    CardBinding,
+    CardBindingStatus,
     Order,
     OrderStatus,
     PaymentAttempt,
@@ -192,6 +194,56 @@ async def test_expired_order_is_marked_expired_and_never_fulfilled(
     assert response.status_code == 204
     assert await _order_status(engine, order_id) is OrderStatus.expired
     assert await _promo_reservation_count(engine, order_id) == 0
+
+
+async def _pending_binding(engine: AsyncEngine) -> int:
+    async with create_session_factory(engine)() as session:
+        user = User(email="binding@example.org", referral_code="binding01")
+        session.add(user)
+        await session.flush()
+        session.add(
+            CardBinding(
+                user_id=user.id,
+                provider=PaymentProvider.yookassa,
+                provider_binding_id="binding-1",
+                status=CardBindingStatus.pending,
+            )
+        )
+        await session.commit()
+        return user.id
+
+
+async def test_webhook_about_a_card_binding_settles_it(
+    api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Событие о карте приходит тем же адресом, что и событие о платеже."""
+    from repibot_api.routers import webhooks
+    from repibot_core.services.payment_methods import PaymentMethodService
+
+    fake = FakeYooKassa()
+    user_id = await _pending_binding(engine)
+    fake.set_binding("binding-1", status="active", saved=True)
+    monkeypatch.setattr(webhooks, "create_yookassa_client", lambda: fake)
+
+    response = await api_client.post("/webhook/yookassa", json={"object": {"id": "binding-1"}})
+
+    assert response.status_code == 204
+    async with create_session_factory(engine)() as session:
+        current = await PaymentMethodService(session).current(user_id)
+    assert current is not None and current.title == "Bank card *4444"
+
+
+async def test_webhook_about_an_unknown_object_is_accepted_and_ignored(
+    api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ошибка в ответ заставила бы провайдера повторять вызов о чужом объекте."""
+    from repibot_api.routers import webhooks
+
+    monkeypatch.setattr(webhooks, "create_yookassa_client", FakeYooKassa)
+
+    response = await api_client.post("/webhook/yookassa", json={"object": {"id": "неизвестно"}})
+
+    assert response.status_code == 204
 
 
 async def test_retry_recovers_after_local_finalizer_crash_without_stranding_attempt(

@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     yookassa_shop_id: str = ""
     yookassa_secret_key: SecretStr = SecretStr("")
     yookassa_api_base_url: str = "https://api.yookassa.ru/v3"
+    # Привязку карты на нулевую сумму в боевом магазине подключает менеджер
+    # YooKassa, поэтому по умолчанию она выключена: иначе кнопка приводила бы
+    # пользователя к ошибке провайдера вместо честного «недоступно».
+    yookassa_zero_amount_binding: bool = False
     referral_reward_percent: int = Field(default=10, ge=0, le=100)
     referral_reward_mode: Literal["first", "every"] = "first"
     yookassa_order_ttl_minutes: int = Field(default=30, gt=0)

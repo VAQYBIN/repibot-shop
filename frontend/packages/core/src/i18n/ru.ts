@@ -151,6 +151,16 @@ export const ru = {
   'payment.stars_handoff': 'Откройте бота Re:Pibot, чтобы продолжить оплату Stars.',
   'payment.auto_renew_hint':
     'Следующее продление зависит от способа оплаты и подтверждения сервера.',
+  'payment.card': 'Карта для автоплатежа',
+  'payment.card_none': 'Карта не привязана',
+  'payment.card_hint':
+    'Карта запоминается, только если отметить «запомнить карту» на странице оплаты. После этого автоплатёж включается сам.',
+  'payment.card_unlink': 'Отвязать карту',
+  'payment.card_unlink_confirm': 'Отвязать карту?',
+  'payment.card_unlink_hint': 'Автоплатёж выключится: списывать станет нечем.',
+  'payment.card_bind': 'Привязать другую',
+  'payment.card_bind_hint': 'Проверим карту без списания и запомним её.',
+  'payment.error.binding_unavailable': 'Привязка карты без оплаты сейчас недоступна',
   'payment.error.provider_unavailable': 'Платёжный провайдер сейчас недоступен',
   'payment.error.telegram_required': 'Для оплаты Stars сначала привяжите Telegram',
   'payment.error.order_expired': 'Срок оплаты заказа уже истёк',

@@ -133,10 +133,45 @@ async def test_poll_recovers_a_succeeded_payment_without_a_webhook(
 
     result = await tasks.reconcile_pending_payments()
 
-    assert result == {"checked": 1, "fulfilled": 1}
+    assert result == {"checked": 1, "fulfilled": 1, "cards": 0}
     status = await db_session.scalar(select(Order.status).where(Order.id == order.id))
     assert status is OrderStatus.fulfilled
     assert attempt.provider_payment_id == "poll-payment"
+
+
+@pytest.mark.docker
+async def test_poll_settles_a_binding_confirmed_without_a_webhook(
+    postgres_url: str, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Пользователь молча закрыл вкладку: карта берётся из состояния у провайдера."""
+    from repibot_core.db.models import CardBinding, CardBindingStatus, PaymentProvider, User
+    from repibot_core.integrations.yookassa.testing import FakeYooKassa
+    from repibot_core.services.payment_methods import PaymentMethodService
+    from repibot_core.settings import get_settings
+
+    user = User(email="binding-poll@example.org", referral_code="bindpoll")
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(
+        CardBinding(
+            user_id=user.id,
+            provider=PaymentProvider.yookassa,
+            provider_binding_id="poll-binding",
+            status=CardBindingStatus.pending,
+        )
+    )
+    await db_session.commit()
+
+    fake = FakeYooKassa()
+    fake.set_binding("poll-binding", status="active", saved=True)
+    monkeypatch.setattr(get_settings(), "database_url", postgres_url)
+    monkeypatch.setattr("repibot_core.tasks.create_yookassa_client", lambda: fake)
+
+    result = await tasks.reconcile_pending_payments()
+
+    assert result == {"checked": 0, "fulfilled": 0, "cards": 1}
+    current = await PaymentMethodService(db_session).current(user.id)
+    assert current is not None and current.title == "Bank card *4444"
 
 
 @pytest.mark.docker
@@ -253,7 +288,7 @@ async def test_poll_recovers_recorded_stars_success_after_expiry_without_telegra
 
     result = await tasks.reconcile_pending_payments()
 
-    assert result == {"checked": 1, "fulfilled": 1}
+    assert result == {"checked": 1, "fulfilled": 1, "cards": 0}
     status = await db_session.scalar(select(Order.status).where(Order.id == order.id))
     assert status is OrderStatus.fulfilled
 

@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionm
 
 from repibot_core.db.engine import create_engine, create_session_factory
 from repibot_core.db.models import (
+    CardBinding,
+    CardBindingStatus,
     Order,
     OrderStatus,
     PaymentAttempt,
@@ -104,7 +106,9 @@ async def reconcile_pending_payments() -> dict[str, int]:
     client = None
     checked = 0
     fulfilled = 0
+    cards = 0
     try:
+        from repibot_core.services.payment_methods import CardBindingService
         from repibot_core.services.payments import PaymentService
 
         factory = create_session_factory(engine)
@@ -154,7 +158,20 @@ async def reconcile_pending_payments() -> dict[str, int]:
                     )
                 ).all()
             )
-        if attempts:
+            # Привязка ждёт того же подтверждения, что и оплата, но своего
+            # ресурса у провайдера. Наличие проверяется заранее, чтобы клиент
+            # не создавался там, где реквизитов нет: без них и привязок нет.
+            has_bindings = (
+                await session.scalar(
+                    select(CardBinding.id)
+                    .where(
+                        CardBinding.status == CardBindingStatus.pending,
+                        CardBinding.provider_binding_id.is_not(None),
+                    )
+                    .limit(1)
+                )
+            ) is not None
+        if attempts or has_bindings:
             client = create_yookassa_client()
             assert client is not None
         for attempt_id, provider_payment_id in attempts:
@@ -175,11 +192,15 @@ async def reconcile_pending_payments() -> dict[str, int]:
                     await _release_pending_payment_claim(claim_connection, attempt_id)
                 if result is not None and not result.already_finalized:
                     fulfilled += 1
+
+        if has_bindings and client is not None:
+            async with factory() as session:
+                cards = await CardBindingService(session).settle_pending(client)
     finally:
         if client is not None:
             await client.aclose()
         await engine.dispose()
-    return {"checked": checked, "fulfilled": fulfilled}
+    return {"checked": checked, "fulfilled": fulfilled, "cards": cards}
 
 
 @broker.task(schedule=[{"cron": "*/10 * * * *"}])

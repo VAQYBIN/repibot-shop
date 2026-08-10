@@ -153,6 +153,16 @@ export const en: Record<TranslationKey, string> = {
   'payment.stars_handoff': 'Open the Re:Pibot bot to continue your Stars payment.',
   'payment.auto_renew_hint':
     'The next renewal depends on the payment method and server confirmation.',
+  'payment.card': 'Card for automatic payments',
+  'payment.card_none': 'No card linked',
+  'payment.card_hint':
+    'A card is remembered only if you tick "save card" on the payment page. Automatic payments then turn on by themselves.',
+  'payment.card_unlink': 'Unlink card',
+  'payment.card_unlink_confirm': 'Unlink the card?',
+  'payment.card_unlink_hint': 'Automatic payments will stop: there will be nothing to charge.',
+  'payment.card_bind': 'Link another',
+  'payment.card_bind_hint': 'We will verify the card without charging it and remember it.',
+  'payment.error.binding_unavailable': 'Linking a card without a payment is unavailable',
   'payment.error.provider_unavailable': 'Payment provider is unavailable',
   'payment.error.telegram_required': 'Link Telegram before paying with Stars',
   'payment.error.order_expired': 'This order payment window has expired',

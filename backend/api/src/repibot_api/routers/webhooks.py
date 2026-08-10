@@ -9,14 +9,18 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
+from httpx import HTTPStatusError
 from redis.asyncio import Redis
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_api.deps import db_session, get_redis
 from repibot_api.errors import ApiError
+from repibot_core.db.models import CardBinding
 from repibot_core.integrations.yookassa.client import create_yookassa_client
 from repibot_core.services.panel_cache import PanelCache
 from repibot_core.services.panel_webhooks import PanelWebhookService, verify_signature
+from repibot_core.services.payment_methods import CardBindingReader, CardBindingService
 from repibot_core.services.payments import PaymentService
 from repibot_core.settings import get_settings
 
@@ -41,10 +45,35 @@ async def yookassa_webhook(
     client = create_yookassa_client()
     try:
         # Никакое поле webhook, кроме id, не участвует в коммерческом решении.
-        await PaymentService(session).verify_yookassa_callback(payment_id, client)
+        finalized = await PaymentService(session).verify_yookassa_callback(payment_id, client)
+        if finalized is None:
+            await _settle_card_binding(session, payment_id, client)
+    except HTTPStatusError as error:
+        # У привязки тот же вид идентификатора, но живёт она в другом ресурсе
+        # провайдера, и запрос платежа отвечает 404. Это повод попробовать
+        # привязку, а не сбой приёма.
+        if error.response.status_code != status.HTTP_404_NOT_FOUND:
+            raise
+        await _settle_card_binding(session, payment_id, client)
     finally:
         await client.aclose()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _settle_card_binding(
+    session: AsyncSession, provider_binding_id: str, client: CardBindingReader
+) -> None:
+    """Дочитывает у провайдера привязку, о которой пришёл этот же вызов.
+
+    Событие о карте приходит тем же адресом, что и о платеже, поэтому чужой
+    для платежей идентификатор — не мусор, а вторая половина того же потока.
+    """
+    binding_id = await session.scalar(
+        select(CardBinding.id).where(CardBinding.provider_binding_id == provider_binding_id)
+    )
+    if binding_id is None:
+        return
+    await CardBindingService(session).settle(binding_id, client)
 
 
 @router.post("/webhook/remnawave", status_code=status.HTTP_204_NO_CONTENT)

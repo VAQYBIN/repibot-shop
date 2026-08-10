@@ -137,6 +137,21 @@ def test_commerce_settings_have_safe_defaults(monkeypatch: pytest.MonkeyPatch) -
     assert settings.auto_renew_disable_after_final_failure is True
 
 
+def test_zero_amount_binding_is_off_until_the_shop_gets_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Привязку карты без списания подключает менеджер YooKassa, а не мы.
+
+    Включённая по умолчанию кнопка на стенде без этой возможности приводила бы
+    пользователя к ошибке провайдера вместо честного «недоступно».
+    """
+    assert _build(monkeypatch).yookassa_zero_amount_binding is False
+    assert (
+        _build(monkeypatch, YOOKASSA_ZERO_AMOUNT_BINDING="true").yookassa_zero_amount_binding
+        is True
+    )
+
+
 def test_e2e_yookassa_http_is_limited_to_its_compose_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
