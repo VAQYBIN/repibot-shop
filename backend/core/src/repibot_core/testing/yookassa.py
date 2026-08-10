@@ -13,7 +13,12 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
+from repibot_core.integrations.yookassa.types import (
+    YooKassaBindingStatus,
+    YooKassaCardBinding,
+    YooKassaPayment,
+    YooKassaPaymentStatus,
+)
 
 
 class FakeYooKassa:
@@ -27,6 +32,11 @@ class FakeYooKassa:
         self._get_gate = asyncio.Event()
         self._get_gate.set()
         self._get_started = asyncio.Event()
+        self._bindings: dict[str, YooKassaCardBinding] = {}
+        self._binding_keys: dict[str, str] = {}
+        # Плательщик решает на форме, запоминать ли карту. Сценарий стенда
+        # выбирает это заранее, потому что настоящей формы в E2E нет.
+        self.save_next_card = False
 
     async def create_payment(
         self,
@@ -52,11 +62,45 @@ class FakeYooKassa:
                 None if payment_method_id is not None else f"{return_url}?payment={payment_id}"
             ),
             payment_method_id=("fake-method-1" if payment_method_id is None else payment_method_id),
+            payment_method_saved=self.save_next_card and payment_method_id is None,
+            payment_method_title=(
+                "Bank card *4444" if self.save_next_card and payment_method_id is None else None
+            ),
         )
         self._keys[idempotence_key] = payment_id
         self._payments[payment_id] = payment
         self._latest_payment_id = payment_id
         return payment
+
+    async def create_card_binding(
+        self, *, idempotence_key: str, return_url: str
+    ) -> YooKassaCardBinding:
+        if idempotence_key in self._binding_keys:
+            return self._bindings[self._binding_keys[idempotence_key]]
+        binding_id = f"fake-binding-{next(self._ids)}"
+        binding = YooKassaCardBinding(
+            id=binding_id,
+            status=YooKassaBindingStatus.pending,
+            saved=False,
+            title=None,
+            confirmation_url=f"{return_url}?binding={binding_id}",
+        )
+        self._binding_keys[idempotence_key] = binding_id
+        self._bindings[binding_id] = binding
+        return binding
+
+    async def get_card_binding(self, binding_id: str) -> YooKassaCardBinding:
+        return self._bindings[binding_id]
+
+    async def set_binding(
+        self, binding_id: str, *, status: YooKassaBindingStatus, saved: bool
+    ) -> None:
+        self._bindings[binding_id] = replace(
+            self._bindings[binding_id],
+            status=status,
+            saved=saved,
+            title="Bank card *4444" if saved else None,
+        )
 
     async def get_payment(self, payment_id: str) -> YooKassaPayment:
         self._get_started.set()
@@ -92,7 +136,25 @@ def _payment_json(payment: YooKassaPayment) -> dict[str, object]:
     if payment.confirmation_url is not None:
         body["confirmation"] = {"type": "redirect", "confirmation_url": payment.confirmation_url}
     if payment.payment_method_id is not None:
-        body["payment_method"] = {"id": payment.payment_method_id}
+        method: dict[str, object] = {"id": payment.payment_method_id, "type": "bank_card"}
+        if payment.payment_method_saved:
+            method["saved"] = True
+            method["title"] = payment.payment_method_title
+        body["payment_method"] = method
+    return body
+
+
+def _binding_json(binding: YooKassaCardBinding) -> dict[str, object]:
+    body: dict[str, object] = {
+        "id": binding.id,
+        "type": "bank_card",
+        "status": binding.status.value,
+        "saved": binding.saved,
+    }
+    if binding.title is not None:
+        body["title"] = binding.title
+    if binding.confirmation_url is not None:
+        body["confirmation"] = {"type": "redirect", "confirmation_url": binding.confirmation_url}
     return body
 
 
@@ -169,11 +231,59 @@ def create_yookassa_app() -> Starlette:
         fake.release_gets()
         return Response(status_code=204)
 
+    async def create_binding(request: Request) -> Response:
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or body.get("type") != "bank_card":
+                raise ValueError
+            confirmation = body.get("confirmation")
+            if not isinstance(confirmation, dict) or confirmation.get("return_url") is None:
+                raise ValueError
+            binding = await fake.create_card_binding(
+                idempotence_key=request.headers["idempotence-key"],
+                return_url=str(confirmation["return_url"]),
+            )
+            return JSONResponse(_binding_json(binding), status_code=200)
+        except (KeyError, TypeError, ValueError):
+            return JSONResponse({"description": "invalid binding request"}, status_code=400)
+
+    async def get_binding(request: Request) -> Response:
+        try:
+            return JSONResponse(
+                _binding_json(await fake.get_card_binding(request.path_params["binding_id"]))
+            )
+        except KeyError:
+            return JSONResponse({"description": "payment method not found"}, status_code=404)
+
+    async def binding_status(request: Request) -> Response:
+        try:
+            payload: Any = await request.json()
+            if not isinstance(payload, dict):
+                raise ValueError
+            await fake.set_binding(
+                request.path_params["binding_id"],
+                status=YooKassaBindingStatus(str(payload["status"])),
+                saved=payload.get("saved") is True,
+            )
+            return Response(status_code=204)
+        except (KeyError, TypeError, ValueError):
+            return JSONResponse({"description": "invalid binding status"}, status_code=400)
+
+    async def save_next_card(request: Request) -> Response:
+        """Стенд заранее выбирает, отметит ли плательщик «запомнить карту»."""
+        payload: Any = await request.json()
+        fake.save_next_card = isinstance(payload, dict) and payload.get("saved") is True
+        return Response(status_code=204)
+
     app = Starlette(
         routes=[
             Route("/health", lambda _: JSONResponse({"status": "ok"}), methods=["GET"]),
             Route("/v3/payments", create, methods=["POST"]),
             Route("/v3/payments/{payment_id}", get, methods=["GET"]),
+            Route("/v3/payment_methods", create_binding, methods=["POST"]),
+            Route("/v3/payment_methods/{binding_id}", get_binding, methods=["GET"]),
+            Route("/__e2e/bindings/{binding_id}/status", binding_status, methods=["POST"]),
+            Route("/__e2e/cards/save-next", save_next_card, methods=["POST"]),
             Route("/__e2e/payments/{payment_id}/status", status, methods=["POST"]),
             Route("/__e2e/payments/latest", latest, methods=["GET"]),
             Route("/__e2e/race/pause-get", pause, methods=["POST"]),

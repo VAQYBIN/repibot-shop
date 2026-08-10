@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import httpx
 
-from repibot_core.integrations.yookassa.types import YooKassaPaymentStatus
+from repibot_core.integrations.yookassa.types import YooKassaBindingStatus, YooKassaPaymentStatus
 from repibot_core.testing.yookassa import FakeYooKassa, create_yookassa_app
 
 
@@ -121,3 +121,45 @@ async def test_fake_yookassa_http_replay_keeps_the_original_commercial_snapshot(
     assert stored.json()["id"] == payment_id
     assert stored.json()["status"] == "succeeded"
     assert stored.json()["amount"] == {"value": "254.15", "currency": "RUB"}
+
+
+async def test_fake_binding_becomes_a_saved_card_only_when_the_provider_says_so() -> None:
+    """Заглушка обязана уметь отказать: иначе E2E не увидит неудачную привязку."""
+    fake = FakeYooKassa()
+    binding = await fake.create_card_binding(
+        idempotence_key="binding-key", return_url="http://localhost/account/payments"
+    )
+
+    assert binding.status is YooKassaBindingStatus.pending
+    assert binding.saved is False
+    assert binding.confirmation_url is not None
+
+    await fake.set_binding(binding.id, status=YooKassaBindingStatus.active, saved=True)
+    settled = await fake.get_card_binding(binding.id)
+
+    assert settled.status is YooKassaBindingStatus.active
+    assert settled.title == "Bank card *4444"
+
+
+async def test_fake_payment_reports_the_card_only_when_the_payer_chose_to_save_it() -> None:
+    """Галочку ставит плательщик, поэтому сценарий выбирает её заранее."""
+    fake = FakeYooKassa()
+    unsaved = await fake.create_payment(
+        idempotence_key="no-save",
+        amount_rub=Decimal("299.00"),
+        return_url="http://localhost/return",
+        description="order",
+        save_payment_method=False,
+    )
+    fake.save_next_card = True
+    saved = await fake.create_payment(
+        idempotence_key="with-save",
+        amount_rub=Decimal("299.00"),
+        return_url="http://localhost/return",
+        description="order",
+        save_payment_method=False,
+    )
+
+    assert unsaved.payment_method_saved is False
+    assert saved.payment_method_saved is True
+    assert saved.payment_method_title == "Bank card *4444"

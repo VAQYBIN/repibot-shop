@@ -8,7 +8,11 @@ from decimal import Decimal
 import httpx
 
 from repibot_core.integrations.yookassa.client import YooKassaClient
-from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
+from repibot_core.integrations.yookassa.types import (
+    YooKassaBindingStatus,
+    YooKassaPayment,
+    YooKassaPaymentStatus,
+)
 from repibot_core.services.payments import PaymentService
 
 
@@ -151,3 +155,135 @@ async def test_mismatched_provider_response_id_is_rejected_before_database_acces
     )
 
     assert result is None
+
+
+def _client(handle: object) -> YooKassaClient:
+    return YooKassaClient(
+        shop_id="shop-id",
+        secret_key="secret-key",
+        base_url="https://yookassa.test/v3",
+        transport=httpx.MockTransport(handle),  # type: ignore[arg-type]
+    )
+
+
+async def test_saved_card_is_read_from_the_provider_response() -> None:
+    """Наш запрос не доказывает привязку: галочку ставит плательщик на форме."""
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "id": "payment-3",
+                "status": "succeeded",
+                "amount": {"value": "299.00", "currency": "RUB"},
+                "payment_method": {
+                    "type": "bank_card",
+                    "id": "method-1",
+                    "saved": True,
+                    "title": "Bank card *4444",
+                },
+            },
+        )
+
+    client = _client(handle)
+    try:
+        payment = await client.get_payment("payment-3")
+    finally:
+        await client.aclose()
+
+    assert payment.payment_method_saved is True
+    assert payment.payment_method_title == "Bank card *4444"
+    assert payment.payment_method_id == "method-1"
+
+
+async def test_unsaved_method_is_not_mistaken_for_a_stored_card() -> None:
+    """YooKassa присылает payment_method.id и когда карту не сохраняли."""
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "id": "payment-4",
+                "status": "succeeded",
+                "amount": {"value": "299.00", "currency": "RUB"},
+                "payment_method": {"type": "bank_card", "id": "method-2"},
+            },
+        )
+
+    client = _client(handle)
+    try:
+        payment = await client.get_payment("payment-4")
+    finally:
+        await client.aclose()
+
+    assert payment.payment_method_id == "method-2"
+    assert payment.payment_method_saved is False
+    assert payment.payment_method_title is None
+
+
+async def test_card_binding_is_created_as_a_separate_provider_resource() -> None:
+    """Привязка без списания живёт в /payment_methods, а не в платежах."""
+    seen: dict[str, object] = {}
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["idempotence_key"] = request.headers["idempotence-key"]
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "id": "binding-1",
+                "type": "bank_card",
+                "status": "pending",
+                "saved": False,
+                "confirmation": {"type": "redirect", "confirmation_url": "https://pay.test/bind"},
+            },
+        )
+
+    client = _client(handle)
+    try:
+        binding = await client.create_card_binding(
+            idempotence_key="binding-key", return_url="https://app.test/account/payments"
+        )
+    finally:
+        await client.aclose()
+
+    assert seen["path"] == "/v3/payment_methods"
+    assert seen["idempotence_key"] == "binding-key"
+    assert seen["body"] == {
+        "type": "bank_card",
+        "confirmation": {"type": "redirect", "return_url": "https://app.test/account/payments"},
+    }
+    assert binding.id == "binding-1"
+    assert binding.status is YooKassaBindingStatus.pending
+    assert binding.saved is False
+    assert binding.confirmation_url == "https://pay.test/bind"
+
+
+async def test_card_binding_state_is_read_back_from_the_provider() -> None:
+    """Возврат пользователя по redirect ничего не подтверждает."""
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v3/payment_methods/binding-1"
+        return httpx.Response(
+            200,
+            json={
+                "id": "binding-1",
+                "type": "bank_card",
+                "status": "active",
+                "saved": True,
+                "title": "Bank card *4444",
+            },
+        )
+
+    client = _client(handle)
+    try:
+        binding = await client.get_card_binding("binding-1")
+    finally:
+        await client.aclose()
+
+    assert binding.status is YooKassaBindingStatus.active
+    assert binding.saved is True
+    assert binding.title == "Bank card *4444"

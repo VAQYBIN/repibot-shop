@@ -6,7 +6,12 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 import httpx
 
-from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
+from repibot_core.integrations.yookassa.types import (
+    YooKassaBindingStatus,
+    YooKassaCardBinding,
+    YooKassaPayment,
+    YooKassaPaymentStatus,
+)
 from repibot_core.settings import get_settings
 
 
@@ -65,6 +70,30 @@ class YooKassaClient:
         response.raise_for_status()
         return self._parse_payment(response.json())
 
+    async def create_card_binding(
+        self, *, idempotence_key: str, return_url: str
+    ) -> YooKassaCardBinding:
+        """Просит проверить и запомнить карту, не списывая денег.
+
+        Это отдельный ресурс провайдера: у привязки нет ни суммы, ни заказа,
+        поэтому платёжный путь она не переиспользует.
+        """
+        response = await self._http.post(
+            "/payment_methods",
+            headers={"Idempotence-Key": idempotence_key},
+            json={
+                "type": "bank_card",
+                "confirmation": {"type": "redirect", "return_url": return_url},
+            },
+        )
+        response.raise_for_status()
+        return self._parse_binding(response.json())
+
+    async def get_card_binding(self, binding_id: str) -> YooKassaCardBinding:
+        response = await self._http.get(f"/payment_methods/{binding_id}")
+        response.raise_for_status()
+        return self._parse_binding(response.json())
+
     async def aclose(self) -> None:
         await self._http.aclose()
 
@@ -89,15 +118,42 @@ class YooKassaClient:
             if isinstance(confirmation, dict) and confirmation.get("confirmation_url") is not None
             else None
         )
+        method = payment_method if isinstance(payment_method, dict) else {}
         return YooKassaPayment(
             id=payment_id,
             status=status,
             amount_rub=amount_rub,
             currency=currency,
             confirmation_url=confirmation_url,
-            payment_method_id=(
-                str(payment_method["id"])
-                if isinstance(payment_method, dict) and payment_method.get("id") is not None
+            payment_method_id=(str(method["id"]) if method.get("id") is not None else None),
+            # Только точное True: провайдер присылает payment_method и у
+            # платежей без сохранения, и принять его за привязанную карту
+            # значит однажды попытаться списать с несохранённой.
+            payment_method_saved=method.get("saved") is True,
+            payment_method_title=(
+                str(method["title"]) if method.get("title") is not None else None
+            ),
+        )
+
+    @staticmethod
+    def _parse_binding(payload: object) -> YooKassaCardBinding:
+        if not isinstance(payload, dict):
+            raise YooKassaError("YooKassa вернула не объект привязки")
+        confirmation = payload.get("confirmation")
+        try:
+            binding_id = str(payload["id"])
+            status = YooKassaBindingStatus(str(payload["status"]))
+        except (KeyError, ValueError) as error:
+            raise YooKassaError("YooKassa вернула неполную привязку") from error
+        return YooKassaCardBinding(
+            id=binding_id,
+            status=status,
+            saved=payload.get("saved") is True,
+            title=(str(payload["title"]) if payload.get("title") is not None else None),
+            confirmation_url=(
+                str(confirmation["confirmation_url"])
+                if isinstance(confirmation, dict)
+                and confirmation.get("confirmation_url") is not None
                 else None
             ),
         )
