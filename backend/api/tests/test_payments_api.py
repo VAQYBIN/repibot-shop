@@ -408,7 +408,6 @@ async def test_return_url_is_built_by_the_server_from_the_named_surface(
     Клиент называет поверхность, а не адрес: принять URL из запроса значит
     согласиться увести плательщика с оплаты на чужой домен.
     """
-    from repibot_api.routers import subscription as subscription_router
     from repibot_core.settings import get_settings
 
     monkeypatch.setattr(get_settings(), "public_web_url", "https://shop.test")
@@ -416,7 +415,9 @@ async def test_return_url_is_built_by_the_server_from_the_named_surface(
     async def bot_username(*_args: object) -> str:
         return "repibot"
 
-    monkeypatch.setattr(subscription_router.BotApi, "username", bot_username, raising=False)
+    # Метод подменяется по своему пути, а не через реэкспорт роутера: тот не
+    # входит в публичный интерфейс модуля.
+    monkeypatch.setattr("repibot_core.integrations.telegram.bot_api.BotApi.username", bot_username)
 
     from_web = await api_client.post(
         "/api/me/orders",
