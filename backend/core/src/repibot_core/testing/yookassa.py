@@ -108,6 +108,7 @@ def create_yookassa_app() -> Starlette:
             amount = Decimal(str(body["amount"]["value"]))
             currency = str(body["amount"]["currency"])
             key = request.headers["idempotence-key"]
+            is_replay = key in fake._keys
             confirmation = body.get("confirmation")
             return_url = (
                 str(confirmation.get("return_url"))
@@ -126,7 +127,10 @@ def create_yookassa_app() -> Starlette:
                     else None
                 ),
             )
-            if currency != payment.currency:
+            # A provider replay returns the original commercial snapshot.  A
+            # request can choose a non-RUB fake payment on first create, but
+            # its same-key replay must never rewrite that stored payment.
+            if not is_replay and currency != payment.currency:
                 payment = replace(payment, currency=currency)
                 fake._payments[payment.id] = payment
             return JSONResponse(_payment_json(payment), status_code=200)
