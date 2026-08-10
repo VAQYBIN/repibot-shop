@@ -339,6 +339,50 @@ describe('карта для автоплатежа в Mini App', () => {
     expect(screen.queryByRole('button', { name: 'Привязать другую' })).not.toBeInTheDocument()
   })
 
+  it('называет серверу Mini App, чтобы провайдер вернул плательщика в Telegram', async () => {
+    vi.stubGlobal('Telegram', { WebApp: { openLink: vi.fn() } })
+    const base = paymentHandlers({ ...NO_CARD, binding_available: true })
+    const requests: Request[] = []
+    stubFetch((request) => {
+      const handled = base(request)
+      if (handled !== null) return handled
+      requests.push(request)
+      if (new URL(request.url).pathname === '/api/me/payment-method/bindings')
+        return Response.json({ confirmation_url: 'https://yookassa.test/bind' })
+      return Response.json({
+        id: 19,
+        purpose: 'purchase',
+        plan_id: 1,
+        plan_code: 'month',
+        plan_name: PLAN.name,
+        duration_days: 30,
+        price_rub: '299.00',
+        price_stars: 199,
+        gross_rub: '299.00',
+        discount_rub: '0.00',
+        amount_due_rub: '299.00',
+        status: 'pending',
+        expires_at: '2026-08-11T12:00:00Z',
+        confirmation_url: 'https://yookassa.test/confirm',
+        telegram_invoice_required: false,
+      })
+    })
+
+    renderWithProviders(<Payments />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Привязать другую' }))
+
+    await waitFor(() => expect(requests).toHaveLength(2))
+    // Вернуть из Mini App на страницу сайта значит высадить человека туда, где
+    // вход невозможен: initData есть только внутри Telegram. Поверхность здесь
+    // всегда своя, а конечный адрес возврата выбирает сервер.
+    const bodies = await Promise.all(requests.map((request) => request.json()))
+    expect(bodies).toEqual([
+      expect.objectContaining({ return_surface: 'miniapp' }),
+      { return_surface: 'miniapp' },
+    ])
+  })
+
   it('отдаёт Telegram ссылку подтверждения привязки, а не открывает вкладку', async () => {
     const open = vi.fn()
     const openLink = vi.fn()

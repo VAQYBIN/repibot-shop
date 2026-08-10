@@ -101,18 +101,22 @@ describe('hooks заказов и оплаты', () => {
         provider: 'yookassa',
         promo_code: 'WELCOME',
         idempotency_key: 'order-41',
+        return_surface: 'web',
       })
     })
 
     const request = fetchMock.mock.calls[0]?.[0] as Request
     expect(request.url).toBe('https://api.test/api/me/orders')
     expect(request.method).toBe('POST')
+    // Поверхность возврата уходит как есть: адрес по ней строит сервер, а хук
+    // ничего к телу заказа не добавляет и ничего из него не выбрасывает.
     await expect(request.json()).resolves.toEqual({
       plan_id: 2,
       purpose: 'purchase',
       provider: 'yookassa',
       promo_code: 'WELCOME',
       idempotency_key: 'order-41',
+      return_surface: 'web',
     })
     expect(queryClient.getQueryData(['orders'])).toEqual([ORDER])
     expect(queryClient.getQueryState(['orders'])?.isInvalidated).toBe(true)
@@ -135,6 +139,7 @@ describe('hooks заказов и оплаты', () => {
         purpose: 'renew',
         provider: 'yookassa',
         idempotency_key: 'renew-41',
+        return_surface: 'miniapp',
       }),
     ).rejects.toThrow('Payment provider is unavailable')
   })
@@ -248,13 +253,30 @@ describe('hooks заказов и оплаты', () => {
     const { Wrapper } = createWrapper()
     const { result } = renderHook(() => useStartCardBinding('ru'), { wrapper: Wrapper })
 
-    await expect(result.current.mutateAsync()).resolves.toEqual({
+    await expect(result.current.mutateAsync({ return_surface: 'web' })).resolves.toEqual({
       confirmation_url: 'https://yookassa.test/bind/7',
     })
 
     const request = fetchMock.mock.calls[0]?.[0] as Request
     expect(request.url).toBe('https://api.test/api/me/payment-method/bindings')
     expect(request.method).toBe('POST')
+    // Тело обязательно: по нему сервер решает, куда провайдер вернёт плательщика.
+    await expect(request.json()).resolves.toEqual({ return_surface: 'web' })
+  })
+
+  it('шлёт привязке ту поверхность, с которой её начали', async () => {
+    const fetchMock = vi.fn(async (_request: Request) =>
+      Response.json({ confirmation_url: 'https://yookassa.test/bind/8' }, { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { Wrapper } = createWrapper()
+    const { result } = renderHook(() => useStartCardBinding('ru'), { wrapper: Wrapper })
+
+    await result.current.mutateAsync({ return_surface: 'miniapp' })
+
+    // Из Mini App возвращать на сайт нельзя: вне Telegram тот экран не работает.
+    const request = fetchMock.mock.calls[0]?.[0] as Request
+    await expect(request.json()).resolves.toEqual({ return_surface: 'miniapp' })
   })
 
   it('переводит отказ провайдера привязать карту без оплаты', async () => {
@@ -265,7 +287,7 @@ describe('hooks заказов и оплаты', () => {
     const { Wrapper } = createWrapper()
     const { result } = renderHook(() => useStartCardBinding('ru'), { wrapper: Wrapper })
 
-    await expect(result.current.mutateAsync()).rejects.toThrow(
+    await expect(result.current.mutateAsync({ return_surface: 'web' })).rejects.toThrow(
       'Привязка карты без оплаты сейчас недоступна',
     )
   })

@@ -143,7 +143,9 @@ class CardBindingService:
         self._session = session
         self._settings = settings or get_settings()
 
-    async def start(self, user_id: int, provider: CardBindingCreator) -> StartedBinding:
+    async def start(
+        self, user_id: int, provider: CardBindingCreator, *, return_url: str | None = None
+    ) -> StartedBinding:
         """Заводит привязку и просит у провайдера адрес подтверждения."""
         if not self._settings.yookassa_zero_amount_binding:
             # Магазину без подключённой привязки провайдер ответил бы своей
@@ -162,7 +164,7 @@ class CardBindingService:
         # идемпотентности, чтобы повтор попал в неё же.
         created = await provider.create_card_binding(
             idempotence_key=self._idempotence_key(binding_id),
-            return_url=self._return_url(),
+            return_url=return_url or self._return_url(),
         )
         async with self._session.begin():
             await self._session.execute(

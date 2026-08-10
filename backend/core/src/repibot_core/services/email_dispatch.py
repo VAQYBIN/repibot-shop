@@ -52,7 +52,9 @@ def build_dispatcher(sender: EmailSender | None = None) -> OutboxDispatcher:
     async def handle_payment(payload: dict[str, Any]) -> None:
         message = render_payment_notification(
             payload["language"],
-            link=get_settings().public_app_url,
+            # Письмо открывают в браузере, а страница Mini App вне Telegram
+            # войти не может: ведём в кабинет на сайте.
+            link=f"{get_settings().public_web_url.rstrip('/')}/account/payments",
             to=payload["recipient"],
             kind=payload["kind"],
             plan=payload["plan"],

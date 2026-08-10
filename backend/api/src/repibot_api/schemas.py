@@ -311,6 +311,15 @@ class CreateOrderRequest(BaseModel):
     provider: Literal["yookassa", "stars"]
     promo_code: str | None = Field(default=None, min_length=1, max_length=64)
     idempotency_key: str = Field(min_length=1, max_length=128)
+    # Не адрес, а поверхность: адрес возврата собирает сервер. Принять URL от
+    # клиента значит согласиться увести человека с оплаты куда угодно.
+    return_surface: Literal["web", "miniapp"] = "web"
+
+
+class CardBindingRequest(BaseModel):
+    """Откуда пользователь начал привязку — чтобы вернуть его туда же."""
+
+    return_surface: Literal["web", "miniapp"] = "web"
 
 
 class OrderResponse(BaseModel):

@@ -358,6 +358,50 @@ describe('оплата в кабинете', () => {
     expect(await screen.findByText(CARD.title)).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Привязать другую' })).toBeNull()
   })
+  it('сообщает серверу, что оплату и привязку начали на сайте', async () => {
+    vi.stubGlobal('open', vi.fn())
+    const bodies: unknown[] = []
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/me/payment-method': { ...CARD, binding_available: true },
+        '/api/me/orders': async (request: Request) => {
+          if (request.method === 'GET') return []
+          bodies.push(await request.json())
+          return {
+            id: 18,
+            purpose: 'purchase',
+            plan_id: 1,
+            plan_code: 'month',
+            plan_name: PLAN.name,
+            duration_days: 30,
+            price_rub: '299',
+            price_stars: 199,
+            gross_rub: '299',
+            discount_rub: '0',
+            amount_due_rub: '299',
+            status: 'pending',
+            expires_at: '2026-08-11T12:00:00Z',
+            confirmation_url: null,
+            telegram_invoice_required: false,
+          }
+        },
+        '/api/me/payment-method/bindings': async (request: Request) => {
+          bodies.push(await request.json())
+          return { status: 201, body: { confirmation_url: 'https://yookassa.test/bind/9' } }
+        },
+      }),
+    })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Оплатить картой' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Привязать другую' }))
+
+    // Адрес возврата собирает сервер, клиент называет только поверхность —
+    // иначе подставленный клиентом URL стал бы открытым редиректом.
+    expect(bodies).toEqual([
+      expect.objectContaining({ return_surface: 'web' }),
+      { return_surface: 'web' },
+    ])
+  })
   it('открывает именно ту форму привязки карты, которую вернул сервер', async () => {
     const open = vi.fn()
     vi.stubGlobal('open', open)

@@ -12,6 +12,7 @@ export type AutoRenewRequest = components['schemas']['AutoRenewRequest']
 export type AutoRenewResponse = components['schemas']['AutoRenewResponse']
 export type GiftVoucherResponse = components['schemas']['GiftVoucherResponse']
 export type PaymentMethodResponse = components['schemas']['PaymentMethodResponse']
+export type CardBindingRequest = components['schemas']['CardBindingRequest']
 export type CardBindingResponse = components['schemas']['CardBindingResponse']
 
 const ORDERS_QUERY_KEY = ['orders'] as const
@@ -85,12 +86,17 @@ export function useUnlinkCard(language: Language = 'ru') {
  * Привязка без списания заканчивается на форме провайдера, поэтому здесь
  * кэш не трогаем: карта появится только после подтверждения на стороне
  * провайдера, а о нём нам сообщит следующий запрос состояния.
+ *
+ * Поверхность возврата приходит параметром мутации — как и тело заказа в
+ * `useCreateOrder`: обе точки входа в оплату называют её на месте вызова, и
+ * тело запроса остаётся ровно тем, что описано в схеме. Сам адрес возврата
+ * собирает сервер: принимать URL от клиента значило бы открытый редирект.
  */
 export function useStartCardBinding(language: Language = 'ru') {
   const { api } = useAuthClient()
   return useMutation({
-    mutationFn: async () => {
-      const { data, error } = await api.POST('/api/me/payment-method/bindings')
+    mutationFn: async (input: CardBindingRequest) => {
+      const { data, error } = await api.POST('/api/me/payment-method/bindings', { body: input })
       if (error || !data) throw new Error(messageFrom(error, language))
       return data
     },

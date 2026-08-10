@@ -21,6 +21,7 @@ from repibot_api.limits import PAYMENT_CREATE, enforce
 from repibot_api.schemas import (
     AutoRenewRequest,
     AutoRenewResponse,
+    CardBindingRequest,
     CardBindingResponse,
     CreateOrderRequest,
     DeviceResponse,
@@ -101,6 +102,24 @@ async def stars_handoff_url(redis: Redis, handoff_reference: str) -> str:
     return f"https://t.me/{username}?start=pay_{handoff_reference}"
 
 
+async def return_url_for(redis: Redis, surface: str) -> str:
+    """Куда провайдер вернёт человека после своей формы.
+
+    Адрес собирается здесь, а не приходит из запроса: принять чужой URL значит
+    согласиться увести плательщика с нашего домена куда угодно.
+
+    Из Mini App оплата открывается внешним браузером, и вернуться в него же
+    некуда — страница приложения вне Telegram войти не может. Поэтому обратно
+    ведём в чат бота, откуда человек снова откроет приложение.
+    """
+    settings = get_settings()
+    if surface != "miniapp":
+        return f"{settings.public_web_url.rstrip('/')}/account/payments"
+    async with httpx.AsyncClient(timeout=BOT_TIMEOUT_SECONDS) as client:
+        username = await BotApi(settings, redis, client=client).username()
+    return f"https://t.me/{username}"
+
+
 async def _confirmation_urls(session: AsyncSession, order_ids: list[int]) -> dict[int, str | None]:
     if not order_ids:
         return {}
@@ -170,6 +189,7 @@ async def create_order(
                 purpose=OrderPurpose(payload.purpose),
                 client_key=payload.idempotency_key,
                 promo_code=payload.promo_code,
+                return_url=await return_url_for(redis, payload.return_surface),
                 yookassa=yookassa,
             )
         return order_response(yookassa_order.order, yookassa_order.confirmation_url)
@@ -327,6 +347,7 @@ async def unlink_payment_method(
     status_code=status.HTTP_201_CREATED,
 )
 async def start_card_binding(
+    payload: CardBindingRequest,
     context: Annotated[AuthContext, Depends(current_context)],
     session: Annotated[AsyncSession, Depends(db_session)],
     redis: Annotated[Redis, Depends(get_redis)],
@@ -338,7 +359,11 @@ async def start_card_binding(
         await enforce(redis, f"payment-create:ip:{ip}", PAYMENT_CREATE)
     try:
         async with yookassa_client() as yookassa:
-            started = await CardBindingService(session).start(context.principal.user_id, yookassa)
+            started = await CardBindingService(session).start(
+                context.principal.user_id,
+                yookassa,
+                return_url=await return_url_for(redis, payload.return_surface),
+            )
     except ServiceError as error:
         raise api_error_from_service(error) from error
     except (httpx.HTTPError, YooKassaError) as error:

@@ -363,7 +363,9 @@ class AutoRenewalService:
                 payment = await self._yookassa.create_payment(
                     idempotence_key=provider_key,
                     amount_rub=await self._order_amount(order_id),
-                    return_url=self._settings.public_app_url,
+                    # Повторное списание идёт по сохранённому способу, без
+                    # формы и редиректа: провайдер этот адрес не использует.
+                    return_url=self._settings.public_web_url,
                     description="Re:Pibot renewal recovery",
                     save_payment_method=False,
                     payment_method_id=method_id,

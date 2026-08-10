@@ -22,6 +22,7 @@ class FakeYooKassa:
     def __init__(self) -> None:
         self.calls = 0
         self.closed = 0
+        self.return_urls: list[str] = []
 
     async def create_payment(
         self,
@@ -33,6 +34,7 @@ class FakeYooKassa:
         save_payment_method: bool,
     ) -> YooKassaPayment:
         self.calls += 1
+        self.return_urls.append(return_url)
         return YooKassaPayment(
             id=f"payment-{idempotence_key}",
             status=YooKassaPaymentStatus.pending,
@@ -392,3 +394,43 @@ async def test_list_and_get_orders_are_scoped_to_current_user(
     assert [order["id"] for order in listed.json()] == [order_id]
     assert fetched.status_code == 200
     assert fetched.json()["id"] == order_id
+
+
+async def test_return_url_is_built_by_the_server_from_the_named_surface(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    month_plan: int,
+    fake_yookassa: FakeYooKassa,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Из Mini App возврат ведёт в Telegram, а не на страницу вне его.
+
+    Клиент называет поверхность, а не адрес: принять URL из запроса значит
+    согласиться увести плательщика с оплаты на чужой домен.
+    """
+    from repibot_api.routers import subscription as subscription_router
+    from repibot_core.settings import get_settings
+
+    monkeypatch.setattr(get_settings(), "public_web_url", "https://shop.test")
+
+    async def bot_username(*_args: object) -> str:
+        return "repibot"
+
+    monkeypatch.setattr(subscription_router.BotApi, "username", bot_username, raising=False)
+
+    from_web = await api_client.post(
+        "/api/me/orders",
+        json={**_payload(month_plan, key="surface-web"), "return_surface": "web"},
+        headers=user_headers,
+    )
+    from_miniapp = await api_client.post(
+        "/api/me/orders",
+        json={**_payload(month_plan, key="surface-app"), "return_surface": "miniapp"},
+        headers=user_headers,
+    )
+
+    assert (from_web.status_code, from_miniapp.status_code) == (201, 201)
+    assert fake_yookassa.return_urls == [
+        "https://shop.test/account/payments",
+        "https://t.me/repibot",
+    ]

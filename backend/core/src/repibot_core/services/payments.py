@@ -115,6 +115,7 @@ class PaymentService:
         purpose: OrderPurpose,
         client_key: str,
         promo_code: str | None,
+        return_url: str,
         yookassa: YooKassaCreator,
     ) -> CreatedOrder:
         """Создаёт ровно один серверный снимок и YooKassa-платёж для него.
@@ -200,7 +201,10 @@ class PaymentService:
         payment = await yookassa.create_payment(
             idempotence_key=provider_key,
             amount_rub=existing.amount_due_rub,
-            return_url=self._settings.public_app_url,
+            # Адрес возврата выбирает вызывающий: из Mini App человек уходит
+            # платить во внешний браузер, и возвращать его нужно в Telegram,
+            # а не на страницу приложения, которая вне Telegram не работает.
+            return_url=return_url,
             description=f"Re:Pibot: {existing.plan_code_snapshot}",
             # Флаг намеренно не передаётся: без него YooKassa показывает на
             # форме галочку «запомнить карту», и решает плательщик, а не мы.

@@ -145,7 +145,11 @@ async def test_binding_is_refused_until_the_shop_gets_it(
     fake_binding_provider: FakeBindingProvider,
 ) -> None:
     """Провайдер ответил бы своей ошибкой; отказ должен быть нашим и стабильным."""
-    response = await api_client.post("/api/me/payment-method/bindings", headers=user_headers)
+    response = await api_client.post(
+        "/api/me/payment-method/bindings",
+        json={"return_surface": "web"},
+        headers=user_headers,
+    )
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "binding_unavailable"
@@ -162,7 +166,11 @@ async def test_enabled_binding_returns_the_provider_confirmation_url(
 
     monkeypatch.setattr(get_settings(), "yookassa_zero_amount_binding", True)
 
-    response = await api_client.post("/api/me/payment-method/bindings", headers=user_headers)
+    response = await api_client.post(
+        "/api/me/payment-method/bindings",
+        json={"return_surface": "web"},
+        headers=user_headers,
+    )
 
     assert response.status_code == 201
     assert response.json()["confirmation_url"].endswith("?binding=binding-1")

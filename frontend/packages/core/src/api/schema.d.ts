@@ -962,6 +962,18 @@ export interface components {
             auto_renew_enabled: boolean;
         };
         /**
+         * CardBindingRequest
+         * @description Откуда пользователь начал привязку — чтобы вернуть его туда же.
+         */
+        CardBindingRequest: {
+            /**
+             * Return Surface
+             * @default web
+             * @enum {string}
+             */
+            return_surface: "web" | "miniapp";
+        };
+        /**
          * CardBindingResponse
          * @description Адрес формы провайдера, где пользователь подтверждает карту.
          */
@@ -1013,6 +1025,12 @@ export interface components {
             promo_code?: string | null;
             /** Idempotency Key */
             idempotency_key: string;
+            /**
+             * Return Surface
+             * @default web
+             * @enum {string}
+             */
+            return_surface: "web" | "miniapp";
         };
         /** DeviceResponse */
         DeviceResponse: {
@@ -2648,7 +2666,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardBindingRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {
@@ -2657,6 +2679,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CardBindingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

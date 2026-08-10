@@ -1196,6 +1196,16 @@
         "summary": "Start Card Binding",
         "description": "Начинает привязку карты без списания.",
         "operationId": "start_card_binding_api_me_payment_method_bindings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardBindingRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
             "description": "Successful Response",
@@ -1203,6 +1213,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CardBindingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1927,6 +1947,22 @@
         ],
         "title": "AutoRenewResponse"
       },
+      "CardBindingRequest": {
+        "properties": {
+          "return_surface": {
+            "type": "string",
+            "enum": [
+              "web",
+              "miniapp"
+            ],
+            "title": "Return Surface",
+            "default": "web"
+          }
+        },
+        "type": "object",
+        "title": "CardBindingRequest",
+        "description": "Откуда пользователь начал привязку — чтобы вернуть его туда же."
+      },
       "CardBindingResponse": {
         "properties": {
           "confirmation_url": {
@@ -2036,6 +2072,15 @@
             "maxLength": 128,
             "minLength": 1,
             "title": "Idempotency Key"
+          },
+          "return_surface": {
+            "type": "string",
+            "enum": [
+              "web",
+              "miniapp"
+            ],
+            "title": "Return Surface",
+            "default": "web"
           }
         },
         "type": "object",

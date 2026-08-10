@@ -74,7 +74,9 @@ export function Payments() {
   async function bindCard() {
     let started: { confirmation_url: string | null }
     try {
-      started = await startBinding.mutateAsync()
+      // Mini App живёт только внутри Telegram, поэтому возвращать плательщика
+      // на сайт нельзя: сервер по этой поверхности уведёт его в чат бота.
+      started = await startBinding.mutateAsync({ return_surface: 'miniapp' })
     } catch {
       return
     }
@@ -95,6 +97,9 @@ export function Payments() {
         provider,
         promo_code: promo || null,
         idempotency_key: crypto.randomUUID(),
+        // Форма провайдера открывается поверх Telegram: после оплаты человека
+        // ждут в боте, а не на сайте, где Mini App просто не запустится.
+        return_surface: 'miniapp',
       })
     } catch {
       return

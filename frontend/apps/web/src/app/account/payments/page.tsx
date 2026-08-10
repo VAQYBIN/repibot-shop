@@ -77,7 +77,8 @@ export default function PaymentsPage() {
   async function startCardBinding() {
     let binding: CardBindingResponse
     try {
-      binding = await startBinding.mutateAsync()
+      // Привязку начали на сайте — сюда же провайдер и вернёт плательщика.
+      binding = await startBinding.mutateAsync({ return_surface: 'web' })
     } catch {
       return
     }
@@ -101,6 +102,8 @@ export default function PaymentsPage() {
         purpose,
         promo_code: promo || null,
         idempotency_key: crypto.randomUUID(),
+        // Оплату начали в браузере: адрес возврата сервер соберёт по сайту.
+        return_surface: 'web',
       })
     } catch {
       return

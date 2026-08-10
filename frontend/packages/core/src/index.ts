@@ -36,6 +36,7 @@ export { formatOrderAmount, formatPaymentStatus } from './payments/format'
 export {
   type AutoRenewRequest,
   type AutoRenewResponse,
+  type CardBindingRequest,
   type CardBindingResponse,
   type CreateOrderRequest,
   type GiftVoucherResponse,
