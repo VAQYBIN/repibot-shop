@@ -1154,6 +1154,62 @@
         }
       }
     },
+    "/api/me/payment-method": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "My Payment Method",
+        "operationId": "my_payment_method_api_me_payment_method_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentMethodResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Unlink Payment Method",
+        "description": "Отвязывает карту; автоплатёж выключается вместе с ней.\n\nПовтор не ошибка: у отсутствия карты и её удаления один и тот же\nнаблюдаемый итог.",
+        "operationId": "unlink_payment_method_api_me_payment_method_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/me/payment-method/bindings": {
+      "post": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Start Card Binding",
+        "description": "Начинает привязку карты без списания.",
+        "operationId": "start_card_binding_api_me_payment_method_bindings_post",
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardBindingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me/subscription/trial": {
       "post": {
         "tags": [
@@ -1871,6 +1927,27 @@
         ],
         "title": "AutoRenewResponse"
       },
+      "CardBindingResponse": {
+        "properties": {
+          "confirmation_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirmation_url"
+        ],
+        "title": "CardBindingResponse",
+        "description": "Адрес формы провайдера, где пользователь подтверждает карту."
+      },
       "ChangeEmailRequest": {
         "properties": {
           "email": {
@@ -2515,6 +2592,45 @@
           "password"
         ],
         "title": "PasswordResetRequest"
+      },
+      "PaymentMethodResponse": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "linked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked At"
+          },
+          "binding_available": {
+            "type": "boolean",
+            "title": "Binding Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "linked_at",
+          "binding_available"
+        ],
+        "title": "PaymentMethodResponse",
+        "description": "Действующая карта пользователя и доступность привязки без оплаты."
       },
       "PlanRequest": {
         "properties": {

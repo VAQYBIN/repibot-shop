@@ -217,6 +217,22 @@ class AutoRenewResponse(BaseModel):
     auto_renew_enabled: bool
 
 
+class PaymentMethodResponse(BaseModel):
+    """Действующая карта пользователя и доступность привязки без оплаты."""
+
+    # Название приходит от провайдера («Bank card *4444»); пустое title при
+    # непустой linked_at означает старую карту, привязанную до появления поля.
+    title: str | None
+    linked_at: datetime | None
+    binding_available: bool
+
+
+class CardBindingResponse(BaseModel):
+    """Адрес формы провайдера, где пользователь подтверждает карту."""
+
+    confirmation_url: str | None
+
+
 class AdminSubscriptionRequest(BaseModel):
     """Начисление дней или смена тарифа админом."""
 

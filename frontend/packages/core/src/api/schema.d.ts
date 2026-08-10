@@ -585,6 +585,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/payment-method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Payment Method */
+        get: operations["my_payment_method_api_me_payment_method_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Unlink Payment Method
+         * @description Отвязывает карту; автоплатёж выключается вместе с ней.
+         *
+         *     Повтор не ошибка: у отсутствия карты и её удаления один и тот же
+         *     наблюдаемый итог.
+         */
+        delete: operations["unlink_payment_method_api_me_payment_method_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/payment-method/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Card Binding
+         * @description Начинает привязку карты без списания.
+         */
+        post: operations["start_card_binding_api_me_payment_method_bindings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/subscription/trial": {
         parameters: {
             query?: never;
@@ -917,6 +961,14 @@ export interface components {
             /** Auto Renew Enabled */
             auto_renew_enabled: boolean;
         };
+        /**
+         * CardBindingResponse
+         * @description Адрес формы провайдера, где пользователь подтверждает карту.
+         */
+        CardBindingResponse: {
+            /** Confirmation Url */
+            confirmation_url: string | null;
+        };
         /** ChangeEmailRequest */
         ChangeEmailRequest: {
             /**
@@ -1187,6 +1239,18 @@ export interface components {
             token: string;
             /** Password */
             password: string;
+        };
+        /**
+         * PaymentMethodResponse
+         * @description Действующая карта пользователя и доступность привязки без оплаты.
+         */
+        PaymentMethodResponse: {
+            /** Title */
+            title: string | null;
+            /** Linked At */
+            linked_at: string | null;
+            /** Binding Available */
+            binding_available: boolean;
         };
         /**
          * PlanRequest
@@ -2535,6 +2599,64 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_payment_method_api_me_payment_method_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodResponse"];
+                };
+            };
+        };
+    };
+    unlink_payment_method_api_me_payment_method_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    start_card_binding_api_me_payment_method_bindings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardBindingResponse"];
                 };
             };
         };

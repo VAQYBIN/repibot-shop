@@ -20,11 +20,13 @@ from repibot_api.limits import PAYMENT_CREATE, enforce
 from repibot_api.schemas import (
     AutoRenewRequest,
     AutoRenewResponse,
+    CardBindingResponse,
     CreateOrderRequest,
     DeviceResponse,
     DevicesResponse,
     GiftVoucherResponse,
     OrderResponse,
+    PaymentMethodResponse,
     PublicPlanResponse,
     RedeemGiftRequest,
     SubscriptionStateResponse,
@@ -51,6 +53,7 @@ from repibot_core.ratelimit import DEVICE_UNLINK_WINDOW, Rule
 from repibot_core.services.auth.types import AuthError
 from repibot_core.services.devices import DeviceService, DeviceView
 from repibot_core.services.errors import ServiceError
+from repibot_core.services.payment_methods import CardBindingService, PaymentMethodService
 from repibot_core.services.payments import PaymentService
 from repibot_core.services.plans import PlanService
 from repibot_core.services.promotions import GiftService
@@ -272,6 +275,60 @@ async def set_auto_renew(
     except ServiceError as error:
         raise api_error_from_service(error) from error
     return AutoRenewResponse(auto_renew_enabled=enabled)
+
+
+@router.get("/api/me/payment-method", response_model=PaymentMethodResponse)
+async def my_payment_method(
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> PaymentMethodResponse:
+    card = await PaymentMethodService(session).current(context.principal.user_id)
+    return PaymentMethodResponse(
+        title=None if card is None else card.title,
+        linked_at=None if card is None else card.linked_at,
+        binding_available=get_settings().yookassa_zero_amount_binding,
+    )
+
+
+@router.delete("/api/me/payment-method", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink_payment_method(
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> None:
+    """Отвязывает карту; автоплатёж выключается вместе с ней.
+
+    Повтор не ошибка: у отсутствия карты и её удаления один и тот же
+    наблюдаемый итог.
+    """
+    if session.in_transaction():
+        await session.commit()
+    async with session.begin():
+        await PaymentMethodService(session).revoke(context.principal.user_id)
+
+
+@router.post(
+    "/api/me/payment-method/bindings",
+    response_model=CardBindingResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def start_card_binding(
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+    redis: Annotated[Redis, Depends(get_redis)],
+    ip: Annotated[str | None, Depends(client_ip)],
+) -> CardBindingResponse:
+    """Начинает привязку карты без списания."""
+    await enforce(redis, f"payment-create:user:{context.principal.user_id}", PAYMENT_CREATE)
+    if ip is not None:
+        await enforce(redis, f"payment-create:ip:{ip}", PAYMENT_CREATE)
+    try:
+        async with yookassa_client() as yookassa:
+            started = await CardBindingService(session).start(context.principal.user_id, yookassa)
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+    except (httpx.HTTPError, YooKassaError) as error:
+        raise ApiError("провайдер недоступен", 503, "provider_unavailable") from error
+    return CardBindingResponse(confirmation_url=started.confirmation_url)
 
 
 @router.post(

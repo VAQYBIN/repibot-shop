@@ -94,6 +94,7 @@ _SERVICE_STATUS = {
     "subscription_missing": 404,
     "subscription_not_found": 409,
     "auto_renew_unavailable": 409,
+    "binding_unavailable": 409,
     "subscription_exists": 409,
     "trial_already_used": 409,
     "trial_requires_telegram": 409,
