@@ -256,3 +256,18 @@ async def test_poll_recovers_recorded_stars_success_after_expiry_without_telegra
     assert result == {"checked": 1, "fulfilled": 1}
     status = await db_session.scalar(select(Order.status).where(Order.id == order.id))
     assert status is OrderStatus.fulfilled
+
+
+async def test_auto_renewal_is_skipped_when_yookassa_is_not_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Пустые реквизиты — рабочая конфигурация стенда только со Stars."""
+    from repibot_core.settings import get_settings
+
+    def unreachable() -> object:
+        raise AssertionError("задача не должна обращаться к провайдеру без реквизитов")
+
+    monkeypatch.setattr(get_settings(), "yookassa_shop_id", "")
+    monkeypatch.setattr("repibot_core.tasks.create_yookassa_client", unreachable)
+
+    assert await tasks.attempt_auto_renewals() == {"attempted": 0}

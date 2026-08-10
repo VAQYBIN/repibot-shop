@@ -187,6 +187,12 @@ async def attempt_auto_renewals() -> dict[str, int]:
     """Attempts due YooKassa renewal cycles; every cycle is locally idempotent."""
     from repibot_core.services.payment_notifications import AutoRenewalService
 
+    # Оплата картой отключается пустыми реквизитами, и это рабочая
+    # конфигурация: стенд может принимать только Stars. Без этой проверки
+    # задача падала бы каждые десять минут, пряча настоящие ошибки в журнале.
+    if not get_settings().yookassa_shop_id:
+        return {"attempted": 0}
+
     engine = create_engine(get_settings().database_url)
     client = None
     try:
