@@ -162,7 +162,7 @@ class CardBindingService:
         # идемпотентности, чтобы повтор попал в неё же.
         created = await provider.create_card_binding(
             idempotence_key=self._idempotence_key(binding_id),
-            return_url=self._settings.public_app_url,
+            return_url=self._return_url(),
         )
         async with self._session.begin():
             await self._session.execute(
@@ -247,6 +247,54 @@ class CardBindingService:
             if await self.settle(pending_id, provider):
                 settled += 1
         return settled
+
+    async def settle_for_user(self, user_id: int, provider: CardBindingReader) -> int:
+        """Дочитывает привязки одного пользователя.
+
+        Нужна ровно там, где он оказывается после формы провайдера: ждать до
+        следующей сверки значит показать ему «карта не привязана» сразу после
+        успешной привязки — и он пойдёт привязывать её второй раз.
+        """
+        if self._session.in_transaction():
+            await self._session.commit()
+        pending = list(
+            (
+                await self._session.scalars(
+                    select(CardBinding.id).where(
+                        CardBinding.user_id == user_id,
+                        CardBinding.status == CardBindingStatus.pending,
+                        CardBinding.provider_binding_id.is_not(None),
+                    )
+                )
+            ).all()
+        )
+        await self._session.commit()
+        settled = 0
+        for binding_id in pending:
+            if await self.settle(binding_id, provider):
+                settled += 1
+        return settled
+
+    async def has_pending(self, user_id: int) -> bool:
+        """Есть ли что дочитывать: без этого клиент провайдера собирался бы зря."""
+        found = await self._session.scalar(
+            select(CardBinding.id)
+            .where(
+                CardBinding.user_id == user_id,
+                CardBinding.status == CardBindingStatus.pending,
+                CardBinding.provider_binding_id.is_not(None),
+            )
+            .limit(1)
+        )
+        return found is not None
+
+    def _return_url(self) -> str:
+        """Адрес кабинета, а не корня сайта.
+
+        После подтверждения карты провайдер возвращает человека по этому
+        адресу, и он должен увидеть ровно тот экран, с которого уходил.
+        """
+        return f"{self._settings.public_web_url.rstrip('/')}/account/payments"
 
     @staticmethod
     def _idempotence_key(binding_id: int) -> str:

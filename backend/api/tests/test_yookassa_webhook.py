@@ -27,6 +27,7 @@ from repibot_core.db.models import (
 )
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
 from repibot_core.integrations.yookassa.testing import FakeYooKassa
+from repibot_core.integrations.yookassa.types import YooKassaPayment
 
 pytestmark = pytest.mark.docker
 
@@ -276,3 +277,34 @@ async def test_retry_recovers_after_local_finalizer_crash_without_stranding_atte
 
     assert recovered.status_code == 204
     assert await _order_status(engine, order_id) is OrderStatus.fulfilled
+
+
+async def test_payment_method_event_goes_straight_to_the_binding(
+    api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Тип события указывает ресурс, а не решает исход: платежей мы не трогаем."""
+    from repibot_api.routers import webhooks
+    from repibot_core.services.payment_methods import PaymentMethodService
+
+    class RefusingPayments(FakeYooKassa):
+        async def get_payment(self, payment_id: str) -> YooKassaPayment:
+            raise AssertionError(f"привязку нельзя искать среди платежей: {payment_id}")
+
+    fake = RefusingPayments()
+    user_id = await _pending_binding(engine)
+    fake.set_binding("binding-1", status="active", saved=True)
+    monkeypatch.setattr(webhooks, "create_yookassa_client", lambda: fake)
+
+    response = await api_client.post(
+        "/webhook/yookassa",
+        json={
+            "type": "notification",
+            "event": "payment_method.active",
+            "object": {"id": "binding-1"},
+        },
+    )
+
+    assert response.status_code == 204
+    async with create_session_factory(engine)() as session:
+        current = await PaymentMethodService(session).current(user_id)
+    assert current is not None and current.title == "Bank card *4444"

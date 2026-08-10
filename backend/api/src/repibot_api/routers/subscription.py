@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 import httpx
@@ -60,6 +61,8 @@ from repibot_core.services.promotions import GiftService
 from repibot_core.services.subscriptions import SubscriptionService
 from repibot_core.services.traffic import TrafficService
 from repibot_core.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["subscription"])
 
@@ -282,6 +285,18 @@ async def my_payment_method(
     context: Annotated[AuthContext, Depends(current_context)],
     session: Annotated[AsyncSession, Depends(db_session)],
 ) -> PaymentMethodResponse:
+    bindings = CardBindingService(session)
+    # Человек попадает сюда сразу после формы провайдера. Дочитать его
+    # привязку здесь дешевле, чем показать «карта не привязана» и получить
+    # вторую попытку привязки от растерянного пользователя.
+    if await bindings.has_pending(context.principal.user_id):
+        try:
+            async with yookassa_client() as yookassa:
+                await bindings.settle_for_user(context.principal.user_id, yookassa)
+        except (ApiError, httpx.HTTPError, YooKassaError):
+            # Экран карты не должен падать из-за молчащего провайдера:
+            # непрочитанную привязку добёрет сверка по расписанию.
+            logger.warning("не удалось дочитать привязку карты", exc_info=True)
     card = await PaymentMethodService(session).current(context.principal.user_id)
     return PaymentMethodResponse(
         title=None if card is None else card.title,

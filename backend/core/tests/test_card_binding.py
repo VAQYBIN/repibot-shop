@@ -251,3 +251,45 @@ async def test_confirmed_binding_turns_auto_renew_on(
     await bindings.settle(started.binding_id, provider)
 
     assert await _auto_renew(db_session, user.id) is True
+
+
+async def test_provider_returns_the_payer_to_the_account_page(
+    db_session: AsyncSession, binding_enabled: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Возврат на корень сайта оставил бы человека без экрана, с которого он ушёл."""
+    del binding_enabled
+    monkeypatch.setattr(get_settings(), "public_web_url", "https://shop.test/")
+    user = await _subscriber(db_session, "bindurl1")
+    provider = FakeBindings()
+
+    started = await CardBindingService(db_session).start(user.id, provider)
+
+    assert started.confirmation_url is not None
+    assert started.confirmation_url.startswith("https://shop.test/account/payments?")
+
+
+async def test_settle_for_user_touches_only_its_owner(
+    db_session: AsyncSession, binding_enabled: None
+) -> None:
+    """Дочитывание на экране кабинета не должно закрывать чужие привязки."""
+    del binding_enabled
+    owner = await _subscriber(db_session, "bindown1")
+    stranger = await _subscriber(db_session, "bindown2")
+    provider = FakeBindings()
+    bindings = CardBindingService(db_session)
+    mine = await bindings.start(owner.id, provider)
+    theirs = await bindings.start(stranger.id, provider)
+    for binding_id in (mine.binding_id, theirs.binding_id):
+        provider.confirm(
+            await _provider_binding_id(db_session, binding_id),
+            status=YooKassaBindingStatus.active,
+            saved=True,
+        )
+
+    assert await bindings.has_pending(owner.id) is True
+    settled = await bindings.settle_for_user(owner.id, provider)
+
+    assert settled == 1
+    assert await PaymentMethodService(db_session).current(owner.id) is not None
+    assert await PaymentMethodService(db_session).current(stranger.id) is None
+    assert await bindings.has_pending(owner.id) is False

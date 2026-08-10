@@ -42,9 +42,15 @@ async def yookassa_webhook(
     if not isinstance(payment_id, str) or not payment_id:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    # Тип события — только подсказка о том, какой ресурс читать у провайдера.
+    # Коммерческое решение по-прежнему принимается по прочитанному ответу, а
+    # не по телу вызова: подсунуть чужой event значит лишь послать нас не туда.
+    event = payload.get("event") if isinstance(payload, dict) else None
     client = create_yookassa_client()
     try:
-        # Никакое поле webhook, кроме id, не участвует в коммерческом решении.
+        if isinstance(event, str) and event.startswith("payment_method."):
+            await _settle_card_binding(session, payment_id, client)
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         finalized = await PaymentService(session).verify_yookassa_callback(payment_id, client)
         if finalized is None:
             await _settle_card_binding(session, payment_id, client)

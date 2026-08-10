@@ -33,7 +33,14 @@ class FakeBindingProvider:
         )
 
     async def get_card_binding(self, binding_id: str) -> YooKassaCardBinding:
-        raise AssertionError(f"маршрут не должен дочитывать {binding_id}")
+        """Провайдер ещё не решил: пользователь не дошёл до формы."""
+        return YooKassaCardBinding(
+            id=binding_id,
+            status=YooKassaBindingStatus.pending,
+            saved=False,
+            title=None,
+            confirmation_url=None,
+        )
 
     async def aclose(self) -> None:
         return None
@@ -164,3 +171,52 @@ async def test_enabled_binding_returns_the_provider_confirmation_url(
     assert (await api_client.get("/api/me/payment-method", headers=user_headers)).json()[
         "title"
     ] is None
+
+
+async def test_card_screen_settles_a_binding_left_pending_by_the_provider(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    engine: AsyncEngine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """После формы провайдера человек попадает сюда — и карта должна быть уже видна.
+
+    Ждать сверки по расписанию значит показать «карта не привязана» сразу
+    после успешной привязки и получить вторую попытку от растерянного
+    пользователя.
+    """
+    from repibot_api import subscription_view
+    from repibot_core.db.models import CardBinding, CardBindingStatus, PaymentProvider
+    from repibot_core.settings import get_settings
+
+    monkeypatch.setattr(get_settings(), "yookassa_zero_amount_binding", True)
+    user_id = await _user_id(api_client, user_headers)
+    async with create_session_factory(engine)() as session:
+        session.add(
+            CardBinding(
+                user_id=user_id,
+                provider=PaymentProvider.yookassa,
+                provider_binding_id="binding-1",
+                status=CardBindingStatus.pending,
+            )
+        )
+        await session.commit()
+
+    class SettlingProvider(FakeBindingProvider):
+        async def get_card_binding(self, binding_id: str) -> YooKassaCardBinding:
+            assert binding_id == "binding-1"
+            return YooKassaCardBinding(
+                id=binding_id,
+                status=YooKassaBindingStatus.active,
+                saved=True,
+                title="Bank card *4444",
+                confirmation_url=None,
+            )
+
+    monkeypatch.setattr(
+        subscription_view, "create_yookassa_client", SettlingProvider, raising=False
+    )
+
+    response = await api_client.get("/api/me/payment-method", headers=user_headers)
+
+    assert response.json()["title"] == "Bank card *4444"
