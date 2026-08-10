@@ -6,9 +6,12 @@ import {
   useCreateOrder,
   useGifts,
   useOrders,
+  usePaymentMethod,
   usePlans,
   useRedeemGift,
+  useStartCardBinding,
   useSubscription,
+  useUnlinkCard,
 } from '@repibot/core'
 import { Button, Card, Dialog, EmptyState, Input, Switch } from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
@@ -55,12 +58,28 @@ export function Payments() {
   const redeem = useRedeemGift(language)
   const gifts = useGifts()
   const autoRenew = useAutoRenew(language)
+  const card = usePaymentMethod()
+  const unlinkCard = useUnlinkCard(language)
+  const startBinding = useStartCardBinding(language)
   const [promo, setPromo] = useState('')
   const [voucher, setVoucher] = useState('')
   const [stars, setStars] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [giftPlan, setGiftPlan] = useState<Plan | null>(null)
+  const [unlinkAsked, setUnlinkAsked] = useState(false)
   const current = subscription.data?.subscription
+  // Название карты приходит с сервера целиком; клиент не собирает его из
+  // маски и платёжной системы, иначе разойдётся с тем, что видит бот.
+  const cardTitle = card.data?.title ?? null
+  async function bindCard() {
+    let started: { confirmation_url: string | null }
+    try {
+      started = await startBinding.mutateAsync()
+    } catch {
+      return
+    }
+    if (started.confirmation_url) openTelegramUrl(started.confirmation_url)
+  }
   async function order(
     plan: Plan,
     provider: 'yookassa' | 'stars',
@@ -236,23 +255,88 @@ export function Payments() {
         )}
       </Card>
       <Card>
-        {current === null || current === undefined ? (
-          <p className="text-sm text-text-secondary">
-            {translate(language, 'payment.auto_renew.unavailable')}
+        <h2 className="text-lg font-semibold text-text">{translate(language, 'payment.card')}</h2>
+        {card.isPending ? (
+          <p role="status" className="mt-2 text-sm text-text-secondary">
+            {translate(language, 'common.loading')}
           </p>
+        ) : cardTitle === null ? (
+          <>
+            <p className="mt-2 text-sm text-text">{translate(language, 'payment.card_none')}</p>
+            <p className="mt-1 text-sm text-text-secondary">
+              {translate(language, 'payment.card_hint')}
+            </p>
+          </>
         ) : (
-          <Switch
-            label={translate(language, 'payment.auto_renew')}
-            checked={current.auto_renew_enabled}
-            disabled={autoRenew.isPending}
-            onCheckedChange={(enabled) => void autoRenew.mutate({ auto_renew_enabled: enabled })}
-          />
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="truncate font-medium text-text">{cardTitle}</p>
+              {card.data?.linked_at ? (
+                <time className="text-sm text-text-secondary" dateTime={card.data.linked_at}>
+                  {formatDate(card.data.linked_at, language)}
+                </time>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="shrink-0"
+              aria-label={`${translate(language, 'payment.card_unlink')} ${cardTitle}`}
+              disabled={unlinkCard.isPending}
+              onClick={() => setUnlinkAsked(true)}
+            >
+              {translate(language, 'payment.card_unlink')}
+            </Button>
+          </div>
         )}
-        {autoRenew.error !== null ? (
+        {card.data?.binding_available === true ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={startBinding.isPending}
+              onClick={() => void bindCard()}
+            >
+              {translate(language, 'payment.card_bind')}
+            </Button>
+            <p className="mt-1 text-sm text-text-secondary">
+              {translate(language, 'payment.card_bind_hint')}
+            </p>
+          </div>
+        ) : null}
+        {unlinkCard.error !== null ? (
           <p role="alert" className="mt-2 text-sm text-danger">
-            {errorText(autoRenew.error, language)}
+            {errorText(unlinkCard.error, language)}
           </p>
         ) : null}
+        {startBinding.error !== null ? (
+          <p role="alert" className="mt-2 text-sm text-danger">
+            {errorText(startBinding.error, language)}
+          </p>
+        ) : null}
+        <div className="mt-4 border-t border-border-subtle pt-4">
+          {current === null || current === undefined ? (
+            <p className="text-sm text-text-secondary">
+              {translate(language, 'payment.auto_renew.unavailable')}
+            </p>
+          ) : (
+            // Без карты списывать нечем: переключатель остаётся выключенным
+            // и недоступным, чтобы не обещать продление, которого не будет.
+            <Switch
+              label={translate(language, 'payment.auto_renew')}
+              checked={cardTitle !== null && current.auto_renew_enabled}
+              disabled={autoRenew.isPending || cardTitle === null}
+              onCheckedChange={(enabled) => void autoRenew.mutate({ auto_renew_enabled: enabled })}
+            />
+          )}
+          {autoRenew.error !== null ? (
+            <p role="alert" className="mt-2 text-sm text-danger">
+              {errorText(autoRenew.error, language)}
+            </p>
+          ) : null}
+        </div>
       </Card>
       <section aria-labelledby="mini-orders">
         <h2 id="mini-orders" className="text-lg font-semibold text-text">
@@ -300,6 +384,25 @@ export function Payments() {
           }}
         >
           {translate(language, 'payment.confirm')}
+        </Button>
+      </Dialog>
+      <Dialog
+        open={unlinkAsked}
+        onClose={() => setUnlinkAsked(false)}
+        title={translate(language, 'payment.card_unlink_confirm')}
+        description={translate(language, 'payment.card_unlink_hint')}
+      >
+        <Button type="button" variant="secondary" onClick={() => setUnlinkAsked(false)}>
+          {translate(language, 'common.cancel')}
+        </Button>
+        <Button
+          type="button"
+          onClick={() => {
+            unlinkCard.mutate()
+            setUnlinkAsked(false)
+          }}
+        >
+          {translate(language, 'payment.card_unlink')}
         </Button>
       </Dialog>
     </main>

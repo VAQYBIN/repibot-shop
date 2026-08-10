@@ -5,7 +5,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthProvider } from '../auth/hooks'
 import { createTokenStore } from '../auth/store'
-import { useAutoRenew, useCreateOrder, useOrders, useRedeemGift } from './hooks'
+import {
+  useAutoRenew,
+  useCreateOrder,
+  useOrders,
+  usePaymentMethod,
+  useRedeemGift,
+  useStartCardBinding,
+  useUnlinkCard,
+} from './hooks'
 
 const ORDER = {
   id: 41,
@@ -39,6 +47,12 @@ const SUBSCRIPTION = {
     auto_renew_enabled: false,
   },
   trial_available: false,
+} as const
+
+const CARD = {
+  title: 'Visa •••• 4242',
+  linked_at: '2026-08-01T12:00:00Z',
+  binding_available: true,
 } as const
 
 function createWrapper() {
@@ -190,5 +204,69 @@ describe('hooks заказов и оплаты', () => {
     await result.current.mutateAsync({ auto_renew_enabled: true })
 
     expect(queryClient.getQueryData(['subscription'])).toEqual(SUBSCRIPTION)
+  })
+
+  it('берёт сохранённую карту у сервера и держит её под отдельным ключом кэша', async () => {
+    const fetchMock = vi.fn(async (_request: Request) => Response.json(CARD))
+    vi.stubGlobal('fetch', fetchMock)
+    const { queryClient, Wrapper } = createWrapper()
+    const { result } = renderHook(usePaymentMethod, { wrapper: Wrapper })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const request = fetchMock.mock.calls[0]?.[0] as Request
+    expect(request.url).toBe('https://api.test/api/me/payment-method')
+    expect(request.method).toBe('GET')
+    expect(queryClient.getQueryData(['payment-method'])).toEqual(CARD)
+  })
+
+  it('отвязывает карту и сбрасывает вместе с ней снимок подписки', async () => {
+    const fetchMock = vi.fn(async (_request: Request) => new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { queryClient, Wrapper } = createWrapper()
+    queryClient.setQueryData(['payment-method'], CARD)
+    queryClient.setQueryData(['subscription'], SUBSCRIPTION)
+    const { result } = renderHook(() => useUnlinkCard('ru'), { wrapper: Wrapper })
+
+    await act(async () => {
+      await result.current.mutateAsync()
+    })
+
+    const request = fetchMock.mock.calls[0]?.[0] as Request
+    expect(request.url).toBe('https://api.test/api/me/payment-method')
+    expect(request.method).toBe('DELETE')
+    // Автоплатёж выключает сервер, поэтому подписку тоже перечитываем.
+    expect(queryClient.getQueryState(['payment-method'])?.isInvalidated).toBe(true)
+    expect(queryClient.getQueryState(['subscription'])?.isInvalidated).toBe(true)
+  })
+
+  it('начинает привязку карты и возвращает адрес формы провайдера', async () => {
+    const fetchMock = vi.fn(async (_request: Request) =>
+      Response.json({ confirmation_url: 'https://yookassa.test/bind/7' }, { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { Wrapper } = createWrapper()
+    const { result } = renderHook(() => useStartCardBinding('ru'), { wrapper: Wrapper })
+
+    await expect(result.current.mutateAsync()).resolves.toEqual({
+      confirmation_url: 'https://yookassa.test/bind/7',
+    })
+
+    const request = fetchMock.mock.calls[0]?.[0] as Request
+    expect(request.url).toBe('https://api.test/api/me/payment-method/bindings')
+    expect(request.method).toBe('POST')
+  })
+
+  it('переводит отказ провайдера привязать карту без оплаты', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ error: { code: 'binding_unavailable' } }, { status: 409 })),
+    )
+    const { Wrapper } = createWrapper()
+    const { result } = renderHook(() => useStartCardBinding('ru'), { wrapper: Wrapper })
+
+    await expect(result.current.mutateAsync()).rejects.toThrow(
+      'Привязка карты без оплаты сейчас недоступна',
+    )
   })
 })

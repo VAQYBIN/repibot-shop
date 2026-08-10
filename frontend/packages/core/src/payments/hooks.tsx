@@ -11,10 +11,13 @@ export type SubscriptionStateResponse = components['schemas']['SubscriptionState
 export type AutoRenewRequest = components['schemas']['AutoRenewRequest']
 export type AutoRenewResponse = components['schemas']['AutoRenewResponse']
 export type GiftVoucherResponse = components['schemas']['GiftVoucherResponse']
+export type PaymentMethodResponse = components['schemas']['PaymentMethodResponse']
+export type CardBindingResponse = components['schemas']['CardBindingResponse']
 
 const ORDERS_QUERY_KEY = ['orders'] as const
 const SUBSCRIPTION_QUERY_KEY = ['subscription'] as const
 const GIFTS_QUERY_KEY = ['gifts'] as const
+const PAYMENT_METHOD_QUERY_KEY = ['payment-method'] as const
 
 export function useOrders() {
   const { api } = useAuthClient()
@@ -36,6 +39,59 @@ export function useGifts() {
     queryFn: async () => {
       const { data, error } = await api.GET('/api/me/gifts')
       if (error || !data) throw error ?? new Error('пустой ответ /api/me/gifts')
+      return data
+    },
+  })
+}
+
+/**
+ * Сохранённая карта живёт отдельно от подписки: её название и доступность
+ * привязки без оплаты знает только сервер, клиент их не выводит.
+ */
+export function usePaymentMethod() {
+  const { api } = useAuthClient()
+  return useQuery({
+    queryKey: PAYMENT_METHOD_QUERY_KEY,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/me/payment-method')
+      if (error || !data) throw error ?? new Error('пустой ответ /api/me/payment-method')
+      return data
+    },
+  })
+}
+
+/**
+ * Вместе с картой сервер выключает автоплатёж: списывать становится нечем.
+ * Поэтому снимок подписки после отвязки тоже устарел и перечитывается.
+ */
+export function useUnlinkCard(language: Language = 'ru') {
+  const { api } = useAuthClient()
+  const queries = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await api.DELETE('/api/me/payment-method')
+      if (error) throw new Error(messageFrom(error, language))
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queries.invalidateQueries({ queryKey: PAYMENT_METHOD_QUERY_KEY }),
+        queries.invalidateQueries({ queryKey: SUBSCRIPTION_QUERY_KEY }),
+      ])
+    },
+  })
+}
+
+/**
+ * Привязка без списания заканчивается на форме провайдера, поэтому здесь
+ * кэш не трогаем: карта появится только после подтверждения на стороне
+ * провайдера, а о нём нам сообщит следующий запрос состояния.
+ */
+export function useStartCardBinding(language: Language = 'ru') {
+  const { api } = useAuthClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await api.POST('/api/me/payment-method/bindings')
+      if (error || !data) throw new Error(messageFrom(error, language))
       return data
     },
   })

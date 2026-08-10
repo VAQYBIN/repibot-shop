@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,6 +18,44 @@ const PLAN = {
   is_trial: false,
 }
 
+const SUBSCRIPTION = {
+  plan_code: 'month',
+  plan_name: PLAN.name,
+  status: 'active',
+  started_at: '2026-08-01T12:00:00Z',
+  expires_at: '2026-09-01T12:00:00Z',
+  subscription_url: null,
+  traffic_limit_bytes: 0,
+  hwid_device_limit: 3,
+  auto_renew_enabled: false,
+}
+
+const NO_CARD = { title: null, linked_at: null, binding_available: false }
+
+interface PaymentMethod {
+  title: string | null
+  linked_at: string | null
+  binding_available: boolean
+}
+
+/**
+ * Общие ответы экрана оплаты. Возвращает `null`, если путь не разобран, —
+ * тогда тест сам решает, чем ответить, и заодно видит запрос.
+ */
+function paymentHandlers(card: PaymentMethod, subscription: unknown = SUBSCRIPTION) {
+  return (request: Request): Response | null => {
+    const path = new URL(request.url).pathname
+    if (path === '/api/me') return Response.json(PROFILE)
+    if (path === '/api/plans') return Response.json([PLAN])
+    if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
+    if (path === '/api/me/gifts') return Response.json([])
+    if (path === '/api/me/subscription')
+      return Response.json({ subscription, trial_available: false })
+    if (path === '/api/me/payment-method' && request.method === 'GET') return Response.json(card)
+    return null
+  }
+}
+
 afterEach(() => vi.unstubAllGlobals())
 
 describe('оплата в Mini App', () => {
@@ -29,6 +67,7 @@ describe('оплата в Mini App', () => {
       if (path === '/api/plans') return Response.json([PLAN])
       if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
       if (path === '/api/me/gifts') return Response.json([])
+      if (path === '/api/me/payment-method') return Response.json(NO_CARD)
       if (path === '/api/me/subscription')
         return Response.json({
           subscription: {
@@ -80,6 +119,7 @@ describe('оплата в Mini App', () => {
       if (path === '/api/plans') return Response.json([PLAN])
       if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
       if (path === '/api/me/gifts') return Response.json([])
+      if (path === '/api/me/payment-method') return Response.json(NO_CARD)
       if (path === '/api/me/subscription')
         return Response.json({ subscription: null, trial_available: false })
       posts.push(request)
@@ -116,6 +156,7 @@ describe('оплата в Mini App', () => {
       if (path === '/api/plans') return Response.json([PLAN])
       if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
       if (path === '/api/me/gifts') return Response.json([])
+      if (path === '/api/me/payment-method') return Response.json(NO_CARD)
       if (path === '/api/me/subscription')
         return Response.json({ subscription: null, trial_available: false })
       requests.push(request)
@@ -153,6 +194,7 @@ describe('оплата в Mini App', () => {
       if (path === '/api/plans') return Response.json([PLAN])
       if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
       if (path === '/api/me/gifts') return Response.json([])
+      if (path === '/api/me/payment-method') return Response.json(NO_CARD)
       if (path === '/api/me/subscription')
         return Response.json({ subscription: null, trial_available: false })
       return Response.json({
@@ -188,6 +230,7 @@ describe('оплата в Mini App', () => {
       if (path === '/api/plans') return Response.json([PLAN])
       if (path === '/api/me/orders' && request.method === 'GET') return Response.json([])
       if (path === '/api/me/gifts') return Response.json([])
+      if (path === '/api/me/payment-method') return Response.json(NO_CARD)
       if (path === '/api/me/subscription')
         return Response.json({ subscription: null, trial_available: false })
       if (path === '/api/me/orders') {
@@ -219,5 +262,101 @@ describe('оплата в Mini App', () => {
     expect(await screen.findByText(/счёт в telegram stars выставит бот/i)).toBeVisible()
     expect(open).not.toHaveBeenCalled()
     expect(openTelegramLink).toHaveBeenCalledWith('https://t.me/repibot?start=order_11')
+  })
+})
+
+describe('карта для автоплатежа в Mini App', () => {
+  it('не даёт включить автопродление, пока карты нет', async () => {
+    const base = paymentHandlers(NO_CARD)
+    stubFetch((request) => base(request) ?? new Response(null, { status: 404 }))
+
+    renderWithProviders(<Payments />)
+
+    expect(await screen.findByText('Карта не привязана')).toBeVisible()
+    expect(
+      screen.getByText(/Карта запоминается, только если отметить «запомнить карту»/),
+    ).toBeVisible()
+    const toggle = await screen.findByRole('switch', { name: 'Автопродление' })
+    expect(toggle).toBeDisabled()
+    expect(toggle).not.toBeChecked()
+  })
+
+  it('показывает название карты из ответа сервера, а не собирает его сам', async () => {
+    const base = paymentHandlers({
+      title: 'MasterCard •••• 4444',
+      linked_at: '2026-08-01T12:00:00Z',
+      binding_available: true,
+    })
+    stubFetch((request) => base(request) ?? new Response(null, { status: 404 }))
+
+    renderWithProviders(<Payments />)
+
+    expect(await screen.findByText('MasterCard •••• 4444')).toBeVisible()
+    expect(screen.queryByText('Карта не привязана')).not.toBeInTheDocument()
+    const toggle = await screen.findByRole('switch', { name: 'Автопродление' })
+    expect(toggle).toBeEnabled()
+  })
+
+  it('не отвязывает карту, пока отвязку не подтвердили', async () => {
+    const base = paymentHandlers({
+      title: 'MasterCard •••• 4444',
+      linked_at: '2026-08-01T12:00:00Z',
+      binding_available: false,
+    })
+    const requests: Request[] = []
+    stubFetch((request) => {
+      const handled = base(request)
+      if (handled !== null) return handled
+      requests.push(request)
+      return new Response(null, { status: 204 })
+    })
+
+    renderWithProviders(<Payments />)
+
+    await userEvent.click(await screen.findByRole('button', { name: /Отвязать карту MasterCard/ }))
+    expect(screen.getByRole('dialog', { name: 'Отвязать карту?' })).toBeVisible()
+    expect(requests).toHaveLength(0)
+
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Отвязать карту' }),
+    )
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0]?.method).toBe('DELETE')
+    expect(new URL(requests[0]?.url ?? '').pathname).toBe('/api/me/payment-method')
+  })
+
+  it('прячет привязку карты, когда сервер её не разрешает', async () => {
+    const base = paymentHandlers({
+      title: 'MasterCard •••• 4444',
+      linked_at: '2026-08-01T12:00:00Z',
+      binding_available: false,
+    })
+    stubFetch((request) => base(request) ?? new Response(null, { status: 404 }))
+
+    renderWithProviders(<Payments />)
+
+    expect(await screen.findByText('MasterCard •••• 4444')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Привязать другую' })).not.toBeInTheDocument()
+  })
+
+  it('отдаёт Telegram ссылку подтверждения привязки, а не открывает вкладку', async () => {
+    const open = vi.fn()
+    const openLink = vi.fn()
+    vi.stubGlobal('open', open)
+    vi.stubGlobal('Telegram', { WebApp: { openLink } })
+    const base = paymentHandlers({ ...NO_CARD, binding_available: true })
+    stubFetch((request) => {
+      const handled = base(request)
+      if (handled !== null) return handled
+      if (new URL(request.url).pathname === '/api/me/payment-method/bindings')
+        return Response.json({ confirmation_url: 'https://yookassa.test/bind' })
+      return new Response(null, { status: 404 })
+    })
+
+    renderWithProviders(<Payments />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Привязать другую' }))
+    await waitFor(() => expect(openLink).toHaveBeenCalledWith('https://yookassa.test/bind'))
+    expect(open).not.toHaveBeenCalled()
   })
 })

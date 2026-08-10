@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  type CardBindingResponse,
   formatDate,
   type OrderResponse,
   type TranslationKey,
@@ -8,11 +9,14 @@ import {
   useCreateOrder,
   useGifts,
   useOrders,
+  usePaymentMethod,
   usePlans,
   useRedeemGift,
+  useStartCardBinding,
   useSubscription,
+  useUnlinkCard,
 } from '@repibot/core'
-import { Button, Card, EmptyState, Input, Switch } from '@repibot/ui'
+import { Button, Card, Dialog, EmptyState, Input, Switch } from '@repibot/ui'
 import { useState } from 'react'
 
 import { OrderDialog } from '@/components/order-dialog'
@@ -50,13 +54,36 @@ export default function PaymentsPage() {
   const redeemGift = useRedeemGift(language)
   const gifts = useGifts()
   const autoRenew = useAutoRenew(language)
+  const paymentMethod = usePaymentMethod()
+  const unlinkCard = useUnlinkCard(language)
+  const startBinding = useStartCardBinding(language)
   const [promo, setPromo] = useState('')
   const [voucher, setVoucher] = useState('')
   const [giftPlan, setGiftPlan] = useState<Plan | null>(null)
   const [starsHint, setStarsHint] = useState(false)
   const [promoApplied, setPromoApplied] = useState(false)
+  const [unlinkAsked, setUnlinkAsked] = useState(false)
   const current = subscription.data?.subscription
   const subscriptionReady = !subscription.isPending && subscription.error === null
+  // Название карты приходит от сервера: собирать его на клиенте не из чего.
+  const cardTitle = paymentMethod.data?.title ?? null
+  const bindingAvailable = paymentMethod.data?.binding_available === true
+
+  function confirmUnlink() {
+    setUnlinkAsked(false)
+    unlinkCard.mutate()
+  }
+
+  async function startCardBinding() {
+    let binding: CardBindingResponse
+    try {
+      binding = await startBinding.mutateAsync()
+    } catch {
+      return
+    }
+    if (binding.confirmation_url !== null)
+      window.open(binding.confirmation_url, '_blank', 'noopener,noreferrer')
+  }
 
   async function submit(
     plan: Plan,
@@ -236,7 +263,64 @@ export default function PaymentsPage() {
         )}
       </Card>
       <Card>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-text">{t('payment.card')}</h2>
+            {paymentMethod.isPending ? (
+              <p role="status" className="mt-1 text-sm text-text-secondary">
+                {t('common.loading')}
+              </p>
+            ) : paymentMethod.error !== null ? (
+              <p role="alert" className="mt-1 text-sm text-danger">
+                {errorText(paymentMethod.error, language)}
+              </p>
+            ) : cardTitle === null ? (
+              <>
+                <p className="mt-1 text-sm text-text">{t('payment.card_none')}</p>
+                <p className="mt-1 text-sm text-text-secondary">{t('payment.card_hint')}</p>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-text">{cardTitle}</p>
+            )}
+            {bindingAvailable ? (
+              <p className="mt-1 text-sm text-text-secondary">{t('payment.card_bind_hint')}</p>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {cardTitle === null ? null : (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={unlinkCard.isPending}
+                onClick={() => setUnlinkAsked(true)}
+              >
+                {t('payment.card_unlink')}
+              </Button>
+            )}
+            {bindingAvailable ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={startBinding.isPending}
+                onClick={() => void startCardBinding()}
+              >
+                {t('payment.card_bind')}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        {unlinkCard.error !== null ? (
+          <p role="alert" className="mt-2 text-sm text-danger">
+            {errorText(unlinkCard.error, language)}
+          </p>
+        ) : null}
+        {startBinding.error !== null ? (
+          <p role="alert" className="mt-2 text-sm text-danger">
+            {errorText(startBinding.error, language)}
+          </p>
+        ) : null}
+        <div className="mt-4 flex items-start justify-between gap-4 border-t border-border-subtle pt-4">
           <div>
             <h2 className="text-lg font-semibold text-text">{t('payment.auto_renew')}</h2>
             <p className="mt-1 text-sm text-text-secondary">{t('payment.auto_renew_hint')}</p>
@@ -256,7 +340,9 @@ export default function PaymentsPage() {
             <Switch
               label={t('payment.auto_renew')}
               checked={current.auto_renew_enabled}
-              disabled={autoRenew.isPending}
+              // Без сохранённой карты списывать нечем: переключатель нечего
+              // включать до того, как карта появится.
+              disabled={autoRenew.isPending || cardTitle === null}
               onCheckedChange={(enabled) => void autoRenew.mutate({ auto_renew_enabled: enabled })}
             />
           )}
@@ -267,6 +353,19 @@ export default function PaymentsPage() {
           </p>
         ) : null}
       </Card>
+      <Dialog
+        open={unlinkAsked}
+        onClose={() => setUnlinkAsked(false)}
+        title={t('payment.card_unlink_confirm')}
+        description={t('payment.card_unlink_hint')}
+      >
+        <Button type="button" variant="ghost" onClick={() => setUnlinkAsked(false)}>
+          {t('common.cancel')}
+        </Button>
+        <Button type="button" onClick={confirmUnlink}>
+          {t('payment.card_unlink')}
+        </Button>
+      </Dialog>
       <section aria-labelledby="orders">
         <h2 id="orders" className="text-lg font-semibold text-text">
           {t('payment.orders')}

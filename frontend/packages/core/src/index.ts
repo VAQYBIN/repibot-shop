@@ -36,16 +36,21 @@ export { formatOrderAmount, formatPaymentStatus } from './payments/format'
 export {
   type AutoRenewRequest,
   type AutoRenewResponse,
+  type CardBindingResponse,
   type CreateOrderRequest,
   type GiftVoucherResponse,
   type OrderResponse,
+  type PaymentMethodResponse,
   type RedeemGiftRequest,
   type SubscriptionStateResponse,
   useAutoRenew,
   useCreateOrder,
   useGifts,
   useOrders,
+  usePaymentMethod,
   useRedeemGift,
+  useStartCardBinding,
+  useUnlinkCard,
 } from './payments/hooks'
 export { createQueryClient } from './query'
 export { formatBytes, formatDate } from './subscription/format'

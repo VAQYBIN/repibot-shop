@@ -42,6 +42,7 @@ export function errorMessageKey(code: string | undefined): TranslationKey {
     promo_unavailable: 'payment.error.promo_unavailable',
     gift_unavailable: 'payment.error.gift_unavailable',
     payment_not_verified: 'payment.error.payment_not_verified',
+    binding_unavailable: 'payment.error.binding_unavailable',
     auto_renew_unavailable: 'payment.auto_renew.unavailable',
   }
   return (code && known[code]) || 'auth.error.unknown'

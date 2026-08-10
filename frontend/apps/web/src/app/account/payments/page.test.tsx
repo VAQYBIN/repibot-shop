@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,6 +33,14 @@ const SUBSCRIPTION = {
   trial_available: false,
 }
 
+const CARD = {
+  title: 'Visa •••• 4242',
+  linked_at: '2026-08-01T12:00:00Z',
+  binding_available: false,
+}
+
+const NO_CARD = { title: null, linked_at: null, binding_available: false }
+
 function handlers(extra: Record<string, unknown> = {}) {
   return {
     '/api/me': { language: 'ru' },
@@ -40,6 +48,7 @@ function handlers(extra: Record<string, unknown> = {}) {
     '/api/me/orders': [],
     '/api/me/gifts': [],
     '/api/me/subscription': SUBSCRIPTION,
+    '/api/me/payment-method': CARD,
     ...extra,
   }
 }
@@ -298,6 +307,74 @@ describe('оплата в кабинете', () => {
 
     expect(open).toHaveBeenCalledWith(
       'https://yookassa.test/confirm',
+      '_blank',
+      'noopener,noreferrer',
+    )
+  })
+  it('без сохранённой карты объясняет, откуда она берётся, и не даёт включить автоплатёж', async () => {
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({ '/api/me/payment-method': NO_CARD }),
+    })
+
+    expect(await screen.findByText('Карта не привязана')).toBeVisible()
+    // Карта запоминается галочкой на форме провайдера, а не кнопкой в кабинете.
+    expect(screen.getByText(/запомнить карту/)).toBeVisible()
+    expect(screen.getByRole('switch', { name: 'Автопродление' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Отвязать карту' })).toBeNull()
+  })
+  it('показывает название карты, которое прислал сервер', async () => {
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/me/payment-method': { ...CARD, title: 'MIR •••• 7788' },
+      }),
+    })
+
+    expect(await screen.findByText('MIR •••• 7788')).toBeVisible()
+    expect(screen.queryByText('Карта не привязана')).toBeNull()
+  })
+  it('не отвязывает карту без подтверждения, а после него шлёт DELETE', async () => {
+    const requests: Request[] = []
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/me/payment-method': (request: Request) => {
+          requests.push(request)
+          return request.method === 'DELETE' ? { status: 204, body: undefined } : CARD
+        },
+      }),
+    })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Отвязать карту' }))
+    expect(requests.some((request) => request.method === 'DELETE')).toBe(false)
+
+    const dialog = screen.getByRole('dialog', { name: 'Отвязать карту?' })
+    expect(dialog).toHaveTextContent('Автоплатёж выключится')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Отвязать карту' }))
+
+    expect(requests.some((request) => request.method === 'DELETE')).toBe(true)
+  })
+  it('предлагает привязку карты, только пока её разрешает сервер', async () => {
+    renderWithProviders(<PaymentsPage />, { handlers: handlers() })
+
+    expect(await screen.findByText(CARD.title)).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Привязать другую' })).toBeNull()
+  })
+  it('открывает именно ту форму привязки карты, которую вернул сервер', async () => {
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    renderWithProviders(<PaymentsPage />, {
+      handlers: handlers({
+        '/api/me/payment-method': { ...CARD, binding_available: true },
+        '/api/me/payment-method/bindings': {
+          status: 201,
+          body: { confirmation_url: 'https://yookassa.test/bind/7' },
+        },
+      }),
+    })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Привязать другую' }))
+
+    expect(open).toHaveBeenCalledWith(
+      'https://yookassa.test/bind/7',
       '_blank',
       'noopener,noreferrer',
     )
