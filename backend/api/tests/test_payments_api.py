@@ -21,6 +21,7 @@ class FakeYooKassa:
 
     def __init__(self) -> None:
         self.calls = 0
+        self.closed = 0
 
     async def create_payment(
         self,
@@ -41,7 +42,7 @@ class FakeYooKassa:
         )
 
     async def aclose(self) -> None:
-        return None
+        self.closed += 1
 
 
 @pytest.fixture
@@ -142,6 +143,25 @@ async def test_create_manual_yookassa_order_returns_confirm_url(
         "telegram_invoice_required",
         "telegram_handoff_url",
     }
+
+
+async def test_provider_client_is_closed_before_the_response_is_returned(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    month_plan: int,
+    fake_yookassa: FakeYooKassa,
+) -> None:
+    """Клиент провайдера закрывается на каждом заказе, а не когда придёт сборщик.
+
+    Тест стережёт сам факт закрытия: без него брошенный httpx.AsyncClient — это
+    сокеты, растущие с каждой покупкой.
+    """
+    response = await api_client.post(
+        "/api/me/orders", json=_payload(month_plan), headers=user_headers
+    )
+
+    assert response.status_code == 201
+    assert fake_yookassa.closed == 1
 
 
 async def test_orders_require_authentication(api_client: AsyncClient, month_plan: int) -> None:

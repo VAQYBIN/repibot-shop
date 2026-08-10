@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends
@@ -122,7 +123,15 @@ async def payment_service(
     yield PaymentService(session, get_settings())
 
 
+@asynccontextmanager
 async def yookassa_client() -> AsyncIterator[YooKassaClient]:
+    """Клиент провайдера на время одного запроса.
+
+    Не зависимость FastAPI: оплата картой — лишь одна ветка создания заказа, а
+    зависимость собиралась бы и для Stars и падала бы на стенде без реквизитов
+    YooKassa. Менеджер контекста закрывает сокеты сразу, а не когда до объекта
+    доберётся сборщик мусора.
+    """
     try:
         client = create_yookassa_client()
     except YooKassaError as error:

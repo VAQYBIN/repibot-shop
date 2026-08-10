@@ -157,7 +157,7 @@ async def create_order(
                     else None
                 ),
             )
-        async for yookassa in yookassa_client():
+        async with yookassa_client() as yookassa:
             yookassa_order = await payments.create_manual_yookassa_order(
                 user_id=context.principal.user_id,
                 plan_id=payload.plan_id,
@@ -167,8 +167,7 @@ async def create_order(
                 save_payment_method=payload.save_payment_method,
                 yookassa=yookassa,
             )
-            return order_response(yookassa_order.order, yookassa_order.confirmation_url)
-        raise RuntimeError("YooKassa dependency did not yield a client")
+        return order_response(yookassa_order.order, yookassa_order.confirmation_url)
     except ServiceError as error:
         raise api_error_from_service(error) from error
     except AuthError as error:
