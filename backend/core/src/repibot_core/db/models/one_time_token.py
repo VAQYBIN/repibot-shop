@@ -17,6 +17,7 @@ class TokenType(StrEnum):
     email_verify = "email_verify"
     password_reset = "password_reset"  # noqa: S105 — это назначение токена, а не пароль
     email_change = "email_change"
+    winback_days = "winback_days"
 
 
 class OneTimeToken(TimestampMixin, Base):

@@ -18,6 +18,7 @@ class SubscriptionSource(StrEnum):
     purchase = "purchase"
     gift = "gift"
     admin = "admin"
+    winback = "winback"
 
 
 class SubscriptionEventType(StrEnum):
@@ -30,6 +31,7 @@ class SubscriptionEventType(StrEnum):
     expired = "expired"
     admin_grant = "admin_grant"
     admin_revoke = "admin_revoke"
+    winback = "winback"
 
 
 class SubscriptionActor(StrEnum):

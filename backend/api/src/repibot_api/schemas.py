@@ -388,6 +388,14 @@ class UnsubscribeRequest(BaseModel):
     token: str = Field(min_length=1, max_length=2048)
 
 
+class WinbackClaimRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=2048)
+
+
+class WinbackClaimResponse(BaseModel):
+    days: int
+
+
 class NotificationSettingsResponse(BaseModel):
     marketing_enabled: bool
 

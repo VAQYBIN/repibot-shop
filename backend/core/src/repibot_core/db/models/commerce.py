@@ -74,6 +74,10 @@ class PromoCode(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Непустое значение делает код личным: он не подойдёт никому, кроме
+    # адресата. Нужен лесенке возврата, где код уходит в письмо конкретному
+    # человеку и оттуда неизбежно разойдётся дальше.
+    target_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
 
 
 class Order(TimestampMixin, Base):

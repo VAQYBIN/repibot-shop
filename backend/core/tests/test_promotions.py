@@ -22,6 +22,7 @@ from repibot_core.db.models import (
 )
 from repibot_core.db.repositories.orders import OrderRepository
 from repibot_core.db.repositories.plans import PlanRepository
+from repibot_core.services.errors import ServiceError
 from repibot_core.services.promotions import GiftService, PromotionInput, PromotionService
 
 pytestmark = pytest.mark.docker
@@ -219,3 +220,26 @@ async def test_gift_redemption_takes_locks_in_the_finalization_order(
 
     await db_session.refresh(voucher)
     assert voucher.redeemed_by_user_id == recipient_id
+
+
+async def test_personal_code_is_refused_to_everyone_else(db_session: AsyncSession) -> None:
+    """Код из письма разойдётся по чатам; работать он должен у одного адресата.
+
+    Отказ тот же, что и по несуществующему коду: разный ответ подсказал бы
+    подбирающему, что код существует.
+    """
+    owner = User(email=None, telegram_id=210_001, referral_code="promoown")
+    stranger = User(email=None, telegram_id=210_002, referral_code="promostr")
+    db_session.add_all([owner, stranger])
+    await db_session.flush()
+    service = PromotionService(db_session)
+    promo = await service.create(PromotionInput(code="COMEBACK", percent_off=30))
+    promo.target_user_id = owner.id
+    await db_session.commit()
+
+    quote = await service.prepare(user_id=owner.id, code="COMEBACK", gross_rub=Decimal("300.00"))
+    with pytest.raises(ServiceError) as refusal:
+        await service.prepare(user_id=stranger.id, code="COMEBACK", gross_rub=Decimal("300.00"))
+
+    assert quote.discount_rub == Decimal("90.00")
+    assert refusal.value.code == "promo_unavailable"

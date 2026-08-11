@@ -40,6 +40,7 @@ from repibot_core.db.models.support import Ticket, TicketAuthor, TicketMessage, 
 from repibot_core.db.models.trial import TrialGrant
 from repibot_core.db.models.user import User, UserRole, UserStatus
 from repibot_core.db.models.webhook import WebhookEvent, WebhookSource
+from repibot_core.db.models.winback import WinbackGrant
 
 __all__ = [
     "AuditLog",
@@ -85,4 +86,5 @@ __all__ = [
     "UserStatus",
     "WebhookEvent",
     "WebhookSource",
+    "WinbackGrant",
 ]

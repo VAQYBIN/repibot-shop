@@ -127,6 +127,16 @@ class Settings(BaseSettings):
     # запас нужен, потому что рядом идут сервисные уведомления той же полосы.
     broadcast_rate_per_second: int = Field(default=25, ge=1, le=30)
 
+    # Лесенка возврата: на какой день после истечения уходит какая ступень.
+    # Список через запятую, как и остальные перечисления в окружении.
+    winback_steps_days: Annotated[tuple[int, ...], NoDecode] = (1, 3, 14, 30)
+    winback_promo_percent: int = Field(default=30, ge=1, le=100)
+    winback_promo_ttl_hours: int = Field(default=72, ge=1, le=720)
+    winback_free_days: int = Field(default=3, ge=1, le=30)
+    # Не чаще одной лесенки в этот срок. Без ограничения истечение подписки
+    # превращается в способ заработка: дал кончиться — забрал бесплатные дни.
+    winback_cooldown_days: int = Field(default=180, ge=1, le=3650)
+
     # Супергруппа с топиками, где персонал ведёт обращения. Пусто — поддержка
     # выключена целиком: стенд без супергруппы обязан подниматься и работать.
     support_chat_id: int | None = None
@@ -196,6 +206,14 @@ class Settings(BaseSettings):
         Pydantic ждёт для кортежа JSON-массив, а в .env человек пишет список
         через запятую. Пустая строка означает «админов нет».
         """
+        if not isinstance(value, str):
+            return value
+        return tuple(int(part) for part in value.split(",") if part.strip())
+
+    @field_validator("winback_steps_days", mode="before")
+    @classmethod
+    def _split_winback_steps(cls, value: object) -> object:
+        """Читает "1, 3, 14, 30" из окружения — как и остальные списки."""
         if not isinstance(value, str):
             return value
         return tuple(int(part) for part in value.split(",") if part.strip())

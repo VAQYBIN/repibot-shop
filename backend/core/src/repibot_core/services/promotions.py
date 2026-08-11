@@ -106,7 +106,7 @@ class PromotionService:
         promo.is_active = False
 
     async def prepare(self, *, user_id: int, code: str, gross_rub: Decimal) -> PromotionQuote:
-        promo = await self._locked_available(code)
+        promo = await self._locked_available(code, user_id)
         await self._assert_limits(promo, user_id)
         discount = (gross_rub * Decimal(promo.percent_off) / Decimal(100)).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -159,7 +159,7 @@ class PromotionService:
         )
         return len(result.scalars().all())
 
-    async def _locked_available(self, code: str) -> PromoCode:
+    async def _locked_available(self, code: str, user_id: int) -> PromoCode:
         now = datetime.now(UTC)
         promo = (
             await self._session.execute(
@@ -171,6 +171,9 @@ class PromotionService:
             or not promo.is_active
             or (promo.starts_at is not None and promo.starts_at > now)
             or (promo.expires_at is not None and promo.expires_at <= now)
+            # Личный код чужому человеку не показывает даже факта своего
+            # существования: ответ тот же, что и по несуществующему коду.
+            or (promo.target_user_id is not None and promo.target_user_id != user_id)
         ):
             raise ServiceError("промокод недоступен", "promo_unavailable")
         return promo
