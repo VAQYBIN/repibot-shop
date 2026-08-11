@@ -17,7 +17,11 @@ from repibot_core.db.models import (
     User,
 )
 from repibot_core.services.errors import ServiceError
-from repibot_core.services.support import TOPIC_SUPPORT_OUTBOUND, SupportService
+from repibot_core.services.support import (
+    ADMIN_REPLY_MARK,
+    TOPIC_SUPPORT_OUTBOUND,
+    SupportService,
+)
 from repibot_core.settings import Settings
 
 pytestmark = pytest.mark.docker
@@ -183,6 +187,60 @@ async def test_staff_reply_notification_carries_the_text(db_session: AsyncSessio
     )
     assert notify is not None
     assert notify.payload["body"] == "Проверьте профиль"
+
+
+async def test_admin_reply_notifies_the_person_and_shows_up_in_the_topic(
+    db_session: AsyncSession,
+) -> None:
+    """Ответ из админки обязан попасть и к человеку, и в топик супергруппы.
+
+    Без копии в топике коллега не увидит, что обращение уже разобрано, и
+    ответит второй раз.
+    """
+    user = await _user(db_session, 300_016, "ticket16")
+    staff = await _user(db_session, 300_018, "ticket18")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "не открывается")
+    await db_session.commit()
+
+    message = await service.reply_from_admin(
+        ticket.id, "  Проверьте профиль  ", author_user_id=staff.id
+    )
+    await db_session.commit()
+
+    assert message.author_kind is TicketAuthor.staff
+    assert message.author_user_id == staff.id
+    assert message.body == "Проверьте профиль"
+    assert ticket.status is TicketStatus.waiting_user
+    assert ticket.last_staff_message_at is not None
+    kinds = list((await db_session.scalars(select(NotificationDelivery.kind))).all())
+    assert kinds == ["ticket_reply"]
+    queued = list(
+        (
+            await db_session.scalars(
+                select(OutboxMessage).where(OutboxMessage.topic == TOPIC_SUPPORT_OUTBOUND)
+            )
+        ).all()
+    )
+    assert [item.payload["body"] for item in queued] == [
+        "не открывается",
+        f"{ADMIN_REPLY_MARK}\nПроверьте профиль",
+    ]
+
+
+async def test_admin_reply_to_a_closed_ticket_is_refused(db_session: AsyncSession) -> None:
+    """Топик закрытого обращения уже закрыт: сообщение туда не дойдёт."""
+    user = await _user(db_session, 300_017, "ticket17")
+    staff = await _user(db_session, 300_019, "ticket19")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "не открывается")
+    await service.close(ticket.id, by_staff=True)
+    await db_session.commit()
+
+    with pytest.raises(ServiceError) as refusal:
+        await service.reply_from_admin(ticket.id, "ещё раз", author_user_id=staff.id)
+
+    assert refusal.value.code == "ticket_closed"
 
 
 async def test_message_from_an_unknown_topic_is_dropped(db_session: AsyncSession) -> None:

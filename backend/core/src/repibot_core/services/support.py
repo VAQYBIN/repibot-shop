@@ -37,6 +37,11 @@ NOTIFICATION_BODY_LIMIT = 300
 CLOSED_BY_STAFF = "Обращение закрыто поддержкой."
 CLOSED_BY_USER = "Обращение закрыто пользователем."
 
+# Пометка ответа, отправленного из админки. В топик бот кладёт и реплики
+# человека, и такие ответы одним и тем же сообщением: без пометки коллега в
+# супергруппе принял бы ответ за новый вопрос и ответил бы второй раз.
+ADMIN_REPLY_MARK = "Ответ из админки:"
+
 
 class SupportService:
     """Один вход для бота, кабинета и админки."""
@@ -122,12 +127,51 @@ class SupportService:
         if not text:
             return None
 
+        return await self._staff_reply(
+            ticket, text, author_telegram_id=telegram_id, telegram_message_id=message_id
+        )
+
+    async def reply_from_admin(
+        self, ticket_id: int, body: str, *, author_user_id: int
+    ) -> TicketMessage:
+        """Ответ сотрудника из админки. Транзакцию закрывает вызывающий.
+
+        Включённость поддержки здесь не требуется по той же причине, что и в
+        ответе из топика: человек уже ждёт ответа, и терять его из-за очищенной
+        настройки нельзя.
+        """
+        text = self._require_text(body)
+        ticket = await self._session.get(Ticket, ticket_id)
+        if ticket is None:
+            raise ServiceError("обращение не найдено", "not_found")
+        if ticket.status is TicketStatus.closed:
+            raise ServiceError("обращение закрыто", "ticket_closed")
+
+        message = await self._staff_reply(ticket, text, author_user_id=author_user_id)
+        # Копия уходит в топик, чтобы коллега в супергруппе видел разобранное
+        # обращение. Без супергруппы очередь не разбирается вовсе, и класть в
+        # неё сообщение значило бы копить вечно повторяющуюся задачу.
+        if self.enabled():
+            await self._enqueue(ticket, f"{ADMIN_REPLY_MARK}\n{text}")
+        return message
+
+    async def _staff_reply(
+        self,
+        ticket: Ticket,
+        text: str,
+        *,
+        author_user_id: int | None = None,
+        author_telegram_id: int | None = None,
+        telegram_message_id: int | None = None,
+    ) -> TicketMessage:
+        """Общая часть обоих входов персонала: реплика, ход и сигнал человеку."""
         message = await self._add_message(
             ticket,
             TicketAuthor.staff,
             text,
-            author_telegram_id=telegram_id,
-            telegram_message_id=message_id,
+            author_user_id=author_user_id,
+            author_telegram_id=author_telegram_id,
+            telegram_message_id=telegram_message_id,
         )
         ticket.status = TicketStatus.waiting_user
         ticket.last_staff_message_at = datetime.now(UTC)

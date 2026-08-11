@@ -1,9 +1,10 @@
-"""Административные маршруты: гейт роли, тарифы и начисление дней.
+"""Административные маршруты: гейт роли, тарифы, начисление дней, рассылки.
 
-Роль support сюда не допускается ни к одному маршруту тарифов и подписок:
-поддержка разбирается с обращениями, а не с ценообразованием и не с чужим
-сроком. Гейт стоит на каждом маршруте отдельно — скрытая кнопка в интерфейсе
-защитой не является.
+Роль support не допускается ни к одному маршруту тарифов, подписок и рассылок:
+поддержка разбирается с обращениями, а не с ценообразованием, чужим сроком и
+письмами всей базе. Обращения — единственное, что ей открыто, и открыто вместе
+с администратором. Гейт стоит на каждом маршруте отдельно — скрытая кнопка в
+интерфейсе защитой не является.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,14 +22,22 @@ from repibot_api.deps import AuthContext, client_ip, db_session, require_role
 from repibot_api.errors import ApiError, api_error_from_service
 from repibot_api.schemas import (
     AdminSubscriptionRequest,
+    AdminTicketResponse,
+    BroadcastResponse,
     CompensationRequest,
+    CreateBroadcastRequest,
     PlanRequest,
     PlanResponse,
     PromoRequest,
     PromoResponse,
     RefundMarkRequest,
+    SegmentCountResponse,
     SquadResponse,
     SubscriptionStateResponse,
+    TicketMessageResponse,
+    TicketReplyRequest,
+    TicketResponse,
+    TicketThreadResponse,
 )
 from repibot_api.subscription_view import (
     panel_client,
@@ -37,6 +46,7 @@ from repibot_api.subscription_view import (
     subscription_service,
 )
 from repibot_core.db.models import (
+    Broadcast,
     Order,
     OrderStatus,
     Plan,
@@ -45,6 +55,9 @@ from repibot_core.db.models import (
     SubscriptionActor,
     SubscriptionEventType,
     SubscriptionSource,
+    Ticket,
+    TicketMessage,
+    TicketStatus,
     TrafficResetStrategy,
     UserRole,
 )
@@ -54,11 +67,14 @@ from repibot_core.db.repositories.subscriptions import SubscriptionRepository
 from repibot_core.domain.subscriptions import SubscriptionState
 from repibot_core.integrations.remnawave.client import RemnawaveUnavailable
 from repibot_core.integrations.remnawave.squads import PanelSquads
+from repibot_core.services.broadcasts import BroadcastService
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.plans import PlanInput, PlanService, PlanView
 from repibot_core.services.promotions import PromotionInput, PromotionService
 from repibot_core.services.provisioning import TOPIC_PROVISION
+from repibot_core.services.segments import count_segment
 from repibot_core.services.subscriptions import SubscriptionService, SubscriptionView
+from repibot_core.services.support import SupportService
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -462,6 +478,281 @@ def _plan_input(payload: PlanRequest) -> PlanInput:
         is_trial=payload.is_trial,
         is_visible=payload.is_visible,
         sort_order=payload.sort_order,
+    )
+
+
+@router.get("/broadcasts", response_model=list[BroadcastResponse])
+async def list_broadcasts(
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+) -> list[BroadcastResponse]:
+    """Свежие сверху: администратор ищет ту кампанию, что запустил только что."""
+    return [_broadcast_response(item) for item in await BroadcastService(session).list_campaigns()]
+
+
+@router.post("/broadcasts", response_model=BroadcastResponse, status_code=status.HTTP_201_CREATED)
+async def create_broadcast(
+    payload: CreateBroadcastRequest,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    context: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+    ip: Annotated[str | None, Depends(client_ip)],
+) -> BroadcastResponse:
+    """Черновик кампании. Отправка начинается отдельным действием."""
+    try:
+        campaign = await BroadcastService(session).create(
+            created_by=context.principal.user_id,
+            segment=payload.segment,
+            title=payload.title,
+            body=payload.body,
+        )
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+
+    await _record_broadcast(session, "broadcast.create", campaign, context=context, ip=ip)
+    await session.commit()
+    return _broadcast_response(campaign)
+
+
+@router.get("/broadcasts/{broadcast_id}", response_model=BroadcastResponse)
+async def read_broadcast(
+    broadcast_id: int,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+) -> BroadcastResponse:
+    return _broadcast_response(await _require_broadcast(session, broadcast_id))
+
+
+@router.post("/broadcasts/{broadcast_id}/start", response_model=BroadcastResponse)
+async def start_broadcast(
+    broadcast_id: int,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    context: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+    ip: Annotated[str | None, Depends(client_ip)],
+) -> BroadcastResponse:
+    """Фиксирует аудиторию и переводит кампанию в работу."""
+    try:
+        # Сервис открывает транзакцию сам: аудиторию нельзя зафиксировать
+        # наполовину. Открытая зависимостью транзакция уронила бы его begin().
+        if session.in_transaction():
+            await session.commit()
+        await BroadcastService(session).start(broadcast_id)
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+
+    campaign = await _require_broadcast(session, broadcast_id)
+    await _record_broadcast(session, "broadcast.start", campaign, context=context, ip=ip)
+    await session.commit()
+    return _broadcast_response(campaign)
+
+
+@router.post("/broadcasts/{broadcast_id}/cancel", response_model=BroadcastResponse)
+async def cancel_broadcast(
+    broadcast_id: int,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    context: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+    ip: Annotated[str | None, Depends(client_ip)],
+) -> BroadcastResponse:
+    """Останавливает идущую кампанию. Уже отправленное не отзывается."""
+    try:
+        if session.in_transaction():
+            await session.commit()
+        await BroadcastService(session).cancel(broadcast_id)
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+
+    campaign = await _require_broadcast(session, broadcast_id)
+    await _record_broadcast(session, "broadcast.cancel", campaign, context=context, ip=ip)
+    await session.commit()
+    return _broadcast_response(campaign)
+
+
+@router.get("/segments/{segment}/count", response_model=SegmentCountResponse)
+async def count_segment_reach(
+    segment: str,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.admin))],
+) -> SegmentCountResponse:
+    """Охват до запуска — единственная защита от «отправил не тем»."""
+    try:
+        return SegmentCountResponse(count=await count_segment(session, segment))
+    except KeyError as error:
+        # segment_query отвергает неизвестное имя KeyError, а не ServiceError:
+        # непойманный, он превратил бы опечатку в имени сегмента в 500.
+        raise ApiError(f"неизвестный сегмент: {segment}", 422, "unknown_segment") from error
+
+
+async def _require_broadcast(session: AsyncSession, broadcast_id: int) -> Broadcast:
+    campaign = await session.get(Broadcast, broadcast_id)
+    if campaign is None:
+        raise ApiError("рассылка не найдена", 404, "not_found")
+    return campaign
+
+
+async def _record_broadcast(
+    session: AsyncSession,
+    action: str,
+    campaign: Broadcast,
+    *,
+    context: AuthContext,
+    ip: str | None,
+) -> None:
+    """След в журнале: письмо всей базе обязано иметь названного автора."""
+    await AuditRepository(session).record(
+        action,
+        "broadcast",
+        actor_id=context.principal.user_id,
+        entity_id=str(campaign.id),
+        after=_broadcast_snapshot(campaign),
+        ip=ip,
+    )
+
+
+def _broadcast_snapshot(campaign: Broadcast) -> dict[str, object]:
+    return {
+        "segment": campaign.segment,
+        "status": campaign.status.value,
+        "planned_count": campaign.planned_count,
+        "sent_count": campaign.sent_count,
+        "failed_count": campaign.failed_count,
+    }
+
+
+def _broadcast_response(campaign: Broadcast) -> BroadcastResponse:
+    return BroadcastResponse(
+        id=campaign.id,
+        segment=campaign.segment,
+        title=campaign.title,
+        body=campaign.body,
+        status=campaign.status.value,
+        planned_count=campaign.planned_count,
+        sent_count=campaign.sent_count,
+        failed_count=campaign.failed_count,
+        started_at=campaign.started_at,
+        finished_at=campaign.finished_at,
+    )
+
+
+@router.get("/tickets", response_model=list[AdminTicketResponse])
+async def list_tickets(
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.support, UserRole.admin))],
+    ticket_status: Annotated[TicketStatus | None, Query(alias="status")] = None,
+) -> list[AdminTicketResponse]:
+    """Очередь персонала: свежие сверху, отбор по тому, чьего хода ждём."""
+    query = select(Ticket).order_by(Ticket.id.desc())
+    if ticket_status is not None:
+        query = query.where(Ticket.status == ticket_status)
+    return [_admin_ticket_response(item) for item in (await session.scalars(query)).all()]
+
+
+@router.get("/tickets/{ticket_id}", response_model=TicketThreadResponse)
+async def read_ticket_thread(
+    ticket_id: int,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    _: Annotated[AuthContext, Depends(require_role(UserRole.support, UserRole.admin))],
+) -> TicketThreadResponse:
+    ticket = await session.get(Ticket, ticket_id)
+    if ticket is None:
+        raise ApiError("обращение не найдено", 404, "not_found")
+    messages = await SupportService(session).thread(ticket_id)
+    return TicketThreadResponse(
+        ticket=_ticket_response(ticket),
+        messages=[_ticket_message_response(message) for message in messages],
+    )
+
+
+@router.post(
+    "/tickets/{ticket_id}/messages",
+    response_model=TicketMessageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def reply_to_ticket(
+    ticket_id: int,
+    payload: TicketReplyRequest,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    context: Annotated[AuthContext, Depends(require_role(UserRole.support, UserRole.admin))],
+    ip: Annotated[str | None, Depends(client_ip)],
+) -> TicketMessageResponse:
+    """Ответ персонала из админки. Копия уходит и в топик супергруппы."""
+    try:
+        message = await SupportService(session).reply_from_admin(
+            ticket_id, payload.body, author_user_id=context.principal.user_id
+        )
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+
+    await AuditRepository(session).record(
+        "ticket.reply",
+        "ticket",
+        actor_id=context.principal.user_id,
+        entity_id=str(ticket_id),
+        after={"message_id": message.id},
+        ip=ip,
+    )
+    await session.commit()
+    return _ticket_message_response(message)
+
+
+@router.post("/tickets/{ticket_id}/close", status_code=status.HTTP_204_NO_CONTENT)
+async def close_ticket(
+    ticket_id: int,
+    session: Annotated[AsyncSession, Depends(db_session)],
+    context: Annotated[AuthContext, Depends(require_role(UserRole.support, UserRole.admin))],
+    ip: Annotated[str | None, Depends(client_ip)],
+) -> None:
+    """Закрывает обращение и его топик. Повтор безобиден."""
+    ticket = await session.get(Ticket, ticket_id)
+    if ticket is None:
+        raise ApiError("обращение не найдено", 404, "not_found")
+    if ticket.status is TicketStatus.closed:
+        # Повтор ничего не меняет и записи в журнале не заслуживает: она
+        # означала бы ещё одно действие персонала, которого не было.
+        return
+
+    try:
+        await SupportService(session).close(ticket_id, by_staff=True)
+    except ServiceError as error:
+        raise api_error_from_service(error) from error
+
+    await AuditRepository(session).record(
+        "ticket.close",
+        "ticket",
+        actor_id=context.principal.user_id,
+        entity_id=str(ticket_id),
+        after={"status": TicketStatus.closed.value},
+        ip=ip,
+    )
+    await session.commit()
+
+
+def _ticket_response(ticket: Ticket) -> TicketResponse:
+    return TicketResponse(
+        id=ticket.id,
+        status=ticket.status.value,
+        subject=ticket.subject,
+        created_at=ticket.created_at,
+        last_staff_message_at=ticket.last_staff_message_at,
+    )
+
+
+def _admin_ticket_response(ticket: Ticket) -> AdminTicketResponse:
+    return AdminTicketResponse(
+        id=ticket.id,
+        status=ticket.status.value,
+        subject=ticket.subject,
+        created_at=ticket.created_at,
+        last_staff_message_at=ticket.last_staff_message_at,
+        user_id=ticket.user_id,
+        telegram_topic_id=ticket.telegram_topic_id,
+    )
+
+
+def _ticket_message_response(message: TicketMessage) -> TicketMessageResponse:
+    return TicketMessageResponse(
+        id=message.id,
+        author=message.author_kind.value,
+        body=message.body,
+        created_at=message.created_at,
     )
 
 
