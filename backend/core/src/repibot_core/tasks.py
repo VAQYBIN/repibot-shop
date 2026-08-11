@@ -104,6 +104,34 @@ async def notify_subscription_events() -> dict[str, int]:
     return {"staged": staged}
 
 
+@broker.task(schedule=[{"cron": "23 9 * * *"}])
+async def run_winback() -> dict[str, int]:
+    """Ставит очередную ступень лесенки возврата.
+
+    Раз в сутки и в дневное время: письмо про возвращение, пришедшее ночью, к
+    утру уже погребено под остальной почтой.
+    """
+    from repibot_core.services.winback import WinbackService
+
+    engine = create_engine(get_settings().database_url)
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            staged = await WinbackService(session).run(now=datetime.now(UTC))
+            await session.commit()
+    finally:
+        await engine.dispose()
+
+    if staged:
+        # Та же причина, что и у напоминаний: разбор очереди идёт раз в минуту,
+        # и ждать её незачем. Отказ брокера ничего не отменяет.
+        try:
+            await process_outbox.kiq()
+        except Exception:
+            logger.warning("не удалось разбудить разбор очереди", exc_info=True)
+    return {"staged": staged}
+
+
 @broker.task(schedule=[{"cron": "* * * * *"}])
 async def run_broadcast() -> dict[str, int]:
     """Отправляет очередную пачку текущей кампании.

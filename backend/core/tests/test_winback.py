@@ -14,8 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from repibot_core.db.engine import create_session_factory
 from repibot_core.db.models import (
+    NotificationDelivery,
     OneTimeToken,
+    OutboxMessage,
     Plan,
+    PromoCode,
     Subscription,
     SubscriptionSource,
     TokenType,
@@ -25,7 +28,9 @@ from repibot_core.db.models import (
 )
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.domain.subscriptions import SubscriptionState
+from repibot_core.i18n import translate
 from repibot_core.services.errors import ServiceError
+from repibot_core.services.notifications import PAYLOAD_KEYS, resolve_kind
 from repibot_core.services.winback import WinbackService
 from repibot_core.settings import get_settings
 
@@ -310,3 +315,196 @@ async def test_two_simultaneous_clicks_pay_once(
     refused = [outcome for outcome in outcomes if isinstance(outcome, ServiceError)]
     assert paid == [get_settings().winback_free_days]
     assert [error.code for error in refused] == ["invalid_token"]
+
+
+# --- суточный обход лесенки ---
+
+
+async def _expired_subscriber(
+    session: AsyncSession, *, days_ago: int, telegram_id: int
+) -> Subscription:
+    """Ушедший человек со своим тарифом.
+
+    Тариф свой у каждого: код тарифа уникален, а подписка одна на человека,
+    поэтому наборы не могут делить ни то, ни другое.
+    """
+    user = await _user(session, telegram_id, f"wb{telegram_id}")
+    plan = await _plan(session, f"back{telegram_id}", "300.00")
+    subscription = Subscription(
+        user_id=user.id,
+        plan_id=plan.id,
+        status=SubscriptionState.expired,
+        started_at=datetime.now(UTC) - timedelta(days=days_ago + 30),
+        expires_at=datetime.now(UTC) - timedelta(days=days_ago),
+        auto_renew_enabled=False,
+        source=SubscriptionSource.purchase,
+        entitlement_price_rub=Decimal("300.00"),
+        entitlement_duration_days=30,
+    )
+    session.add(subscription)
+    await session.flush()
+    return subscription
+
+
+async def _kinds(session: AsyncSession) -> list[str]:
+    return list(
+        (
+            await session.scalars(
+                select(NotificationDelivery.kind).order_by(NotificationDelivery.id)
+            )
+        ).all()
+    )
+
+
+async def test_ladder_walks_its_steps_once_each(db_session: AsyncSession) -> None:
+    """Четыре касания за месяц, каждое по одному разу на дату истечения."""
+    subscription = await _expired_subscriber(db_session, days_ago=1, telegram_id=200_030)
+    await db_session.commit()
+    service = WinbackService(db_session)
+
+    first = await service.run(now=datetime.now(UTC))
+    again = await service.run(now=datetime.now(UTC))
+    await db_session.commit()
+
+    assert (first, again) == (1, 0)
+    assert await _kinds(db_session) == ["winback_1"]
+    assert subscription.id > 0
+
+
+async def test_ladder_reaches_every_step_and_every_text_gets_its_substitutions(
+    db_session: AsyncSession,
+) -> None:
+    """Лесенка доходит до конца, и каждый текст собирается из того, что она положила."""
+    subscription = await _expired_subscriber(db_session, days_ago=1, telegram_id=200_031)
+    await db_session.commit()
+    service = WinbackService(db_session)
+    settings = get_settings()
+
+    staged = [
+        await service.run(now=subscription.expires_at + timedelta(days=offset, hours=9))
+        for offset in sorted(settings.winback_steps_days)
+    ]
+    await db_session.commit()
+
+    assert staged == [1, 1, 1, 1]
+    assert await _kinds(db_session) == ["winback_1", "winback_2", "winback_3", "winback_4"]
+    payloads = {
+        str(message.payload["kind"]): message.payload
+        for message in (await db_session.scalars(select(OutboxMessage))).all()
+    }
+    for kind, payload in payloads.items():
+        params = {key: value for key, value in payload.items() if key not in PAYLOAD_KEYS}
+        for language in ("ru", "en"):
+            for variant in ("bot", "subject", "body"):
+                assert translate(language, f"{resolve_kind(kind).text_key}.{variant}", **params)
+    assert payloads["winback_2"]["percent"] == settings.winback_promo_percent
+    assert payloads["winback_3"]["days"] == settings.winback_free_days
+    assert str(payloads["winback_3"]["link"]).startswith(
+        f"{settings.public_app_url}/winback?token="
+    )
+
+
+async def test_active_subscription_stops_the_ladder(db_session: AsyncSession) -> None:
+    """Человек вернулся — предлагать ему вернуться незачем."""
+    subscription = await _expired_subscriber(db_session, days_ago=3, telegram_id=200_032)
+    subscription.status = SubscriptionState.active
+    subscription.expires_at = datetime.now(UTC) + timedelta(days=30)
+    await db_session.commit()
+
+    staged = await WinbackService(db_session).run(now=datetime.now(UTC))
+    await db_session.commit()
+
+    assert staged == 0
+
+
+async def test_opted_out_user_gets_no_ladder(db_session: AsyncSession) -> None:
+    subscription = await _expired_subscriber(db_session, days_ago=1, telegram_id=200_033)
+    user = await db_session.get(User, subscription.user_id)
+    assert user is not None
+    user.marketing_opt_out_at = datetime.now(UTC)
+    await db_session.commit()
+
+    staged = await WinbackService(db_session).run(now=datetime.now(UTC))
+    await db_session.commit()
+
+    assert staged == 0
+
+
+async def test_cooldown_blocks_a_second_ladder(db_session: AsyncSession) -> None:
+    """Полгода между лесенками: иначе истечение превращается в способ заработка."""
+    subscription = await _expired_subscriber(db_session, days_ago=1, telegram_id=200_034)
+    db_session.add(
+        WinbackGrant(
+            telegram_id=200_034,
+            user_id=subscription.user_id,
+            step=2,
+            days=0,
+            # Выдача прошлой лесенки: она случилась до того, как эта подписка
+            # кончилась. Отметка «сегодня» описывала бы выдачу текущей лесенки.
+            granted_at=subscription.expires_at - timedelta(days=30),
+        )
+    )
+    await db_session.commit()
+
+    staged = await WinbackService(db_session).run(now=datetime.now(UTC))
+    await db_session.commit()
+
+    assert staged == 0
+
+
+async def test_ladder_of_last_year_does_not_block_the_next_one(db_session: AsyncSession) -> None:
+    """Через полгода лесенка идёт вторым кругом и переписывает собственную строку.
+
+    Новая строка на ту же ступень не встала бы под уникальный индекс и уронила
+    бы весь прогон крона, а не одного человека.
+    """
+    subscription = await _expired_subscriber(db_session, days_ago=3, telegram_id=200_035)
+    db_session.add(
+        WinbackGrant(
+            telegram_id=200_035,
+            user_id=subscription.user_id,
+            step=2,
+            days=0,
+            granted_at=subscription.expires_at - timedelta(days=400),
+        )
+    )
+    await db_session.commit()
+
+    staged = await WinbackService(db_session).run(now=datetime.now(UTC))
+    await db_session.commit()
+
+    grants = list((await db_session.scalars(select(WinbackGrant))).all())
+    assert (staged, await _kinds(db_session)) == (1, ["winback_2"])
+    assert len(grants) == 1
+    # Отметка обязана переехать на свежую выдачу: со старой третья лесенка
+    # пришла бы сразу за второй.
+    assert grants[0].granted_at > subscription.expires_at
+
+
+async def test_long_gone_subscriber_gets_no_ladder(db_session: AsyncSession) -> None:
+    """Пропущенные сутки не должны превращаться в рассылку по всем, кто ушёл когда-то."""
+    await _expired_subscriber(db_session, days_ago=400, telegram_id=200_036)
+    await db_session.commit()
+
+    staged = await WinbackService(db_session).run(now=datetime.now(UTC))
+    await db_session.commit()
+
+    assert (staged, await _kinds(db_session)) == (0, [])
+
+
+async def test_repeated_run_mints_no_second_promo(db_session: AsyncSession) -> None:
+    """Второй прогон в те же сутки не должен плодить коды: письмо-то уже поставлено."""
+    subscription = await _expired_subscriber(db_session, days_ago=3, telegram_id=200_037)
+    await db_session.commit()
+    service = WinbackService(db_session)
+
+    first = await service.run(now=datetime.now(UTC))
+    again = await service.run(now=datetime.now(UTC))
+    await db_session.commit()
+
+    promos = list((await db_session.scalars(select(PromoCode))).all())
+    assert (first, again) == (1, 0)
+    assert len(promos) == 1
+    # Код личный: чужому он отвечает то же, что и несуществующий.
+    assert promos[0].target_user_id == subscription.user_id
+    assert promos[0].percent_off == get_settings().winback_promo_percent
