@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import NotificationDelivery, OutboxMessage, User
 from repibot_core.i18n import has_message
-from repibot_core.services.notifications import NotificationService, all_kinds
+from repibot_core.services.notifications import (
+    NotificationCategory,
+    NotificationService,
+    all_kinds,
+    resolve_kind,
+)
 
 pytestmark = pytest.mark.docker
 
@@ -131,3 +136,18 @@ def test_every_declared_kind_has_texts_in_every_language() -> None:
     ]
 
     assert missing == []
+
+
+@pytest.mark.parametrize(
+    "kind", ["payment_succeeded", "payment_failed", "auto_renew_failed_1", "auto_renew_failed_3"]
+)
+def test_money_contour_kinds_are_registered(kind: str) -> None:
+    """Реестр обязан знать все виды, которые уже ставит денежный контур.
+
+    Список взят из вызовов enqueue_payment_event в services/payments.py и
+    services/payment_notifications.py. Незарегистрированный вид роняет
+    финализацию оплаты: деньги списаны, доступ выдан, а процесс падает на
+    уведомлении. Ошибка находится не в тестах уведомлений, а в оплате, и
+    искать её будут не здесь.
+    """
+    assert resolve_kind(kind).category is NotificationCategory.service

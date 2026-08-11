@@ -63,6 +63,12 @@ _KINDS: dict[str, NotificationKind] = {
             "payment.succeeded",
             "/account/payments",
         ),
+        # Подтверждённый отказ по оплате и неудача автопродления говорят
+        # человеку одно и то же и различаются только поводом, поэтому текст у
+        # них общий. Разными их держит ключ дедупликации, а не формулировка.
+        NotificationKind(
+            "payment_failed", NotificationCategory.service, "payment.failed", "/account/payments"
+        ),
         NotificationKind(
             "auto_renew_failed", NotificationCategory.service, "payment.failed", "/account/payments"
         ),
