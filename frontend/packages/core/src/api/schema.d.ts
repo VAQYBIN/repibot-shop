@@ -741,6 +741,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/winback/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim
+         * @description Требует входа намеренно: дни начисляются на аккаунт, и он должен быть свой.
+         *
+         *     Токен доказывает право на подарок, но не личность: ссылка из письма могла
+         *     попасть куда угодно вместе с самим письмом.
+         */
+        post: operations["claim_api_winback_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/whoami": {
         parameters: {
             query?: never;
@@ -1679,6 +1702,16 @@ export interface components {
             id: number;
             /** Role */
             role: string;
+        };
+        /** WinbackClaimRequest */
+        WinbackClaimRequest: {
+            /** Token */
+            token: string;
+        };
+        /** WinbackClaimResponse */
+        WinbackClaimResponse: {
+            /** Days */
+            days: number;
         };
     };
     responses: never;
@@ -2927,6 +2960,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrafficResponse"];
+                };
+            };
+        };
+    };
+    claim_api_winback_claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WinbackClaimRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WinbackClaimResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
