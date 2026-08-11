@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from repibot_core.db.models import Ticket
 from repibot_core.i18n import translate
 from repibot_core.integrations.email.sender import EmailSender
 from repibot_core.integrations.remnawave.client import create_remnawave_client
 from repibot_core.integrations.remnawave.users import PanelUsers
 from repibot_core.integrations.telegram.bot_api import BotApi
+from repibot_core.integrations.telegram.support_chat import SupportChat
 from repibot_core.services.email_dispatch import build_dispatcher as build_email_dispatcher
 from repibot_core.services.notifications import (
     PAYLOAD_KEYS,
@@ -22,6 +24,7 @@ from repibot_core.services.notifications import (
 )
 from repibot_core.services.outbox import OutboxDispatcher
 from repibot_core.services.provisioning import TOPIC_PROVISION, build_provision_handler
+from repibot_core.services.support import TOPIC_SUPPORT_OUTBOUND
 from repibot_core.services.unsubscribe import CALLBACK_DATA
 
 
@@ -31,6 +34,7 @@ def build_dispatcher(
     sender: EmailSender | None = None,
     users: PanelUsers | None = None,
     telegram: BotApi | None = None,
+    support: SupportChat | None = None,
 ) -> OutboxDispatcher:
     """Диспетчер со всеми темами этапа.
 
@@ -77,4 +81,33 @@ def build_dispatcher(
         await telegram.send_message(recipient, text, markup)
 
     dispatcher.register(TOPIC_NOTIFY_TELEGRAM, handle_notify_telegram)
+
+    async def handle_support_outbound(payload: dict[str, object]) -> None:
+        """Доводит сообщение до топика, создавая топик при первой необходимости.
+
+        Идентификатор топика записывается своей транзакцией сразу после
+        создания: падение на отправке не должно приводить ко второму топику
+        при повторе — переписка разорвалась бы надвое.
+        """
+        if support is None:
+            msg = "супергруппа поддержки не передана диспетчеру"
+            raise RuntimeError(msg)
+        ticket_id = int(str(payload["ticket_id"]))
+        async with session_factory() as session:
+            ticket = await session.get(Ticket, ticket_id)
+            if ticket is None:
+                # Обращение удалено вместе с аккаунтом: доводить нечего, и
+                # сообщение закрывается, а не висит в очереди вечно.
+                return
+            if ticket.telegram_topic_id is None:
+                ticket.telegram_topic_id = await support.create_topic(ticket.subject)
+                await session.commit()
+            topic_id = ticket.telegram_topic_id
+            closing = bool(payload.get("close"))
+        if closing:
+            await support.close_topic(topic_id)
+            return
+        await support.post(topic_id, str(payload["body"]))
+
+    dispatcher.register(TOPIC_SUPPORT_OUTBOUND, handle_support_outbound)
     return dispatcher

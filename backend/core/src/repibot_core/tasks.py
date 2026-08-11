@@ -28,6 +28,7 @@ from repibot_core.db.models import (
 )
 from repibot_core.integrations.remnawave.client import RemnawaveClient
 from repibot_core.integrations.telegram.bot_api import BotApi
+from repibot_core.integrations.telegram.support_chat import SupportChat
 from repibot_core.integrations.yookassa.client import create_yookassa_client
 from repibot_core.queue import broker
 from repibot_core.services.outbox import OutboxDispatcher
@@ -52,10 +53,16 @@ async def process_outbox() -> dict[str, int]:
     # каждое сообщение означало бы платить ими за каждое уведомление.
     redis = Redis.from_url(get_settings().valkey_url)
     telegram = BotApi(get_settings(), redis)
+    # Клиент супергруппы собирается только когда она задана. Без него
+    # обработчик темы поддержки отложил бы обращение пять раз и отбросил, а
+    # человек остался бы ждать ответа, которого никто не увидел.
+    support = SupportChat(get_settings()) if get_settings().support_chat_id is not None else None
     try:
         factory = create_session_factory(engine)
-        delivered = await _dispatcher(factory, panel, telegram).drain(factory)
+        delivered = await _dispatcher(factory, panel, telegram, support).drain(factory)
     finally:
+        if support is not None:
+            await support.aclose()
         await telegram.aclose()
         await redis.aclose()
         await panel.aclose()
@@ -301,7 +308,10 @@ def _panel_client() -> RemnawaveClient:
 
 
 def _dispatcher(
-    factory: async_sessionmaker[AsyncSession], panel: RemnawaveClient, telegram: BotApi
+    factory: async_sessionmaker[AsyncSession],
+    panel: RemnawaveClient,
+    telegram: BotApi,
+    support: SupportChat | None,
 ) -> OutboxDispatcher:
     """Собирается на каждый прогон.
 
@@ -314,7 +324,7 @@ def _dispatcher(
     from repibot_core.integrations.remnawave.users import PanelUsers
     from repibot_core.services.dispatcher import build_dispatcher
 
-    return build_dispatcher(factory, users=PanelUsers(panel), telegram=telegram)
+    return build_dispatcher(factory, users=PanelUsers(panel), telegram=telegram, support=support)
 
 
 def _subscriptions(session: AsyncSession, panel: RemnawaveClient) -> SubscriptionService:

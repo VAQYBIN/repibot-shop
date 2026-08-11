@@ -36,6 +36,7 @@ from repibot_core.db.models.subscription import (
     SubscriptionEventType,
     SubscriptionSource,
 )
+from repibot_core.db.models.support import Ticket, TicketAuthor, TicketMessage, TicketStatus
 from repibot_core.db.models.trial import TrialGrant
 from repibot_core.db.models.user import User, UserRole, UserStatus
 from repibot_core.db.models.webhook import WebhookEvent, WebhookSource
@@ -72,6 +73,10 @@ __all__ = [
     "SubscriptionEvent",
     "SubscriptionEventType",
     "SubscriptionSource",
+    "Ticket",
+    "TicketAuthor",
+    "TicketMessage",
+    "TicketStatus",
     "TokenType",
     "TrafficResetStrategy",
     "TrialGrant",
