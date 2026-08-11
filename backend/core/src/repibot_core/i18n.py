@@ -117,6 +117,21 @@ _MESSAGES: dict[str, dict[str, str]] = {
             "напишите в поддержку."
         ),
         "bot.link.expired": "Код недействителен или устарел. Возьмите новый код в кабинете.",
+        # Один ключ и на создание обращения, и на каждую следующую реплику:
+        # человеку важно не «что произошло», а что сообщение дошло и куда.
+        "bot.support.opened": (
+            "Обращение №{id} передано поддержке. Пишите сюда — следующие "
+            "сообщения уйдут в то же обращение."
+        ),
+        "bot.support.ask": (
+            "Опишите проблему одним сообщением сразу после команды, например: "
+            "/support не открывается оплата."
+        ),
+        "bot.support.no_open": (
+            "Открытых обращений нет. Опишите проблему командой /support — "
+            "тогда сообщение дойдёт до поддержки."
+        ),
+        "bot.support.closed": "Обращение №{id} закрыто.",
     },
     "en": {
         "email.verify.subject": "Confirm your email for Re:Pibot",
@@ -232,6 +247,19 @@ _MESSAGES: dict[str, dict[str, str]] = {
             "contact support."
         ),
         "bot.link.expired": "The code is invalid or expired. Get a new one in your account.",
+        "bot.support.opened": (
+            "Ticket #{id} has reached support. Write here — your next messages "
+            "go to the same ticket."
+        ),
+        "bot.support.ask": (
+            "Describe the problem in one message right after the command, for example: "
+            "/support payment does not open."
+        ),
+        "bot.support.no_open": (
+            "You have no open tickets. Describe the problem with the /support command — "
+            "that way it reaches support."
+        ),
+        "bot.support.closed": "Ticket #{id} is closed.",
     },
 }
 

@@ -48,6 +48,14 @@ class UserMiddleware(BaseMiddleware):
         )
         if sender is None:
             return await handler(event, data)
+        if sender.is_bot:
+            # Обновление от бота обрывается здесь, а не в хендлере: строка в
+            # `users` заводится ради языка, уведомлений и подписки, и ни одно
+            # из них к боту не относится. Дальше его пускать некуда — без
+            # `user` и `session` хендлеры всё равно не собрать, а поводы
+            # получить такое обновление есть: чужой бот в супергруппе
+            # поддержки и наше же сообщение, пересланное в топик.
+            return None
 
         async with self._factory() as session:
             service = TelegramUserService(session, self._settings)
@@ -59,6 +67,11 @@ class UserMiddleware(BaseMiddleware):
             )
             data["user"] = user
             data["language"] = user.language
+            # Сессия кладётся явно: хендлерам, которые собирают сервис сами,
+            # она нужна целиком, а доставать её из пользователя через
+            # async_object_session — значит зависеть от того, что этот
+            # объект всё ещё привязан к сессии.
+            data["session"] = session
             data["telegram_users"] = service
             data["telegram_link"] = TelegramLinkService(
                 session, self._settings, self._redis, self._bot_api
