@@ -429,6 +429,23 @@ class AdminTicketResponse(TicketResponse):
 
     user_id: int
     telegram_topic_id: int | None
+    # Когда человек написал в последний раз. По этой отметке видно, что вопрос
+    # дописали, пока сотрудник печатал ответ, — иначе о новом сообщении
+    # сообщает только смена статуса.
+    last_user_message_at: datetime | None
+
+
+class AdminTicketThreadResponse(BaseModel):
+    """Переписка называет адресата сама.
+
+    Отдельная схема, а не общая с клиентской: pydantic молча выбрасывает поля
+    наследника, и `user_id` в общем `TicketThreadResponse` до персонала не
+    доехал бы. Без него подпись разговора пропадает, стоит применить отбор, из
+    которого открытое обращение выпало.
+    """
+
+    ticket: AdminTicketResponse
+    messages: list[TicketMessageResponse]
 
 
 class BroadcastResponse(BaseModel):

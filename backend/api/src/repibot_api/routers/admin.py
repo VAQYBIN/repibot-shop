@@ -23,6 +23,7 @@ from repibot_api.errors import ApiError, api_error_from_service
 from repibot_api.schemas import (
     AdminSubscriptionRequest,
     AdminTicketResponse,
+    AdminTicketThreadResponse,
     BroadcastResponse,
     CompensationRequest,
     CreateBroadcastRequest,
@@ -36,8 +37,6 @@ from repibot_api.schemas import (
     SubscriptionStateResponse,
     TicketMessageResponse,
     TicketReplyRequest,
-    TicketResponse,
-    TicketThreadResponse,
 )
 from repibot_api.subscription_view import (
     panel_client,
@@ -645,18 +644,18 @@ async def list_tickets(
     return [_admin_ticket_response(item) for item in (await session.scalars(query)).all()]
 
 
-@router.get("/tickets/{ticket_id}", response_model=TicketThreadResponse)
+@router.get("/tickets/{ticket_id}", response_model=AdminTicketThreadResponse)
 async def read_ticket_thread(
     ticket_id: int,
     session: Annotated[AsyncSession, Depends(db_session)],
     _: Annotated[AuthContext, Depends(require_role(UserRole.support, UserRole.admin))],
-) -> TicketThreadResponse:
+) -> AdminTicketThreadResponse:
     ticket = await session.get(Ticket, ticket_id)
     if ticket is None:
         raise ApiError("обращение не найдено", 404, "not_found")
     messages = await SupportService(session).thread(ticket_id)
-    return TicketThreadResponse(
-        ticket=_ticket_response(ticket),
+    return AdminTicketThreadResponse(
+        ticket=_admin_ticket_response(ticket),
         messages=[_ticket_message_response(message) for message in messages],
     )
 
@@ -725,16 +724,6 @@ async def close_ticket(
     await session.commit()
 
 
-def _ticket_response(ticket: Ticket) -> TicketResponse:
-    return TicketResponse(
-        id=ticket.id,
-        status=ticket.status.value,
-        subject=ticket.subject,
-        created_at=ticket.created_at,
-        last_staff_message_at=ticket.last_staff_message_at,
-    )
-
-
 def _admin_ticket_response(ticket: Ticket) -> AdminTicketResponse:
     return AdminTicketResponse(
         id=ticket.id,
@@ -744,6 +733,7 @@ def _admin_ticket_response(ticket: Ticket) -> AdminTicketResponse:
         last_staff_message_at=ticket.last_staff_message_at,
         user_id=ticket.user_id,
         telegram_topic_id=ticket.telegram_topic_id,
+        last_user_message_at=ticket.last_user_message_at,
     )
 
 

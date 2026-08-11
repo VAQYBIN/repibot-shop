@@ -189,3 +189,29 @@ async def test_missing_ticket_is_a_404(
 
     assert thread.status_code == 404
     assert reply.status_code == 404
+
+
+async def test_thread_names_its_addressee(
+    api_client: AsyncClient,
+    admin_headers: dict[str, str],
+    support_headers: dict[str, str],
+    engine: AsyncEngine,
+    plain_user_id: int,
+    support_enabled: None,
+) -> None:
+    """Переписка называет, с кем разговор, не полагаясь на текущий список.
+
+    Без этого адресат пропадает, стоит применить отбор, из которого открытое
+    обращение выпало: подпись брать неоткуда, а отвечать вслепую персонал не
+    должен. Отметка последнего сообщения человека нужна там же — по ней видно,
+    что вопрос дописали, пока сотрудник печатал ответ.
+    """
+    ticket_id = await _open_ticket(engine, plain_user_id, "не открывается")
+
+    response = await api_client.get(f"/api/admin/tickets/{ticket_id}", headers=support_headers)
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["ticket"]["user_id"] == plain_user_id
+    assert body["ticket"]["last_user_message_at"] is not None
+    assert admin_headers
