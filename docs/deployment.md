@@ -425,6 +425,36 @@ curl -X POST https://ваш-домен/api/admin/plans \
 истечение превращается в способ заработка — дал подписке кончиться, забрал
 бесплатные дни, повторил.
 
+### Когда рассылка пошла не так
+
+Отправленное не отзывается. Если в тексте нашлась ошибка, порядок такой:
+
+1. Отмените кампанию в `/admin/broadcasts`. Отмена останавливает отправку в
+   пределах секунд: статус перечитывается на каждом получателе, а не между
+   пачками.
+2. Посмотрите, кому уже ушло:
+
+```bash
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select user_id from broadcast_recipients where broadcast_id = 1 and status = '"'"'sent'"'"'"'
+```
+
+3. Новую кампанию на тот же сегмент запускайте, понимая, что часть аудитории
+   получит сообщение дважды. Списка «кроме этих» в сегментах нет намеренно:
+   исключения — это конструктор условий, а опечатка в нём отправляет письмо
+   всей базе.
+
+Ход и итог кампаний видно в базе:
+
+```bash
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select status, planned_count, sent_count, failed_count from broadcasts order by id desc limit 5"'
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select error, count(*) from broadcast_recipients where status = '"'"'failed'"'"' group by error"'
+```
+
+Массовые неудачи с упоминанием блокировки бота — это норма для маркетинга:
+человек заблокировал бота и тем самым отписался. Массовые неудачи с сетевой
+ошибкой означают, что Telegram или почтовый сервис недоступны, и кампанию
+стоит отменить и запустить заново, когда связь вернётся.
+
 ### Фоновые задачи
 
 Расписание задаётся в коде и выполняется сервисами `scheduler` (ставит) и
@@ -478,7 +508,7 @@ no-cache`, поэтому клиент каждый раз спрашивает,
 | Уведомления приходят с задержкой | Очередь не успевает разбираться: `docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select count(*) from outbox where processed_at is null"'`. Если число растёт от прогона к прогону, поднимите `OUTBOX_BATCH_SIZE` |
 | Обращения не появляются в супергруппе | `docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select topic, last_error from outbox where processed_at is null order by id limit 20"'`. Застрявшие строки с темой `support.outbound` и отказом `createForumTopic` в `last_error` означают, что у бота нет права управления темами |
 | Кнопки «Написать в поддержку» нет | Пуст `SUPPORT_CHAT_ID` — поддержка выключена целиком |
-| Рассылка стоит на месте | Идёт другая кампания: их отправляют строго по одной. Статус видно в `/admin/broadcasts`, счётчики обновляются на ходу |
+| Рассылка стоит на месте | Идёт другая кампания: их отправляют строго по одной. Статус видно в `/admin/broadcasts`, счётчики обновляются на ходу. Разбор причин — в разделе «Когда рассылка пошла не так» |
 | Панель не отвечает | Проверьте `REMNAWAVE_TOKEN` и сетевую доступность из контейнера `api` |
 | Вход через Telegram возвращает на `/login?error=token_invalid` | Redirect URI в BotFather не совпадает с `https://ваш-домен/api/auth/telegram/callback` либо прокси режет cookie `repibot_oidc` |
 | Кнопки «Войти через Telegram» нет | Пуст `TELEGRAM_OIDC_CLIENT_ID` |
