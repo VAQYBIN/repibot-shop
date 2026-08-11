@@ -4,6 +4,7 @@ import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
 import { useLanguage } from '../api'
 import { useAuthState } from '../auth'
 import { AuthFallback } from '../auth-fallback'
+import { PurchaseNotice } from '../purchase-notice'
 
 function Navigation() {
   const language = useLanguage()
@@ -44,6 +45,9 @@ function Layout() {
     <div className="min-h-dvh bg-bg p-4 text-text">
       <Navigation />
       <Outlet />
+      {/* Не на экране оплаты: человек возвращается из браузера на ту вкладку,
+          которую выберет сам, а новость об оплате нужна на любой. */}
+      <PurchaseNotice />
     </div>
   )
 }

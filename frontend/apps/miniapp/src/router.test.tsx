@@ -83,7 +83,11 @@ describe('защищённые маршруты MiniApp', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Месяц' })).toBeVisible()
-    expect(protectedRequests).toHaveLength(2)
+    // Заказы читает общая разметка: окно об оплаченном заказе нужно на любой
+    // вкладке, а не только на экране оплаты.
+    expect(
+      [...new Set(protectedRequests.map((request) => new URL(request.url).pathname))].sort(),
+    ).toEqual(['/api/me', '/api/me/orders', '/api/me/subscription'])
     expect(
       protectedRequests.every(
         (request) => request.headers.get('Authorization') === 'Bearer miniapp-token',

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
@@ -23,6 +24,8 @@ from repibot_core.services.panel_webhooks import PanelWebhookService, verify_sig
 from repibot_core.services.payment_methods import CardBindingReader, CardBindingService
 from repibot_core.services.payments import PaymentService
 from repibot_core.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["webhooks"])
 
@@ -63,7 +66,27 @@ async def yookassa_webhook(
         await _settle_card_binding(session, payment_id, client)
     finally:
         await client.aclose()
+    await _wake_outbox()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _wake_outbox() -> None:
+    """Просит воркер разобрать очередь сейчас, а не в следующую минуту.
+
+    Оплата подтверждена, но доступ выдаёт и уведомление шлёт та же очередь, и
+    по расписанию она просыпается раз в минуту. Человек к этому моменту уже
+    вернулся с формы оплаты и смотрит на экран, где ничего не изменилось.
+
+    Постановка задачи идёт после того, как всё записано: раньше воркер ничего
+    бы не нашёл. Отказ брокера ничего не отменяет — очередь разберётся по
+    расписанию, просто позже.
+    """
+    from repibot_core.tasks import process_outbox
+
+    try:
+        await process_outbox.kiq()
+    except Exception:  # недоступный брокер не должен ломать приём вебхука
+        logger.warning("не удалось попросить воркер разобрать outbox", exc_info=True)
 
 
 async def _settle_card_binding(

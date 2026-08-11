@@ -285,6 +285,55 @@ describe('hooks заказов и оплаты', () => {
     await expect(request.json()).resolves.toEqual({ return_surface: 'miniapp' })
   })
 
+  it('спрашивает о заказе, пока его исход неизвестен, и прекращает после выдачи', async () => {
+    /* Оплату подтверждает вебхук провайдера, а доступ выдаёт очередь: обе
+       новости приходят на сервер, а не в открытую страницу. */
+    const answers = [
+      [{ ...ORDER, status: 'pending', expires_at: '2100-01-01T00:00:00Z' }],
+      [{ ...ORDER, status: 'fulfilled', expires_at: '2100-01-01T00:00:00Z' }],
+    ]
+    const fetchMock = vi.fn(async (_request: Request) =>
+      Response.json(answers[Math.min(fetchMock.mock.calls.length - 1, 1)]),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    vi.useFakeTimers()
+    const { Wrapper } = createWrapper(30_000)
+    const { result } = renderHook(useOrders, { wrapper: Wrapper })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+    expect(result.current.data?.[0]?.status).toBe('pending')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4100)
+    })
+    expect(result.current.data?.[0]?.status).toBe('fulfilled')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000)
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('не спрашивает о заказе, срок оплаты которого уже прошёл', async () => {
+    /* Брошенный заказ остаётся pending до сверки; спрашивать о нём каждые
+       несколько секунд значит ждать новости, которой не будет. */
+    const fetchMock = vi.fn(async (_request: Request) =>
+      Response.json([{ ...ORDER, status: 'pending', expires_at: '2020-01-01T00:00:00Z' }]),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    vi.useFakeTimers()
+    const { Wrapper } = createWrapper(30_000)
+    renderHook(useOrders, { wrapper: Wrapper })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000)
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('спрашивает о карте, пока провайдер не ответил по начатой привязке', async () => {
     /* Ответ провайдера приходит не в тот момент, когда человек вернулся в
        приложение: между возвращением и ответом проходят секунды, и один

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { components } from '../api/schema'
 import { messageFrom } from '../auth/errors'
 import { useAuthClient } from '../auth/hooks'
@@ -21,6 +21,28 @@ const SUBSCRIPTION_QUERY_KEY = ['subscription'] as const
 const GIFTS_QUERY_KEY = ['gifts'] as const
 const PAYMENT_METHOD_QUERY_KEY = ['payment-method'] as const
 
+/** Как часто спрашиваем об исходе заказа. Совпадает с шагом ожидания карты. */
+const ORDER_POLL_MS = 4000
+
+/** Заказ, исход которого ещё не наступил: оплата идёт или доступ выдаётся. */
+const UNFINISHED_ORDER = new Set(['pending', 'succeeded'])
+
+function awaitingOutcome(orders: OrderResponse[] | undefined): boolean {
+  const now = Date.now()
+  // Срок оплаты ограничивает ожидание сам: брошенный заказ перестанет
+  // считаться живым, и вопросы прекратятся без отдельного счётчика.
+  return (orders ?? []).some(
+    (order) => UNFINISHED_ORDER.has(order.status) && Date.parse(order.expires_at) > now,
+  )
+}
+
+/**
+ * История заказов. Пока исход последнего неизвестен, экран спрашивает сам.
+ *
+ * Оплата подтверждается вебхуком провайдера, а доступ выдаёт очередь: обе
+ * новости приходят на сервер, а не в открытую страницу, и в момент
+ * возвращения человека их ещё может не быть.
+ */
 export function useOrders() {
   const { api } = useAuthClient()
   return useQuery({
@@ -34,7 +56,43 @@ export function useOrders() {
     // возврат перечитывает заказы независимо от срока годности снимка:
     // обычное правило пропустило бы оплату, уложившуюся в эти секунды.
     refetchOnWindowFocus: 'always',
+    refetchInterval: (polled) => (awaitingOutcome(polled.state.data) ? ORDER_POLL_MS : false),
+    // На телефоне приложение всё время оплаты свёрнуто: опрос, привязанный к
+    // активному окну, не возобновился бы без отдельного события о возврате.
+    refetchIntervalInBackground: true,
   })
+}
+
+export interface PurchaseNotice {
+  /** Заказ, выданный на глазах у пользователя, или null. */
+  order: OrderResponse | null
+  dismiss: () => void
+}
+
+/**
+ * Заказ, дошедший до выдачи, пока приложение было открыто.
+ *
+ * Уведомление в чат приходит от бота, но человек в этот момент смотрит в
+ * приложение, а не в переписку. Считается только переход: заказ, увиденный
+ * незавершённым и ставший выданным. Так окно не всплывает при каждом входе
+ * и не показывает старые покупки.
+ */
+export function usePurchaseNotice(): PurchaseNotice {
+  const orders = useOrders()
+  const awaited = useRef(new Set<number>())
+  const [notice, setNotice] = useState<OrderResponse | null>(null)
+  const known = orders.data
+  useEffect(() => {
+    for (const order of known ?? []) {
+      if (UNFINISHED_ORDER.has(order.status)) {
+        awaited.current.add(order.id)
+        continue
+      }
+      if (!awaited.current.delete(order.id)) continue
+      if (order.status === 'fulfilled') setNotice(order)
+    }
+  }, [known])
+  return { order: notice, dismiss: () => setNotice(null) }
 }
 
 /** История ваучеров принадлежит серверу; клиент не синтезирует её из заказов. */

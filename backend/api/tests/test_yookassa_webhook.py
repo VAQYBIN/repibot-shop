@@ -308,3 +308,56 @@ async def test_payment_method_event_goes_straight_to_the_binding(
     async with create_session_factory(engine)() as session:
         current = await PaymentMethodService(session).current(user_id)
     assert current is not None and current.title == "Bank card *4444"
+
+
+async def test_webhook_asks_the_worker_to_deliver_at_once(
+    api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Без этого выдача доступа и уведомление ждут следующей минуты по расписанию.
+
+    Человек в этот момент уже вернулся с формы оплаты и смотрит на экран,
+    где ничего не изменилось.
+    """
+    from repibot_api.routers import webhooks
+    from repibot_core.tasks import process_outbox
+
+    fake = FakeYooKassa()
+    order_id, _attempt_id, payment_id = await _pending_attempt(engine)
+    fake.set_payment(payment_id, status="succeeded", amount="254.15", currency="RUB")
+    monkeypatch.setattr(webhooks, "create_yookassa_client", lambda: fake)
+    kicks = 0
+
+    async def count_kick() -> None:
+        nonlocal kicks
+        kicks += 1
+
+    monkeypatch.setattr(process_outbox, "kiq", count_kick)
+
+    response = await api_client.post("/webhook/yookassa", json={"object": {"id": payment_id}})
+
+    assert response.status_code == 204
+    assert await _order_status(engine, order_id) is OrderStatus.fulfilled
+    assert kicks == 1
+
+
+async def test_broken_broker_does_not_break_the_webhook(
+    api_client: AsyncClient, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Оплата уже подтверждена; отказ очереди не повод отвечать провайдеру ошибкой."""
+    from repibot_api.routers import webhooks
+    from repibot_core.tasks import process_outbox
+
+    fake = FakeYooKassa()
+    order_id, _attempt_id, payment_id = await _pending_attempt(engine)
+    fake.set_payment(payment_id, status="succeeded", amount="254.15", currency="RUB")
+    monkeypatch.setattr(webhooks, "create_yookassa_client", lambda: fake)
+
+    async def refuse() -> None:
+        raise RuntimeError("брокер недоступен")
+
+    monkeypatch.setattr(process_outbox, "kiq", refuse)
+
+    response = await api_client.post("/webhook/yookassa", json={"object": {"id": payment_id}})
+
+    assert response.status_code == 204
+    assert await _order_status(engine, order_id) is OrderStatus.fulfilled
