@@ -1,6 +1,12 @@
 """Импорт всех моделей — Alembic должен видеть их в метаданных."""
 
 from repibot_core.db.models.audit import AuditLog
+from repibot_core.db.models.broadcast import (
+    Broadcast,
+    BroadcastRecipient,
+    BroadcastStatus,
+    RecipientStatus,
+)
 from repibot_core.db.models.commerce import (
     CardBinding,
     CardBindingStatus,
@@ -36,6 +42,9 @@ from repibot_core.db.models.webhook import WebhookEvent, WebhookSource
 
 __all__ = [
     "AuditLog",
+    "Broadcast",
+    "BroadcastRecipient",
+    "BroadcastStatus",
     "CardBinding",
     "CardBindingStatus",
     "FindingAction",
@@ -53,6 +62,7 @@ __all__ = [
     "Plan",
     "PromoCode",
     "PromoReservation",
+    "RecipientStatus",
     "ReconciliationFinding",
     "ReferralReward",
     "SavedPaymentMethod",
