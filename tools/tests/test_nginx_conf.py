@@ -51,10 +51,26 @@ def locations(conf: str) -> dict[str, str]:
 def test_routes_are_declared(
     locations: dict[str, str], conf: str, location: str, upstream: str | None
 ) -> None:
+    del conf
     assert location in locations
     if upstream:
-        assert f"proxy_pass http://{upstream}_upstream" in locations[location]
-        assert f"upstream {upstream}_upstream {{ server {upstream}:" in conf
+        # Адрес живёт в переменной: только так имя разрешается в момент
+        # запроса, а не один раз при старте.
+        assert f"set ${upstream}_upstream http://{upstream}:" in locations[location]
+        assert f"proxy_pass ${upstream}_upstream$request_uri;" in locations[location]
+
+
+def test_container_addresses_are_resolved_on_every_request(conf: str) -> None:
+    """Docker выдаёт пересозданному контейнеру новый адрес.
+
+    Имя из `upstream` nginx разрешает один раз при старте и держит вечно,
+    поэтому после `docker compose up -d api` весь /api отвечает 502, пока
+    nginx не перезапустят. Резолвер Docker'а живёт по постоянному адресу.
+    """
+    assert "resolver 127.0.0.11" in conf
+    # Блок upstream {} разрешает имя один раз при старте, поэтому его быть
+    # не должно: адреса живут в переменных внутри локаций.
+    assert re.search(r"^upstream\s", conf, re.MULTILINE) is None
 
 
 def test_webhook_route_matches_the_path_bot_registers(conf: str) -> None:
@@ -66,7 +82,7 @@ def test_webhook_route_matches_the_path_bot_registers(conf: str) -> None:
 
 def test_health_is_routed_to_api(locations: dict[str, str]) -> None:
     """Без отдельного маршрута /health уходит в веб-приложение и отдаёт 404."""
-    assert "proxy_pass http://api_upstream" in locations["= /health"]
+    assert "proxy_pass $api_upstream$request_uri;" in locations["= /health"]
 
 
 def test_miniapp_falls_back_to_index_for_client_routing(locations: dict[str, str]) -> None:
