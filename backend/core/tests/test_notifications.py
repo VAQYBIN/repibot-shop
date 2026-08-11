@@ -151,3 +151,37 @@ def test_money_contour_kinds_are_registered(kind: str) -> None:
     искать её будут не здесь.
     """
     assert resolve_kind(kind).category is NotificationCategory.service
+
+
+async def test_relative_link_becomes_the_address_of_its_own_channel(
+    db_session: AsyncSession,
+) -> None:
+    """Ссылка подарка в Telegram ведёт в Mini App, а в письме — в кабинет.
+
+    Один адрес на оба канала обязательно ошибётся в одну из сторон: страница
+    Mini App в браузере войти не может, а кабинет в Telegram требует пароля,
+    которого у пришедшего через Telegram может не быть вовсе.
+    """
+    user = await _user(db_session, telegram=True, verified_email=True)
+
+    await NotificationService(db_session).enqueue(
+        user_id=user.id,
+        kind="expired",
+        dedup_key="sub:9:expired:x",
+        params={"plan": "Месяц", "relative_link": "/winback?token=abc"},
+    )
+    await db_session.commit()
+
+    rows = (
+        await db_session.execute(
+            select(OutboxMessage.topic, OutboxMessage.payload).order_by(OutboxMessage.topic)
+        )
+    ).all()
+    links = {topic: payload["link"] for topic, payload in rows}
+    assert links == {
+        "notify.email": "https://example.org/winback?token=abc",
+        "notify.telegram": "https://example.org/app/winback?token=abc",
+    }
+    # Служебный ключ в шаблон не уезжает: translate подставляет всё, что
+    # получил, и лишний ключ даёт KeyError на живом уведомлении.
+    assert all("relative_link" not in payload for _, payload in rows)

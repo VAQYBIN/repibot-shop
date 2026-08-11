@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import NotificationDelivery, User
 from repibot_core.db.repositories.outbox import OutboxRepository
+from repibot_core.settings import get_settings
 
 # Суффикс называет транспорт, поэтому разбирающему очередь не нужен второй
 # запрос, чтобы понять, куда отправлять.
@@ -27,6 +28,11 @@ TOPIC_NOTIFY_TELEGRAM = f"{TOPIC_NOTIFY}.telegram"
 # событие. Обработчик обязан выкинуть их перед подстановкой в шаблон, иначе
 # лишний ключ даёт KeyError на живом уведомлении.
 PAYLOAD_KEYS = frozenset({"delivery_id", "kind", "language", "recipient", "user_id"})
+
+# Относительный путь, который вызывающий передаёт вместо готовой ссылки. Здесь
+# он превращается в адрес того канала, которым уходит доставка, и в полезную
+# нагрузку попадает уже как `link`.
+RELATIVE_LINK = "relative_link"
 
 
 class NotificationCategory(StrEnum):
@@ -141,6 +147,10 @@ class NotificationService:
         if user is None:
             return 0
         channels = self._channels(user, resolve_kind(kind))
+        # Относительный путь снимается с общих подстановок: у каждого канала
+        # он превратится в свой адрес, а в шаблон уедет уже готовая `link`.
+        relative = params.get(RELATIVE_LINK)
+        common = {key: value for key, value in params.items() if key != RELATIVE_LINK}
 
         staged = 0
         for channel, topic, recipient in channels:
@@ -168,11 +178,30 @@ class NotificationService:
                     # Нужен ссылке отписки в письме: собрать её из адресата
                     # нельзя, токен подписывается по идентификатору.
                     "user_id": user_id,
-                    **params,
+                    **common,
+                    **(
+                        {"link": self._absolute(channel, str(relative))}
+                        if relative is not None
+                        else {}
+                    ),
                 },
             )
             staged += 1
         return staged
+
+    @staticmethod
+    def _absolute(channel: str, path: str) -> str:
+        """Адрес того канала, которым уходит доставка.
+
+        Telegram ведёт в Mini App: пришедший через Telegram там уже вошёл, а в
+        кабинете его ждал бы пароль, которого у него может не быть вовсе.
+        Письмо ведёт в кабинет: страница Mini App в браузере войти не может.
+        """
+        settings = get_settings()
+        base = settings.public_app_url if channel == "telegram" else settings.public_web_url
+        # rstrip нужен потому, что в .env адрес пишут и со слешом на конце, а
+        # двойной слеш в середине пути не откроется.
+        return f"{base.rstrip('/')}{path}"
 
     @staticmethod
     def _channels(user: User, kind: NotificationKind) -> list[tuple[str, str, str]]:
