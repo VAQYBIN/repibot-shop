@@ -1,23 +1,24 @@
 """Обработчики почтовых тем очереди.
 
-Полезная нагрузка сообщения содержит только язык, адрес и ссылку. Ни токена
-отдельно, ни идентификатора пользователя: обработчик не должен уметь ничего
-кроме отправки того, что ему передали.
+Полезная нагрузка сообщения содержит язык, адрес и то, чем различаются письма
+одного вида. Токена в ней нет отдельно от готовой ссылки: обработчик не должен
+уметь ничего кроме отправки того, что ему передали.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from repibot_core.i18n import translate
 from repibot_core.integrations.email.sender import EmailSender, build_sender
 from repibot_core.integrations.email.templates import (
     render_email_change,
+    render_notification,
     render_password_reset,
-    render_payment_notification,
     render_verification,
 )
+from repibot_core.services.notifications import PAYLOAD_KEYS, TOPIC_NOTIFY_EMAIL, resolve_kind
 from repibot_core.services.outbox import OutboxDispatcher
-from repibot_core.services.payment_notifications import TOPIC_PAYMENT_EMAIL
 from repibot_core.settings import get_settings
 
 TOPIC_EMAIL_VERIFY = "email.verify"
@@ -49,18 +50,23 @@ def build_dispatcher(sender: EmailSender | None = None) -> OutboxDispatcher:
 
         dispatcher.register(topic, handle)
 
-    async def handle_payment(payload: dict[str, Any]) -> None:
-        message = render_payment_notification(
-            payload["language"],
-            # Письмо открывают в браузере, а страница Mini App вне Telegram
-            # войти не может: ведём в кабинет на сайте.
-            link=f"{get_settings().public_web_url.rstrip('/')}/account/payments",
-            to=payload["recipient"],
-            kind=payload["kind"],
-            plan=payload["plan"],
+    async def handle_notify(payload: dict[str, Any]) -> None:
+        language = str(payload["language"])
+        kind = resolve_kind(str(payload["kind"]))
+        # Служебные поля не попадают в текст: translate подставляет всё, что
+        # получил, и лишний ключ в шаблоне даёт KeyError на живом уведомлении.
+        params = {key: value for key, value in payload.items() if key not in PAYLOAD_KEYS}
+        message = render_notification(
+            language,
+            to=str(payload["recipient"]),
+            subject=translate(language, f"{kind.text_key}.subject", **params),
+            body=translate(language, f"{kind.text_key}.body", **params),
+            # Адрес берётся у вида события: одна ссылка на все письма привела
+            # бы человека с ответом поддержки на страницу оплат.
+            link=f"{get_settings().public_web_url.rstrip('/')}{kind.link_path}",
         )
         await resolved.send(message)
 
-    dispatcher.register(TOPIC_PAYMENT_EMAIL, handle_payment)
+    dispatcher.register(TOPIC_NOTIFY_EMAIL, handle_notify)
 
     return dispatcher

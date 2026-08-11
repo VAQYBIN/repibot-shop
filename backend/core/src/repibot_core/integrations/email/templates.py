@@ -86,21 +86,22 @@ def render_email_change(language: str, *, link: str, to: str) -> EmailMessage:
     )
 
 
-def render_payment_notification(
-    language: str, *, link: str, to: str, kind: str, plan: str
+def render_notification(
+    language: str, *, link: str, to: str, subject: str, body: str
 ) -> EmailMessage:
-    """Локализованный итог оплаты; данных заказа в теме письма нет."""
-    prefix = "payment.succeeded" if kind == "payment_succeeded" else "payment.failed"
-    text = translate(language, f"{prefix}.body", plan=plan)
+    """Письмо уведомления в общем каркасе бренда.
+
+    Тема и тело приходят готовыми: вид события знает свои ключи перевода, а
+    вёрстка — нет. Каркас при этом общий с остальными письмами: разведённая по
+    двум файлам, она расходится на первой же правке шапки.
+    """
     html = _LAYOUT.render(
         language=language,
-        paragraphs=[text],
+        paragraphs=[body],
         link=link,
         ink=INK,
         paper=PAPER,
         jade=JADE,
         jade_deep=JADE_DEEP,
     )
-    return EmailMessage(
-        to=to, subject=translate(language, f"{prefix}.subject"), text=text, html=html
-    )
+    return EmailMessage(to=to, subject=subject, text=body, html=html)

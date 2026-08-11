@@ -14,8 +14,12 @@ from repibot_core.integrations.remnawave.client import create_remnawave_client
 from repibot_core.integrations.remnawave.users import PanelUsers
 from repibot_core.integrations.telegram.bot_api import BotApi
 from repibot_core.services.email_dispatch import build_dispatcher as build_email_dispatcher
+from repibot_core.services.notifications import (
+    PAYLOAD_KEYS,
+    TOPIC_NOTIFY_TELEGRAM,
+    resolve_kind,
+)
 from repibot_core.services.outbox import OutboxDispatcher
-from repibot_core.services.payment_notifications import TOPIC_PAYMENT_TELEGRAM
 from repibot_core.services.provisioning import TOPIC_PROVISION, build_provision_handler
 
 
@@ -36,22 +40,23 @@ def build_dispatcher(
     panel = users if users is not None else PanelUsers(create_remnawave_client())
     dispatcher.register(TOPIC_PROVISION, build_provision_handler(session_factory, panel))
 
-    async def handle_payment_telegram(payload: dict[str, object]) -> None:
+    async def handle_notify_telegram(payload: dict[str, object]) -> None:
         language = str(payload["language"])
-        kind = str(payload["kind"])
-        plan = str(payload["plan"])
-        prefix = "payment.succeeded" if kind == "payment_succeeded" else "payment.failed"
-        text = translate(language, f"{prefix}.bot", plan=plan)
+        kind = resolve_kind(str(payload["kind"]))
+        # Служебные поля не попадают в текст: translate подставляет всё, что
+        # получил, и лишний ключ в шаблоне даёт KeyError на живом уведомлении.
+        params = {key: value for key, value in payload.items() if key not in PAYLOAD_KEYS}
+        text = translate(language, f"{kind.text_key}.bot", **params)
         recipient = int(str(payload["recipient"]))
         if telegram is None:
             # Клиент живёт столько же, сколько прогон задачи, и собирается
             # вызывающим: соединение с Valkey и http-клиент на каждое
             # сообщение — это плата за каждое уведомление, а разбор очереди
-            # берёт до двадцати сообщений за раз. Сообщение вернётся в
-            # очередь и уйдёт следующим прогоном, уже с клиентом.
+            # берёт до сотни сообщений за раз. Сообщение вернётся в очередь и
+            # уйдёт следующим прогоном, уже с клиентом.
             msg = "клиент бота не передан диспетчеру"
             raise RuntimeError(msg)
         await telegram.send_message(recipient, text)
 
-    dispatcher.register(TOPIC_PAYMENT_TELEGRAM, handle_payment_telegram)
+    dispatcher.register(TOPIC_NOTIFY_TELEGRAM, handle_notify_telegram)
     return dispatcher

@@ -8,11 +8,9 @@ from hashlib import sha256
 from typing import Protocol
 
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import (
-    NotificationDelivery,
     Order,
     OrderPurpose,
     OrderStatus,
@@ -23,18 +21,30 @@ from repibot_core.db.models import (
     Subscription,
 )
 from repibot_core.db.repositories.orders import OrderRepository, PaymentAttemptRepository
-from repibot_core.db.repositories.outbox import OutboxRepository
 from repibot_core.domain.subscriptions import SubscriptionState
 from repibot_core.integrations.yookassa.types import YooKassaPayment, YooKassaPaymentStatus
+from repibot_core.services.notifications import (
+    TOPIC_NOTIFY,
+    TOPIC_NOTIFY_EMAIL,
+    TOPIC_NOTIFY_TELEGRAM,
+    NotificationService,
+)
 from repibot_core.services.payment_methods import PaymentMethodService
 from repibot_core.settings import Settings, get_settings
 
-# Суффикс называет транспорт, поэтому разбирающему очередь не нужен второй
-# запрос, чтобы понять, куда отправлять. Базовая тема нужна тем, кто ставит
-# уведомление, не зная, каким способом оно уйдёт.
-TOPIC_PAYMENT_NOTIFICATION = "notify"
-TOPIC_PAYMENT_EMAIL = f"{TOPIC_PAYMENT_NOTIFICATION}.email"
-TOPIC_PAYMENT_TELEGRAM = f"{TOPIC_PAYMENT_NOTIFICATION}.telegram"
+# Прежние имена сохраняются: их знает денежный контур и его тесты.
+TOPIC_PAYMENT_NOTIFICATION = TOPIC_NOTIFY
+TOPIC_PAYMENT_EMAIL = TOPIC_NOTIFY_EMAIL
+TOPIC_PAYMENT_TELEGRAM = TOPIC_NOTIFY_TELEGRAM
+
+__all__ = [
+    "TOPIC_PAYMENT_EMAIL",
+    "TOPIC_PAYMENT_NOTIFICATION",
+    "TOPIC_PAYMENT_TELEGRAM",
+    "AutoRenewalService",
+    "NotificationService",
+    "YooKassaRecurringCreator",
+]
 
 
 class YooKassaRecurringCreator(Protocol):
@@ -50,67 +60,6 @@ class YooKassaRecurringCreator(Protocol):
     ) -> YooKassaPayment: ...
 
     async def get_payment(self, payment_id: str) -> YooKassaPayment: ...
-
-
-class NotificationService:
-    """Ставит по одной доставке на событие и на каждый доступный сейчас канал."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-        self._outbox = OutboxRepository(session)
-
-    async def enqueue_payment_event(self, order_id: int, kind: str) -> int:
-        """Ставит все пригодные адреса; повтор не создаёт вторую доставку."""
-        row = (
-            await self._session.execute(
-                select(Order.user_id, Order.plan_name_snapshot, Order.plan_code_snapshot)
-                .where(Order.id == order_id)
-                .limit(1)
-            )
-        ).one_or_none()
-        if row is None:
-            return 0
-        user_id, plan_name, plan_code = row
-        from repibot_core.db.models import User
-
-        user = await self._session.get(User, user_id)
-        if user is None:  # внешний ключ заказа это исключает; защита от старых данных
-            return 0
-        channels: list[tuple[str, str, str]] = []
-        if user.telegram_id is not None:
-            channels.append(("telegram", TOPIC_PAYMENT_TELEGRAM, str(user.telegram_id)))
-        if user.email is not None and user.email_verified_at is not None:
-            channels.append(("email", TOPIC_PAYMENT_EMAIL, user.email))
-
-        staged = 0
-        title = plan_name.get(user.language) or plan_name.get("ru") or plan_code
-        for channel, topic, recipient in channels:
-            delivery_id = await self._session.scalar(
-                insert(NotificationDelivery)
-                .values(
-                    order_id=order_id,
-                    user_id=user_id,
-                    kind=kind,
-                    channel=channel,
-                    dedup_key=f"order:{order_id}:{kind}",
-                )
-                .on_conflict_do_nothing(index_elements=["dedup_key", "channel"])
-                .returning(NotificationDelivery.id)
-            )
-            if delivery_id is None:
-                continue
-            await self._outbox.add(
-                topic,
-                {
-                    "delivery_id": delivery_id,
-                    "kind": kind,
-                    "language": user.language,
-                    "recipient": recipient,
-                    "plan": title,
-                },
-            )
-            staged += 1
-        return staged
 
 
 class AutoRenewalService:

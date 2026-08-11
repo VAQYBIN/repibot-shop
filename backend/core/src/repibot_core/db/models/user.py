@@ -47,6 +47,10 @@ class User(TimestampMixin, Base):
         Enum(UserStatus, name="user_status", native_enum=True), default=UserStatus.active
     )
 
+    # Хранится момент, а не флаг: при разборе жалобы важно, когда человек
+    # отказался, — до рассылки или после неё.
+    marketing_opt_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     referral_code: Mapped[str] = mapped_column(String(16), unique=True)
     referred_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
