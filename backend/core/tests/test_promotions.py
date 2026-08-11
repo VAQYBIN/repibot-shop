@@ -7,11 +7,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from repibot_core.db.engine import create_session_factory
 from repibot_core.db.models import (
+    GiftVoucher,
     Order,
     OrderPurpose,
     Plan,
@@ -21,7 +22,7 @@ from repibot_core.db.models import (
 )
 from repibot_core.db.repositories.orders import OrderRepository
 from repibot_core.db.repositories.plans import PlanRepository
-from repibot_core.services.promotions import PromotionInput, PromotionService
+from repibot_core.services.promotions import GiftService, PromotionInput, PromotionService
 
 pytestmark = pytest.mark.docker
 
@@ -148,3 +149,73 @@ async def test_only_pending_expired_reservation_is_released(db_session: AsyncSes
 
     assert [row.order_id for row in rows] == [used.id]
     assert rows[0].consumed_at is not None
+
+
+async def _wait_until_someone_waits_for_a_lock(session: AsyncSession) -> None:
+    """Ждёт, пока в базе появится непредоставленная блокировка.
+
+    Дожидаться по часам значило бы гадать; здесь видно само состояние.
+    """
+    for _ in range(200):
+        waiting = await session.scalar(text("select count(*) from pg_locks where not granted"))
+        await session.commit()
+        if waiting:
+            return
+        await asyncio.sleep(0.05)
+    raise AssertionError("погашение подарка так и не встало в очередь за блокировкой")
+
+
+async def test_gift_redemption_takes_locks_in_the_finalization_order(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Порядок замков общий для всех путей: заказ, подписка, ваучер.
+
+    Финализация держит заказ и берёт ваучер после него. Погашение, начинавшее
+    с ваучера, встречалось с ней в обратном порядке: один держит заказ и ждёт
+    ваучер, другой держит ваучер и ждёт заказ. Postgres разрывает такой круг,
+    убивая одну из транзакций, — а это оплаченный подарок, не дошедший до
+    получателя, или повторный вебхук, оставшийся без выдачи.
+    """
+    plan = await _plan(db_session, "gift-lock")
+    buyer = await _user(db_session, "giftlk01")
+    recipient = await _user(db_session, "giftlk02")
+    order = await OrderRepository(db_session).create_pending(
+        user_id=buyer.id,
+        plan=plan,
+        client_key="gift-lock-order",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+        purpose=OrderPurpose.gift,
+    )
+    voucher = GiftVoucher(
+        order_id=order.id,
+        code="GIFT-LOCK",
+        purchased_by_user_id=buyer.id,
+        expires_at=datetime.now(UTC) + timedelta(days=365),
+    )
+    db_session.add(voucher)
+    await db_session.commit()
+    order_id, voucher_id, recipient_id = order.id, voucher.id, recipient.id
+    factory = create_session_factory(engine)
+
+    async def redeem() -> None:
+        async with factory() as session:
+            await GiftService(session).redeem("GIFT-LOCK", recipient_id)
+
+    async with factory() as holder, factory() as watcher:
+        # Финализация повторного вебхука: заказ уже под замком.
+        await holder.execute(select(Order).where(Order.id == order_id).with_for_update())
+        task = asyncio.create_task(redeem())
+        try:
+            await _wait_until_someone_waits_for_a_lock(watcher)
+            # Ваучер обязан быть свободен: погашение ждёт заказ, а не держит
+            # ваучер, поэтому кругу неоткуда взяться.
+            await holder.execute(text("set local lock_timeout = '2s'"))
+            await holder.execute(
+                select(GiftVoucher).where(GiftVoucher.id == voucher_id).with_for_update()
+            )
+        finally:
+            await holder.rollback()
+            await task
+
+    await db_session.refresh(voucher)
+    assert voucher.redeemed_by_user_id == recipient_id

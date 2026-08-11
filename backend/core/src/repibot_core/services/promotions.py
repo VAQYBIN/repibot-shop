@@ -212,17 +212,24 @@ class GiftService:
         if self._session.in_transaction():
             await self._session.commit()
         async with self._session.begin():
-            voucher = (
+            # Порядок замков общий для всех путей: заказ, подписка, ваучер.
+            # Начать с ваучера значит встретиться с финализацией в обратном
+            # порядке — один держит заказ и ждёт ваучер, другой наоборот, — и
+            # разойтись через deadlock: оплаченный подарок не дойдёт до
+            # получателя. Код и заказ ваучера читаются без замка: они не
+            # меняются, а состояние проверяется ниже, уже под замком.
+            found = (
                 await self._session.execute(
-                    select(GiftVoucher).where(GiftVoucher.code == code.strip()).with_for_update()
+                    select(GiftVoucher.id, GiftVoucher.order_id).where(
+                        GiftVoucher.code == code.strip()
+                    )
                 )
-            ).scalar_one_or_none()
-            now = datetime.now(UTC)
-            if voucher is None:
+            ).one_or_none()
+            if found is None:
                 raise ServiceError("ваучер не найден", "not_found")
-            if voucher.redeemed_at is not None or voucher.expires_at <= now:
-                raise ServiceError("ваучер уже недоступен", "gift_unavailable")
-            order = await self._session.get(Order, voucher.order_id, with_for_update=True)
+            voucher_id, voucher_order_id = found
+            now = datetime.now(UTC)
+            order = await self._session.get(Order, voucher_order_id, with_for_update=True)
             if order is None or order.purpose is not OrderPurpose.gift:
                 raise ServiceError("ваучер недоступен", "gift_unavailable")
             plan = await self._plans.get(order.plan_id)
@@ -230,6 +237,11 @@ class GiftService:
                 raise ServiceError("тариф подарка не найден", "plan_not_found")
             await self._subscriptions.lock_user_for_entitlement(recipient_user_id)
             current = await self._subscriptions.get_for_user_for_update(recipient_user_id)
+            voucher = await self._session.get(GiftVoucher, voucher_id, with_for_update=True)
+            if voucher is None:  # pragma: no cover — строку выше уже нашли по коду
+                raise ServiceError("ваучер не найден", "not_found")
+            if voucher.redeemed_at is not None or voucher.expires_at <= now:
+                raise ServiceError("ваучер уже недоступен", "gift_unavailable")
             target, days = plan, order.duration_days_snapshot
             if current is not None and current.plan_id != plan.id and current.expires_at > now:
                 current_plan = await self._plans.get(current.plan_id)
