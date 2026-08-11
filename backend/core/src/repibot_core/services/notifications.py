@@ -99,6 +99,11 @@ _KINDS: dict[str, NotificationKind] = {
 _NUMBERED_PREFIX = "auto_renew_failed_"
 
 
+def all_kinds() -> tuple[NotificationKind, ...]:
+    """Все объявленные виды. Нужен проверке, что у каждого есть тексты."""
+    return tuple(_KINDS.values())
+
+
 def resolve_kind(kind: str) -> NotificationKind:
     """Вид события по его имени; неизвестное имя — ошибка сборки, а не тишина."""
     if kind.startswith(_NUMBERED_PREFIX):

@@ -9,7 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repibot_core.db.models import NotificationDelivery, OutboxMessage, User
-from repibot_core.services.notifications import NotificationService
+from repibot_core.i18n import has_message
+from repibot_core.services.notifications import NotificationService, all_kinds
 
 pytestmark = pytest.mark.docker
 
@@ -111,3 +112,22 @@ async def test_opted_out_user_gets_service_but_not_marketing(db_session: AsyncSe
     await db_session.commit()
 
     assert (marketing, service_event) == (0, 1)
+
+
+def test_every_declared_kind_has_texts_in_every_language() -> None:
+    """Вид без текстов — это уведомление, падающее у живого человека.
+
+    Реестр видов и словарь переводов лежат в разных файлах, и связь между
+    ними держится только на внимательности. Проверка существования ключа, а
+    не перевода: параметры у видов разные, и `translate` потребовал бы
+    перечислить их все, превратив проверку во второй словарь.
+    """
+    missing = [
+        f"{language}:{kind.text_key}{suffix}"
+        for kind in all_kinds()
+        for suffix in (".bot", ".subject", ".body")
+        for language in ("ru", "en")
+        if not has_message(language, f"{kind.text_key}{suffix}")
+    ]
+
+    assert missing == []

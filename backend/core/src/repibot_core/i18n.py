@@ -37,6 +37,61 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "payment.failed.bot": (
             "Не удалось автоматически продлить тариф «{plan}». Проверьте способ оплаты."
         ),
+        "subscription.expiring_3.subject": "Подписка кончается через три дня",
+        "subscription.expiring_3.body": (
+            "Тариф «{plan}» действует до {date}. Продлите, чтобы доступ не прервался."
+        ),
+        "subscription.expiring_3.bot": (
+            "Тариф «{plan}» действует до {date}. Продлите, чтобы доступ не прервался."
+        ),
+        "subscription.expiring_1.subject": "Подписка кончается завтра",
+        "subscription.expiring_1.body": (
+            "Тариф «{plan}» действует до {date}. Это последний день до перерыва в доступе."
+        ),
+        "subscription.expiring_1.bot": (
+            "Тариф «{plan}» действует до {date}. Это последний день до перерыва в доступе."
+        ),
+        "subscription.expired.subject": "Подписка закончилась",
+        "subscription.expired.body": (
+            "Тариф «{plan}» закончился. Доступ отключён — продлите, чтобы вернуть его."
+        ),
+        "subscription.expired.bot": (
+            "Тариф «{plan}» закончился. Доступ отключён — продлите, чтобы вернуть его."
+        ),
+        "payment.unpaid.subject": "Счёт ждёт оплаты",
+        "payment.unpaid.body": "Счёт на тариф «{plan}» ещё не оплачен. Открыть оплату:\n{link}",
+        "payment.unpaid.bot": "Счёт на тариф «{plan}» ещё не оплачен. Открыть оплату:\n{link}",
+        "ticket.reply.subject": "Поддержка ответила",
+        "ticket.reply.body": "Поддержка ответила:\n\n{body}",
+        "ticket.reply.bot": "Поддержка ответила:\n\n{body}",
+        "winback.step1.subject": "Подписка закончилась вчера",
+        "winback.step1.body": (
+            "Подписка закончилась вчера. Вернуть доступ можно в один шаг — тариф и оплата на месте."
+        ),
+        "winback.step1.bot": (
+            "Подписка закончилась вчера. Вернуть доступ можно в один шаг — тариф и оплата на месте."
+        ),
+        "winback.step2.subject": "Личная скидка на возвращение",
+        "winback.step2.body": (
+            "Держите личную скидку {percent}% на возвращение: код {code}. "
+            "Он ваш и действует трое суток."
+        ),
+        "winback.step2.bot": (
+            "Держите личную скидку {percent}% на возвращение: код {code}. "
+            "Он ваш и действует трое суток."
+        ),
+        "winback.step3.subject": "Несколько дней доступа в подарок",
+        "winback.step3.body": "Возвращаем {days} дня доступа просто так. Забрать: {link}",
+        "winback.step3.bot": "Возвращаем {days} дня доступа просто так. Забрать: {link}",
+        "winback.step4.subject": "Последнее письмо о подписке",
+        "winback.step4.body": (
+            "Это последнее письмо о подписке. Если захотите вернуться — "
+            "мы на месте, ничего делать заранее не нужно."
+        ),
+        "winback.step4.bot": (
+            "Это последнее письмо о подписке. Если захотите вернуться — "
+            "мы на месте, ничего делать заранее не нужно."
+        ),
         "bot.start.greeting": "Здравствуйте, {name}. Это Re:Pibot.",
         "bot.start.open_app": "Открыть приложение",
         "bot.language.choose": "Выберите язык",
@@ -83,6 +138,67 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "payment.failed.bot": (
             "We could not automatically renew the {plan} plan. Check your payment method."
         ),
+        "subscription.expiring_3.subject": "Your subscription ends in three days",
+        "subscription.expiring_3.body": (
+            "Your {plan} plan is active until {date}. Renew to keep access."
+        ),
+        "subscription.expiring_3.bot": (
+            "Your {plan} plan is active until {date}. Renew to keep access."
+        ),
+        "subscription.expiring_1.subject": "Your subscription ends tomorrow",
+        "subscription.expiring_1.body": (
+            "Your {plan} plan is active until {date}. This is the last day before access stops."
+        ),
+        "subscription.expiring_1.bot": (
+            "Your {plan} plan is active until {date}. This is the last day before access stops."
+        ),
+        "subscription.expired.subject": "Your subscription has ended",
+        "subscription.expired.body": (
+            "Your {plan} plan has ended. Access is off — renew to bring it back."
+        ),
+        "subscription.expired.bot": (
+            "Your {plan} plan has ended. Access is off — renew to bring it back."
+        ),
+        "payment.unpaid.subject": "An invoice is waiting",
+        "payment.unpaid.body": (
+            "The invoice for the {plan} plan is still unpaid. Open payment:\n{link}"
+        ),
+        "payment.unpaid.bot": (
+            "The invoice for the {plan} plan is still unpaid. Open payment:\n{link}"
+        ),
+        "ticket.reply.subject": "Support replied",
+        "ticket.reply.body": "Support replied:\n\n{body}",
+        "ticket.reply.bot": "Support replied:\n\n{body}",
+        "winback.step1.subject": "Your subscription ended yesterday",
+        "winback.step1.body": (
+            "Your subscription ended yesterday. Getting access back takes one step — "
+            "the plan and the payment are where you left them."
+        ),
+        "winback.step1.bot": (
+            "Your subscription ended yesterday. Getting access back takes one step — "
+            "the plan and the payment are where you left them."
+        ),
+        "winback.step2.subject": "A personal discount to come back",
+        "winback.step2.body": (
+            "Here is a personal {percent}% discount to come back: code {code}. "
+            "It is yours and works for three days."
+        ),
+        "winback.step2.bot": (
+            "Here is a personal {percent}% discount to come back: code {code}. "
+            "It is yours and works for three days."
+        ),
+        "winback.step3.subject": "A few days of access on us",
+        "winback.step3.body": "We are giving back {days} days of access. Claim them: {link}",
+        "winback.step3.bot": "We are giving back {days} days of access. Claim them: {link}",
+        "winback.step4.subject": "The last note about your subscription",
+        "winback.step4.body": (
+            "This is the last note about your subscription. If you want to come back — "
+            "we are here, and nothing needs doing in advance."
+        ),
+        "winback.step4.bot": (
+            "This is the last note about your subscription. If you want to come back — "
+            "we are here, and nothing needs doing in advance."
+        ),
         "bot.start.greeting": "Hello, {name}. This is Re:Pibot.",
         "bot.start.open_app": "Open the app",
         "bot.language.choose": "Choose a language",
@@ -100,6 +216,16 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "bot.link.expired": "The code is invalid or expired. Get a new one in your account.",
     },
 }
+
+
+def has_message(language: str, key: str) -> bool:
+    """Есть ли строка под этим ключом.
+
+    Нужна проверке, что у каждого объявленного вида уведомления есть тексты.
+    Через `translate` её не сделать: он подставляет параметры, а у разных
+    видов они разные, и проверка превратилась бы в перечисление параметров.
+    """
+    return key in _MESSAGES.get(language, {})
 
 
 def translate(language: str, key: str, **params: Any) -> str:
