@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from repibot_core.db.models import (
     NotificationDelivery,
@@ -118,3 +118,34 @@ async def test_terminal_delivery_failure_is_durably_queryable(db_session: AsyncS
     assert delivery is not None
     assert delivery.status == "failed"
     assert delivery.error == "telegram unavailable"
+
+
+async def test_telegram_delivery_refuses_to_build_its_own_client(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Клиент бота живёт прогон задачи, а не сообщение.
+
+    Собирать соединение с Valkey и http-клиент на каждое уведомление значит
+    платить ими за каждое: разбор очереди берёт до двадцати сообщений за раз.
+    Отсутствие клиента — ошибка сборки, и она должна быть громкой, а не
+    молча возвращать прежнее поведение.
+    """
+    from repibot_core.db.engine import create_session_factory
+    from repibot_core.services.dispatcher import build_dispatcher
+
+    order = await _order(db_session, telegram=True, verified_email=False)
+    await NotificationService(db_session).enqueue_payment_event(order.id, "payment_succeeded")
+    await db_session.commit()
+    factory = create_session_factory(engine)
+
+    await build_dispatcher(factory).process(db_session)
+
+    message = await db_session.scalar(
+        select(OutboxMessage).where(OutboxMessage.topic == "notify.telegram")
+    )
+    assert message is not None
+    assert message.processed_at is None
+    assert message.attempts == 1
+    # Обработчик не пробует достучаться до Telegram своими силами, а называет
+    # причину: собранный на месте клиент выглядел бы рабочим решением.
+    assert "клиент бота" in (message.last_error or "")

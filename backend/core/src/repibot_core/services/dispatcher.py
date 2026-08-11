@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from repibot_core.i18n import translate
@@ -18,7 +17,6 @@ from repibot_core.services.email_dispatch import build_dispatcher as build_email
 from repibot_core.services.outbox import OutboxDispatcher
 from repibot_core.services.payment_notifications import TOPIC_PAYMENT_TELEGRAM
 from repibot_core.services.provisioning import TOPIC_PROVISION, build_provision_handler
-from repibot_core.settings import get_settings
 
 
 def build_dispatcher(
@@ -30,8 +28,9 @@ def build_dispatcher(
 ) -> OutboxDispatcher:
     """Диспетчер со всеми темами этапа.
 
-    Отправитель и фасад панели принимаются параметрами, чтобы тест подставил
-    свои, не трогая настройки окружения.
+    Отправитель, фасад панели и клиент бота принимаются параметрами: тест
+    подставляет свои, не трогая настройки окружения, а задача — те, чьим
+    временем жизни она сама и управляет.
     """
     dispatcher = build_email_dispatcher(sender)
     panel = users if users is not None else PanelUsers(create_remnawave_client())
@@ -44,17 +43,15 @@ def build_dispatcher(
         prefix = "payment.succeeded" if kind == "payment_succeeded" else "payment.failed"
         text = translate(language, f"{prefix}.bot", plan=plan)
         recipient = int(str(payload["recipient"]))
-        if telegram is not None:
-            await telegram.send_message(recipient, text)
-            return
-        settings = get_settings()
-        redis = Redis.from_url(settings.valkey_url)
-        bot = BotApi(settings, redis)
-        try:
-            await bot.send_message(recipient, text)
-        finally:
-            await bot.aclose()
-            await redis.aclose()
+        if telegram is None:
+            # Клиент живёт столько же, сколько прогон задачи, и собирается
+            # вызывающим: соединение с Valkey и http-клиент на каждое
+            # сообщение — это плата за каждое уведомление, а разбор очереди
+            # берёт до двадцати сообщений за раз. Сообщение вернётся в
+            # очередь и уйдёт следующим прогоном, уже с клиентом.
+            msg = "клиент бота не передан диспетчеру"
+            raise RuntimeError(msg)
+        await telegram.send_message(recipient, text)
 
     dispatcher.register(TOPIC_PAYMENT_TELEGRAM, handle_payment_telegram)
     return dispatcher

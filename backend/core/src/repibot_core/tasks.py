@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from redis.asyncio import Redis
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession, async_sessionmaker
 
@@ -25,6 +26,7 @@ from repibot_core.db.models import (
     PaymentStatus,
 )
 from repibot_core.integrations.remnawave.client import RemnawaveClient
+from repibot_core.integrations.telegram.bot_api import BotApi
 from repibot_core.integrations.yookassa.client import create_yookassa_client
 from repibot_core.queue import broker
 from repibot_core.services.outbox import OutboxDispatcher
@@ -42,11 +44,18 @@ async def process_outbox() -> dict[str, int]:
     # Клиент панели закрывается наравне с движком: задача идёт раз в минуту, и
     # брошенный httpx.AsyncClient — это утечка сокетов, растущая весь день.
     panel = _panel_client()
+    # Клиент бота — один на прогон, а не на сообщение: за раз разбирается до
+    # двадцати сообщений, и соединение с Valkey с http-клиентом на каждое
+    # означало бы платить ими за каждое уведомление.
+    redis = Redis.from_url(get_settings().valkey_url)
+    telegram = BotApi(get_settings(), redis)
     try:
         factory = create_session_factory(engine)
         async with factory() as session:
-            delivered = await _dispatcher(factory, panel).process(session)
+            delivered = await _dispatcher(factory, panel, telegram).process(session)
     finally:
+        await telegram.aclose()
+        await redis.aclose()
         await panel.aclose()
         await engine.dispose()
 
@@ -257,7 +266,7 @@ def _panel_client() -> RemnawaveClient:
 
 
 def _dispatcher(
-    factory: async_sessionmaker[AsyncSession], panel: RemnawaveClient
+    factory: async_sessionmaker[AsyncSession], panel: RemnawaveClient, telegram: BotApi
 ) -> OutboxDispatcher:
     """Собирается на каждый прогон.
 
@@ -270,7 +279,7 @@ def _dispatcher(
     from repibot_core.integrations.remnawave.users import PanelUsers
     from repibot_core.services.dispatcher import build_dispatcher
 
-    return build_dispatcher(factory, users=PanelUsers(panel))
+    return build_dispatcher(factory, users=PanelUsers(panel), telegram=telegram)
 
 
 def _subscriptions(session: AsyncSession, panel: RemnawaveClient) -> SubscriptionService:
