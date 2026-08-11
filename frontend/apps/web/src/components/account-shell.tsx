@@ -15,6 +15,7 @@ const LINKS = [
   { href: '/account/subscription', key: 'subscription.title' },
   { href: '/account/payments', key: 'payment.title' },
   { href: '/account/security', key: 'account.security' },
+  { href: '/account/notifications', key: 'notifications.title' },
 ] as const
 
 function AccountFrame({ children }: { children: ReactNode }) {

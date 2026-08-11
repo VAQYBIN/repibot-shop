@@ -1,5 +1,12 @@
-import { type Language, translate, useMe, useUpdateProfile } from '@repibot/core'
-import { Button, Card } from '@repibot/ui'
+import {
+  type Language,
+  translate,
+  useMe,
+  useNotificationSettings,
+  useUpdateNotificationSettings,
+  useUpdateProfile,
+} from '@repibot/core'
+import { Button, Card, Switch } from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
 
 import { useLanguage } from '../api'
@@ -14,6 +21,8 @@ export function Profile() {
   const language = useLanguage()
   const profile = useMe()
   const save = useUpdateProfile(language)
+  const notifications = useNotificationSettings()
+  const updateNotifications = useUpdateNotificationSettings(language)
 
   if (profile.isPending) return <Loading language={language} />
   if (profile.data === undefined) {
@@ -58,6 +67,47 @@ export function Profile() {
           ))}
         </div>
       </section>
+
+      <section className="mt-6">
+        <h2 className="text-sm text-text-secondary">
+          {translate(language, 'notifications.title')}
+        </h2>
+        {/* Пока согласие не приехало, переключателя нет: значение по умолчанию
+            соврало бы отписавшемуся, что новости ему всё ещё приходят. */}
+        {notifications.data === undefined ? (
+          <p
+            className="mt-2 text-sm text-text-secondary"
+            role={notifications.isPending ? undefined : 'alert'}
+          >
+            {translate(language, notifications.isPending ? 'common.loading' : 'common.error')}
+          </p>
+        ) : (
+          <>
+            <Switch
+              id="marketing"
+              className="mt-2"
+              checked={notifications.data.marketing_enabled}
+              disabled={updateNotifications.isPending}
+              label={translate(language, 'notifications.marketing')}
+              onCheckedChange={(checked) => updateNotifications.mutate(checked)}
+            />
+            <p className="mt-2 text-sm text-text-secondary">
+              {translate(language, 'notifications.marketing_hint')}
+            </p>
+            {/* Подсказка обязательна: без неё отписка читается как отказ от
+                сообщений об оплате и окончании подписки. */}
+            <p className="mt-3 text-sm text-text-muted">
+              {translate(language, 'notifications.service_hint')}
+            </p>
+          </>
+        )}
+      </section>
+
+      {updateNotifications.isError && (
+        <p className="mt-4 text-sm text-text" role="alert">
+          {translate(language, 'common.error')}
+        </p>
+      )}
 
       {save.isError && (
         <p className="mt-4 text-sm text-text" role="alert">

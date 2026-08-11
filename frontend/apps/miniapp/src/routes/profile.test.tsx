@@ -39,6 +39,44 @@ describe('профиль MiniApp', () => {
     expect(await patched?.json()).toEqual({ name: 'Аня', language: 'en' })
   })
 
+  it('показывает согласие на новости и подсказку про сервисные сообщения', async () => {
+    stubFetch((request) =>
+      new URL(request.url).pathname === '/api/me/notifications'
+        ? Response.json({ marketing_enabled: true })
+        : Response.json(PROFILE),
+    )
+
+    renderWithProviders(<Profile />)
+
+    const toggle = await screen.findByRole('switch', { name: 'Новости и предложения' })
+    expect(toggle).toBeChecked()
+    // Отписка не должна читаться как отказ от сообщений об оплате и подписке.
+    expect(
+      screen.getByText(
+        'Сообщения об оплате, окончании подписки и ответах поддержки приходят всегда',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('снятое согласие уезжает PATCH с marketing_enabled: false', async () => {
+    const fetchMock = stubFetch((request) => {
+      if (new URL(request.url).pathname !== '/api/me/notifications') return Response.json(PROFILE)
+      return Response.json({ marketing_enabled: request.method !== 'PATCH' })
+    })
+
+    renderWithProviders(<Profile />)
+    fireEvent.click(await screen.findByRole('switch', { name: 'Новости и предложения' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: 'Новости и предложения' })).not.toBeChecked(),
+    )
+    const patched = fetchMock.mock.calls
+      .map(([request]) => request as Request)
+      .find((request) => request.method === 'PATCH')
+    expect(patched).toBeDefined()
+    expect(await patched?.json()).toEqual({ marketing_enabled: false })
+  })
+
   it('при ошибке загрузки предлагает повторить, а не показывает пустоту', async () => {
     withRussianLocale()
     const fetchMock = stubFetch(() =>

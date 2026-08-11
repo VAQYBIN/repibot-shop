@@ -85,6 +85,43 @@ async def test_sessions_are_listed_and_revoked(api_client: AsyncClient) -> None:
     assert denied.status_code == 401
 
 
+async def test_marketing_toggle_round_trips(
+    api_client: AsyncClient, user_headers: dict[str, str]
+) -> None:
+    """Случайная отписка обязана отменяться там же, где сделана."""
+    default = await api_client.get("/api/me/notifications", headers=user_headers)
+    off = await api_client.patch(
+        "/api/me/notifications", headers=user_headers, json={"marketing_enabled": False}
+    )
+    on = await api_client.patch(
+        "/api/me/notifications", headers=user_headers, json={"marketing_enabled": True}
+    )
+
+    assert default.json() == {"marketing_enabled": True}
+    assert off.json() == {"marketing_enabled": False}
+    assert on.json() == {"marketing_enabled": True}
+
+
+async def test_marketing_opt_out_survives_reread(
+    api_client: AsyncClient, user_headers: dict[str, str]
+) -> None:
+    """Отказ хранится в базе, а не в ответе: следующее чтение обязано его помнить."""
+    await api_client.patch(
+        "/api/me/notifications", headers=user_headers, json={"marketing_enabled": False}
+    )
+
+    reread = await api_client.get("/api/me/notifications", headers=user_headers)
+
+    assert reread.status_code == 200
+    assert reread.json() == {"marketing_enabled": False}
+
+
+async def test_notification_settings_require_token(api_client: AsyncClient) -> None:
+    response = await api_client.get("/api/me/notifications")
+
+    assert response.status_code == 401
+
+
 async def test_session_of_another_user_cannot_be_revoked(api_client: AsyncClient) -> None:
     mine = await _miniapp_token(api_client, telegram_id=777)
     stranger = await _miniapp_token(api_client, telegram_id=888)

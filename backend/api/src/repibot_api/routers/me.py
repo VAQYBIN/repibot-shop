@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -23,13 +24,16 @@ from repibot_api.schemas import (
     ChangeEmailRequest,
     LinkCodeResponse,
     MeResponse,
+    NotificationSettingsResponse,
     PasskeyOptionsResponse,
     PasskeyRegisterRequest,
     PasskeyResponse,
     SessionResponse,
     SetPasswordRequest,
     UpdateMeRequest,
+    UpdateNotificationSettingsRequest,
 )
+from repibot_core.db.models import User
 from repibot_core.domain.identity import LINK_CODE_TTL
 from repibot_core.integrations.telegram.bot_api import TIMEOUT_SECONDS as BOT_TIMEOUT_SECONDS
 from repibot_core.integrations.telegram.bot_api import BotApi
@@ -140,6 +144,46 @@ async def request_email_change(
     except AuthError as error:
         raise api_error_from(error) from error
     return AcceptedResponse(status="confirmation_sent")
+
+
+async def _user(session: AsyncSession, user_id: int) -> User:
+    """Строка пользователя под живым токеном.
+
+    Токен уже проверен, поэтому пустой ответ здесь означает удалённый аккаунт,
+    а не отсутствие прав: 404 честнее, чем падение на assert.
+    """
+    user = await session.get(User, user_id)
+    if user is None:
+        raise ApiError("пользователь не найден", status.HTTP_404_NOT_FOUND, "not_found")
+    return user
+
+
+@router.get("/notifications", response_model=NotificationSettingsResponse)
+async def notification_settings(
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> NotificationSettingsResponse:
+    """Согласие на новости и предложения.
+
+    В базе хранится момент отказа, а в API — булево согласие: пустая колонка
+    значит, что человек не отписывался, то есть согласие в силе.
+    """
+    user = await _user(session, context.principal.user_id)
+    return NotificationSettingsResponse(marketing_enabled=user.marketing_opt_out_at is None)
+
+
+@router.patch("/notifications", response_model=NotificationSettingsResponse)
+async def update_notification_settings(
+    payload: UpdateNotificationSettingsRequest,
+    context: Annotated[AuthContext, Depends(current_context)],
+    session: Annotated[AsyncSession, Depends(db_session)],
+) -> NotificationSettingsResponse:
+    user = await _user(session, context.principal.user_id)
+    # Повторное включение не двигает момент отказа в прошлом: колонка либо
+    # пуста, либо хранит время последнего отказа.
+    user.marketing_opt_out_at = None if payload.marketing_enabled else datetime.now(UTC)
+    await session.commit()
+    return NotificationSettingsResponse(marketing_enabled=payload.marketing_enabled)
 
 
 @router.get("/sessions", response_model=list[SessionResponse])

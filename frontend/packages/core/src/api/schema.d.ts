@@ -334,6 +334,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notification Settings
+         * @description Согласие на новости и предложения.
+         *
+         *     В базе хранится момент отказа, а в API — булево согласие: пустая колонка
+         *     значит, что человек не отписывался, то есть согласие в силе.
+         */
+        get: operations["notification_settings_api_me_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Notification Settings */
+        patch: operations["update_notification_settings_api_me_notifications_patch"];
+        trace?: never;
+    };
     "/api/me/sessions": {
         parameters: {
             query?: never;
@@ -450,6 +474,26 @@ export interface paths {
         post?: never;
         /** Unlink Telegram */
         delete: operations["unlink_telegram_api_me_telegram_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unsubscribe
+         * @description Операцию авторизует сам токен: он не открывает ничего, кроме отписки.
+         */
+        post: operations["unsubscribe_api_unsubscribe_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1158,6 +1202,11 @@ export interface components {
             /** Init Data */
             init_data: string;
         };
+        /** NotificationSettingsResponse */
+        NotificationSettingsResponse: {
+            /** Marketing Enabled */
+            marketing_enabled: boolean;
+        };
         /**
          * OrderResponse
          * @description Без provider payload: клиенту достаточно снимка заказа и URL оплаты.
@@ -1591,6 +1640,11 @@ export interface components {
             /** Hwid */
             hwid: string;
         };
+        /** UnsubscribeRequest */
+        UnsubscribeRequest: {
+            /** Token */
+            token: string;
+        };
         /** UpdateMeRequest */
         UpdateMeRequest: {
             /** Name */
@@ -1600,6 +1654,11 @@ export interface components {
              * @enum {string}
              */
             language: "ru" | "en";
+        };
+        /** UpdateNotificationSettingsRequest */
+        UpdateNotificationSettingsRequest: {
+            /** Marketing Enabled */
+            marketing_enabled: boolean;
         };
         /** ValidationError */
         ValidationError: {
@@ -2189,6 +2248,59 @@ export interface operations {
             };
         };
     };
+    notification_settings_api_me_notifications_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettingsResponse"];
+                };
+            };
+        };
+    };
+    update_notification_settings_api_me_notifications_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateNotificationSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_sessions_api_me_sessions_get: {
         parameters: {
             query?: never;
@@ -2393,6 +2505,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    unsubscribe_api_unsubscribe_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnsubscribeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

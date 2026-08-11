@@ -116,6 +116,11 @@ export const en: Record<TranslationKey, string> = {
   'account.email_change_hint': 'The address changes once you follow the link from the email',
   'account.email_change_submit': 'Send the email',
   'account.email_change_sent': 'The email has been sent to the new address',
+  'notifications.title': 'Notifications',
+  'notifications.marketing': 'News and offers',
+  'notifications.marketing_hint': 'Discounts, new plans and project news',
+  'notifications.service_hint':
+    'Messages about payments, subscription expiry and support replies always arrive',
   'plans.title': 'Plans',
   'plans.empty': 'No plans are available yet',
   'plans.per_days': 'for {days} days',

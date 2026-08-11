@@ -646,6 +646,67 @@
         }
       }
     },
+    "/api/me/notifications": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Notification Settings",
+        "description": "Согласие на новости и предложения.\n\nВ базе хранится момент отказа, а в API — булево согласие: пустая колонка\nзначит, что человек не отписывался, то есть согласие в силе.",
+        "operationId": "notification_settings_api_me_notifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Update Notification Settings",
+        "operationId": "update_notification_settings_api_me_notifications_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNotificationSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me/sessions": {
       "get": {
         "tags": [
@@ -870,6 +931,41 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/unsubscribe": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Unsubscribe",
+        "description": "Операцию авторизует сам токен: он не открывает ничего, кроме отписки.",
+        "operationId": "unsubscribe_api_unsubscribe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnsubscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -2422,6 +2518,19 @@
         ],
         "title": "MiniAppLoginRequest"
       },
+      "NotificationSettingsResponse": {
+        "properties": {
+          "marketing_enabled": {
+            "type": "boolean",
+            "title": "Marketing Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "marketing_enabled"
+        ],
+        "title": "NotificationSettingsResponse"
+      },
       "OrderResponse": {
         "properties": {
           "id": {
@@ -3480,6 +3589,21 @@
         ],
         "title": "UnlinkDeviceRequest"
       },
+      "UnsubscribeRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "UnsubscribeRequest"
+      },
       "UpdateMeRequest": {
         "properties": {
           "name": {
@@ -3508,6 +3632,19 @@
           "language"
         ],
         "title": "UpdateMeRequest"
+      },
+      "UpdateNotificationSettingsRequest": {
+        "properties": {
+          "marketing_enabled": {
+            "type": "boolean",
+            "title": "Marketing Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "marketing_enabled"
+        ],
+        "title": "UpdateNotificationSettingsRequest"
       },
       "ValidationError": {
         "properties": {

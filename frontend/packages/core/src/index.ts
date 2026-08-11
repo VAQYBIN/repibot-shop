@@ -32,6 +32,10 @@ export {
   type TranslationKey,
   translate,
 } from './i18n/index'
+export {
+  useNotificationSettings,
+  useUpdateNotificationSettings,
+} from './notifications/hooks'
 export { formatOrderAmount, formatPaymentStatus } from './payments/format'
 export {
   type AutoRenewRequest,

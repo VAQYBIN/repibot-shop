@@ -114,6 +114,11 @@ export const ru = {
   'account.email_change_hint': 'Адрес сменится после перехода по ссылке из письма',
   'account.email_change_submit': 'Отправить письмо',
   'account.email_change_sent': 'Письмо отправлено на новый адрес',
+  'notifications.title': 'Уведомления',
+  'notifications.marketing': 'Новости и предложения',
+  'notifications.marketing_hint': 'Скидки, новые тарифы и новости проекта',
+  'notifications.service_hint':
+    'Сообщения об оплате, окончании подписки и ответах поддержки приходят всегда',
   'plans.title': 'Тарифы',
   'plans.empty': 'Тарифов пока нет',
   'plans.per_days': 'на {days} дней',
