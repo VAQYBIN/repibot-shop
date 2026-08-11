@@ -108,6 +108,12 @@ class Settings(BaseSettings):
     # отработать валидатор ниже.
     admin_telegram_ids: Annotated[tuple[int, ...], NoDecode] = ()
 
+    # Пачка и параллельность разбора очереди. Сто и десять дают около десяти
+    # тысяч сообщений в час — этого хватает базе в десятки тысяч человек в
+    # день, когда у многих совпадает дата окончания.
+    outbox_batch_size: int = Field(default=100, ge=1, le=1000)
+    outbox_concurrency: int = Field(default=10, ge=1, le=50)
+
     email_sender: Literal["smtp", "log"] = "log"
     smtp_host: str = ""
     smtp_port: int = 1025

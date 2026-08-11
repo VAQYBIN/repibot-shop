@@ -44,15 +44,14 @@ async def process_outbox() -> dict[str, int]:
     # Клиент панели закрывается наравне с движком: задача идёт раз в минуту, и
     # брошенный httpx.AsyncClient — это утечка сокетов, растущая весь день.
     panel = _panel_client()
-    # Клиент бота — один на прогон, а не на сообщение: за раз разбирается до
-    # двадцати сообщений, и соединение с Valkey с http-клиентом на каждое
-    # означало бы платить ими за каждое уведомление.
+    # Клиент бота — один на прогон, а не на сообщение: за прогон разбирается
+    # вся накопившаяся очередь, и соединение с Valkey с http-клиентом на
+    # каждое сообщение означало бы платить ими за каждое уведомление.
     redis = Redis.from_url(get_settings().valkey_url)
     telegram = BotApi(get_settings(), redis)
     try:
         factory = create_session_factory(engine)
-        async with factory() as session:
-            delivered = await _dispatcher(factory, panel, telegram).process(session)
+        delivered = await _dispatcher(factory, panel, telegram).drain(factory)
     finally:
         await telegram.aclose()
         await redis.aclose()
