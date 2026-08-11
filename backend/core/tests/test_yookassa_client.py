@@ -287,3 +287,25 @@ async def test_card_binding_state_is_read_back_from_the_provider() -> None:
     assert binding.status is YooKassaBindingStatus.active
     assert binding.saved is True
     assert binding.title == "Bank card *4444"
+
+
+async def test_client_waits_for_the_provider_longer_than_httpx_would_by_default() -> None:
+    """Пятисекундного умолчания httpx хватает не всегда.
+
+    Обрыв на создании платежа оставляет платёж, о котором мы не знаем ничего:
+    деньги могли уйти, а заказ остался неоплаченным, и разбирать это придётся
+    сверке. Проверяется настройка клиента, а не поведение сети: таймаут
+    обеспечивает транспорт, которого в тестах нет.
+    """
+    from repibot_core.integrations.yookassa.client import CONNECT_RETRIES, TIMEOUT
+
+    client = YooKassaClient(
+        shop_id="shop-id", secret_key="secret-key", base_url="https://yookassa.test/v3"
+    )
+    try:
+        assert client._http.timeout == TIMEOUT
+        assert TIMEOUT.read is not None and TIMEOUT.read >= 20
+        # Повтор подключения безопасен: запрос ещё не ушёл и списание не задвоит.
+        assert CONNECT_RETRIES > 0
+    finally:
+        await client.aclose()

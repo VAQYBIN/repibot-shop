@@ -19,6 +19,18 @@ class YooKassaError(Exception):
     """YooKassa не приняла запрос или вернула неполный платёж."""
 
 
+# httpx по умолчанию ждёт пять секунд на всё, включая чтение ответа. Для
+# провайдера денег этого мало: обрыв на создании платежа оставляет платёж с
+# неизвестной судьбой, который приходится доискивать сверкой. Соединение при
+# этом должно устанавливаться быстро — на этом шаге ждать нечего.
+TIMEOUT = httpx.Timeout(connect=5.0, read=20.0, write=10.0, pool=5.0)
+
+# Повторяется только неудавшееся подключение: запрос при этом ещё не ушёл, и
+# задвоить списание такой повтор не может. Повторять сам ответ нельзя даже с
+# ключом идемпотентности — решение о повторе принимает вызывающий код.
+CONNECT_RETRIES = 2
+
+
 class YooKassaClient:
     def __init__(
         self,
@@ -32,7 +44,8 @@ class YooKassaClient:
             base_url=base_url.rstrip("/"),
             auth=(shop_id, secret_key),
             headers={"Content-Type": "application/json"},
-            transport=transport,
+            timeout=TIMEOUT,
+            transport=transport or httpx.AsyncHTTPTransport(retries=CONNECT_RETRIES),
         )
 
     async def create_payment(
