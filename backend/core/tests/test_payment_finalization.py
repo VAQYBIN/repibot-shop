@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from repibot_core.db.engine import create_session_factory
 from repibot_core.db.models import (
+    NotificationDelivery,
     Order,
     OrderPurpose,
     OrderStatus,
@@ -711,3 +712,91 @@ async def test_provider_method_id_alone_never_becomes_a_saved_card(
     await _finalize(create_session_factory(engine), attempt)
 
     assert await PaymentMethodService(db_session).current(user.id) is None
+
+
+async def test_paid_order_opens_access_when_the_queue_is_processed(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Оплата без выдачи — деньги взяты, доступа нет.
+
+    Финализация не ходит в панель под замками коммерческих строк и оставляет
+    подписку невыданной; открыть доступ обязан разбор очереди. Пока он этого
+    не делал, оплаченный пользователь навсегда оставался в pending_provision,
+    а в панели заводился отключённым.
+    """
+    from repibot_core.integrations.remnawave.users import PanelUsers
+    from repibot_core.services.dispatcher import build_dispatcher
+    from repibot_core.testing.remnawave import FakePanel
+
+    plan = await _plan(db_session, "month")
+    user = await _user(db_session, "provis01")
+    attempt_id = await _verified_attempt(db_session, user=user, plan=plan, key="provision")
+    factory = create_session_factory(engine)
+    await _finalize(factory, attempt_id)
+    panel = FakePanel()
+
+    async with factory() as session:
+        await build_dispatcher(factory, users=PanelUsers(panel.client())).process(session)
+
+    subscription = await SubscriptionRepository(db_session).get_for_user(user.id)
+    assert subscription is not None
+    assert subscription.status is SubscriptionState.active
+    assert [entry["status"] for entry in panel.users.values()] == ["ACTIVE"]
+
+
+@pytest.mark.parametrize(
+    ("status", "notified"),
+    [
+        (YooKassaPaymentStatus.pending, False),
+        (YooKassaPaymentStatus.waiting_for_capture, False),
+        (YooKassaPaymentStatus.canceled, True),
+    ],
+)
+async def test_only_a_settled_refusal_is_reported_as_a_failure(
+    db_session: AsyncSession, status: YooKassaPaymentStatus, notified: bool
+) -> None:
+    """Неготовый платёж — не отказ.
+
+    Списание по сохранённой карте может ждать подтверждения 3-D Secure, и
+    сверка встречает его в этом состоянии каждые несколько минут. Сообщение
+    «не удалось продлить» в этот момент — неправда: деньги ещё в пути, а
+    человек уже идёт разбираться со способом оплаты.
+    """
+    plan = await _plan(db_session, f"pending-{status.value}")
+    user = await _user(db_session, f"pend{status.value[:4]}")
+    # Без канала связи уведомление некуда ставить, и проверять было бы нечего.
+    user.telegram_id = 5000 + len(status.value)
+    order = await OrderRepository(db_session).create_pending(
+        user_id=user.id,
+        plan=plan,
+        client_key=f"pending-order-{status.value}",
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
+    )
+    await PaymentAttemptRepository(db_session).get_or_create(
+        order_id=order.id,
+        provider=PaymentProvider.yookassa,
+        attempt_no=1,
+        provider_key=f"pending-key-{status.value}",
+        provider_payment_id=f"pending-payment-{status.value}",
+    )
+    await db_session.commit()
+
+    result = await PaymentService(db_session).finalize_success(
+        verified_yookassa_payment=YooKassaPayment(
+            id=f"pending-payment-{status.value}",
+            status=status,
+            amount_rub=order.amount_due_rub,
+            currency="RUB",
+            confirmation_url=None,
+        )
+    )
+
+    await db_session.refresh(order)
+    assert result is None
+    assert order.status is OrderStatus.pending
+    events = await db_session.execute(
+        select(func.count())
+        .select_from(NotificationDelivery)
+        .where(NotificationDelivery.order_id == order.id)
+    )
+    assert (events.scalar_one() > 0) is notified

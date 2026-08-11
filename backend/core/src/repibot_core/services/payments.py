@@ -42,6 +42,13 @@ from repibot_core.services.referrals import ReferralService
 from repibot_core.services.subscriptions import SubscriptionService
 from repibot_core.settings import Settings, get_settings
 
+# Состояния, в которых провайдер ещё не решил судьбу платежа: денег нет, но и
+# отказа тоже. Сюда же попадает списание, ждущее подтверждения 3-D Secure.
+_UNSETTLED_YOOKASSA = (
+    YooKassaPaymentStatus.pending,
+    YooKassaPaymentStatus.waiting_for_capture,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class FinalizationResult:
@@ -593,6 +600,13 @@ class PaymentService:
                 verified_yookassa_payment.status is not YooKassaPaymentStatus.succeeded
                 or not self._yookassa_amount_matches(order, verified_yookassa_payment)
             ):
+                # Платёж, по которому провайдер ещё не принял решение, — не
+                # отказ. Списание по сохранённой карте может ждать
+                # подтверждения 3-D Secure, и сверка встречает его таким каждые
+                # несколько минут: сказать «не удалось» значит отправить
+                # человека разбираться со способом оплаты, пока деньги в пути.
+                if verified_yookassa_payment.status in _UNSETTLED_YOOKASSA:
+                    return None
                 await NotificationService(self._session).enqueue_payment_event(
                     order.id, "payment_failed"
                 )
