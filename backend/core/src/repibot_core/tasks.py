@@ -104,6 +104,33 @@ async def notify_subscription_events() -> dict[str, int]:
     return {"staged": staged}
 
 
+@broker.task(schedule=[{"cron": "* * * * *"}])
+async def run_broadcast() -> dict[str, int]:
+    """Отправляет очередную пачку текущей кампании.
+
+    Своя задача, а не общая очередь: рассылка на пять тысяч человек иначе
+    держала бы за собой чек об оплате всё время своей работы. Кампания за
+    прогон одна — две одновременные поделили бы лимит Telegram пополам.
+    """
+    from repibot_core.integrations.email.sender import build_sender
+    from repibot_core.services.broadcasts import BroadcastService
+
+    engine = create_engine(get_settings().database_url)
+    redis = Redis.from_url(get_settings().valkey_url)
+    telegram = BotApi(get_settings(), redis)
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            sent = await BroadcastService(session).send_batch(
+                telegram=telegram, email=build_sender(get_settings())
+            )
+    finally:
+        await telegram.aclose()
+        await redis.aclose()
+        await engine.dispose()
+    return {"sent": sent}
+
+
 @broker.task(schedule=[{"cron": "0 * * * *"}])
 async def expire_subscriptions() -> dict[str, int]:
     """Переводит просроченные подписки в expired и снимает доступ в панели.
