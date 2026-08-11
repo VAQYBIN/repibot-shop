@@ -764,6 +764,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/support/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tickets
+         * @description Список читается и при выключенной поддержке.
+         *
+         *     Супергруппу могли убрать уже после разговора, а переписка — это ещё и
+         *     доказательство того, что было обещано.
+         */
+        get: operations["list_tickets_api_support_tickets_get"];
+        put?: never;
+        /** Open Ticket */
+        post: operations["open_ticket_api_support_tickets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/support/tickets/{ticket_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Ticket */
+        get: operations["read_ticket_api_support_tickets__ticket_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/support/tickets/{ticket_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reply
+         * @description Владельца здесь проверяет сам сервис — тем же 404 на чужой номер.
+         */
+        post: operations["reply_api_support_tickets__ticket_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/support/tickets/{ticket_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Ticket
+         * @description Закрытие частотой не ограничено: повтор ничего не создаёт и не шлёт.
+         *
+         *     Обращение возвращается целиком, чтобы экран показал закрытое состояние без
+         *     второго запроса.
+         */
+        post: operations["close_ticket_api_support_tickets__ticket_id__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/whoami": {
         parameters: {
             query?: never;
@@ -944,6 +1028,184 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/broadcasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Broadcasts
+         * @description Свежие сверху: администратор ищет ту кампанию, что запустил только что.
+         */
+        get: operations["list_broadcasts_api_admin_broadcasts_get"];
+        put?: never;
+        /**
+         * Create Broadcast
+         * @description Черновик кампании. Отправка начинается отдельным действием.
+         */
+        post: operations["create_broadcast_api_admin_broadcasts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/broadcasts/{broadcast_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Broadcast */
+        get: operations["read_broadcast_api_admin_broadcasts__broadcast_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/broadcasts/{broadcast_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Broadcast
+         * @description Фиксирует аудиторию и переводит кампанию в работу.
+         */
+        post: operations["start_broadcast_api_admin_broadcasts__broadcast_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/broadcasts/{broadcast_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Broadcast
+         * @description Останавливает идущую кампанию. Уже отправленное не отзывается.
+         */
+        post: operations["cancel_broadcast_api_admin_broadcasts__broadcast_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/segments/{segment}/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count Segment Reach
+         * @description Охват до запуска — единственная защита от «отправил не тем».
+         */
+        get: operations["count_segment_reach_api_admin_segments__segment__count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tickets
+         * @description Очередь персонала: свежие сверху, отбор по тому, чьего хода ждём.
+         */
+        get: operations["list_tickets_api_admin_tickets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/tickets/{ticket_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Ticket Thread */
+        get: operations["read_ticket_thread_api_admin_tickets__ticket_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/tickets/{ticket_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reply To Ticket
+         * @description Ответ персонала из админки. Копия уходит и в топик супергруппы.
+         */
+        post: operations["reply_to_ticket_api_admin_tickets__ticket_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/tickets/{ticket_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Ticket
+         * @description Закрывает обращение и его топик. Повтор безобиден.
+         */
+        post: operations["close_ticket_api_admin_tickets__ticket_id__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhook/yookassa": {
         parameters: {
             query?: never;
@@ -1003,6 +1265,29 @@ export interface components {
             comment?: string | null;
         };
         /**
+         * AdminTicketResponse
+         * @description То же обращение плюс адресат: персоналу нужно знать, с кем разговор.
+         */
+        AdminTicketResponse: {
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Staff Message At */
+            last_staff_message_at: string | null;
+            /** User Id */
+            user_id: number;
+            /** Telegram Topic Id */
+            telegram_topic_id: number | null;
+        };
+        /**
          * AuthMethodsResponse
          * @description Какие способы входа показывать на экране входа.
          *
@@ -1027,6 +1312,33 @@ export interface components {
         AutoRenewResponse: {
             /** Auto Renew Enabled */
             auto_renew_enabled: boolean;
+        };
+        /** BroadcastResponse */
+        BroadcastResponse: {
+            /** Id */
+            id: number;
+            /** Segment */
+            segment: string;
+            /** Title */
+            title: {
+                [key: string]: string;
+            };
+            /** Body */
+            body: {
+                [key: string]: string;
+            };
+            /** Status */
+            status: string;
+            /** Planned Count */
+            planned_count: number;
+            /** Sent Count */
+            sent_count: number;
+            /** Failed Count */
+            failed_count: number;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
         };
         /**
          * CardBindingRequest
@@ -1070,6 +1382,19 @@ export interface components {
             idempotency_key: string;
             /** Comment */
             comment: string;
+        };
+        /** CreateBroadcastRequest */
+        CreateBroadcastRequest: {
+            /** Segment */
+            segment: string;
+            /** Title */
+            title: {
+                [key: string]: string;
+            };
+            /** Body */
+            body: {
+                [key: string]: string;
+            };
         };
         /**
          * CreateOrderRequest
@@ -1229,6 +1554,11 @@ export interface components {
         NotificationSettingsResponse: {
             /** Marketing Enabled */
             marketing_enabled: boolean;
+        };
+        /** OpenTicketRequest */
+        OpenTicketRequest: {
+            /** Body */
+            body: string;
         };
         /**
          * OrderResponse
@@ -1548,6 +1878,11 @@ export interface components {
              */
             language: "ru" | "en";
         };
+        /** SegmentCountResponse */
+        SegmentCountResponse: {
+            /** Count */
+            count: number;
+        };
         /** SessionResponse */
         SessionResponse: {
             /**
@@ -1624,6 +1959,53 @@ export interface components {
             subscription: components["schemas"]["SubscriptionResponse"] | null;
             /** Trial Available */
             trial_available: boolean;
+        };
+        /** TicketMessageResponse */
+        TicketMessageResponse: {
+            /** Id */
+            id: number;
+            /** Author */
+            author: string;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** TicketReplyRequest */
+        TicketReplyRequest: {
+            /** Body */
+            body: string;
+        };
+        /** TicketResponse */
+        TicketResponse: {
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Staff Message At */
+            last_staff_message_at: string | null;
+        };
+        /**
+         * TicketStatus
+         * @description Чьего хода ждёт обращение. Это всё, что нужно и очереди, и человеку.
+         * @enum {string}
+         */
+        TicketStatus: "waiting_staff" | "waiting_user" | "closed";
+        /** TicketThreadResponse */
+        TicketThreadResponse: {
+            ticket: components["schemas"]["TicketResponse"];
+            /** Messages */
+            messages: components["schemas"]["TicketMessageResponse"][];
         };
         /** TokenRequest */
         TokenRequest: {
@@ -2997,6 +3379,156 @@ export interface operations {
             };
         };
     };
+    list_tickets_api_support_tickets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketResponse"][];
+                };
+            };
+        };
+    };
+    open_ticket_api_support_tickets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenTicketRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_ticket_api_support_tickets__ticket_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketThreadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reply_api_support_tickets__ticket_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketReplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_ticket_api_support_tickets__ticket_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     whoami_api_admin_whoami_get: {
         parameters: {
             query?: never;
@@ -3353,6 +3885,309 @@ export interface operations {
                 "application/json": components["schemas"]["CompensationRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_broadcasts_api_admin_broadcasts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BroadcastResponse"][];
+                };
+            };
+        };
+    };
+    create_broadcast_api_admin_broadcasts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBroadcastRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BroadcastResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_broadcast_api_admin_broadcasts__broadcast_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                broadcast_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BroadcastResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_broadcast_api_admin_broadcasts__broadcast_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                broadcast_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BroadcastResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_broadcast_api_admin_broadcasts__broadcast_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                broadcast_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BroadcastResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    count_segment_reach_api_admin_segments__segment__count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                segment: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentCountResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tickets_api_admin_tickets_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["TicketStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTicketResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_ticket_thread_api_admin_tickets__ticket_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketThreadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reply_to_ticket_api_admin_tickets__ticket_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TicketReplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TicketMessageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_ticket_api_admin_tickets__ticket_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticket_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             204: {

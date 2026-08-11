@@ -1465,6 +1465,209 @@
         }
       }
     },
+    "/api/support/tickets": {
+      "get": {
+        "tags": [
+          "support"
+        ],
+        "summary": "List Tickets",
+        "description": "Список читается и при выключенной поддержке.\n\nСупергруппу могли убрать уже после разговора, а переписка — это ещё и\nдоказательство того, что было обещано.",
+        "operationId": "list_tickets_api_support_tickets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TicketResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Tickets Api Support Tickets Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "support"
+        ],
+        "summary": "Open Ticket",
+        "operationId": "open_ticket_api_support_tickets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenTicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/tickets/{ticket_id}": {
+      "get": {
+        "tags": [
+          "support"
+        ],
+        "summary": "Read Ticket",
+        "operationId": "read_ticket_api_support_tickets__ticket_id__get",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketThreadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/tickets/{ticket_id}/messages": {
+      "post": {
+        "tags": [
+          "support"
+        ],
+        "summary": "Reply",
+        "description": "Владельца здесь проверяет сам сервис — тем же 404 на чужой номер.",
+        "operationId": "reply_api_support_tickets__ticket_id__messages_post",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketReplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketMessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/support/tickets/{ticket_id}/close": {
+      "post": {
+        "tags": [
+          "support"
+        ],
+        "summary": "Close Ticket",
+        "description": "Закрытие частотой не ограничено: повтор ничего не создаёт и не шлёт.\n\nОбращение возвращается целиком, чтобы экран показал закрытое состояние без\nвторого запроса.",
+        "operationId": "close_ticket_api_support_tickets__ticket_id__close_post",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/whoami": {
       "get": {
         "tags": [
@@ -1957,6 +2160,428 @@
         }
       }
     },
+    "/api/admin/broadcasts": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Broadcasts",
+        "description": "Свежие сверху: администратор ищет ту кампанию, что запустил только что.",
+        "operationId": "list_broadcasts_api_admin_broadcasts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BroadcastResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Broadcasts Api Admin Broadcasts Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create Broadcast",
+        "description": "Черновик кампании. Отправка начинается отдельным действием.",
+        "operationId": "create_broadcast_api_admin_broadcasts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBroadcastRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/broadcasts/{broadcast_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read Broadcast",
+        "operationId": "read_broadcast_api_admin_broadcasts__broadcast_id__get",
+        "parameters": [
+          {
+            "name": "broadcast_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Broadcast Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/broadcasts/{broadcast_id}/start": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Start Broadcast",
+        "description": "Фиксирует аудиторию и переводит кампанию в работу.",
+        "operationId": "start_broadcast_api_admin_broadcasts__broadcast_id__start_post",
+        "parameters": [
+          {
+            "name": "broadcast_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Broadcast Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/broadcasts/{broadcast_id}/cancel": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Cancel Broadcast",
+        "description": "Останавливает идущую кампанию. Уже отправленное не отзывается.",
+        "operationId": "cancel_broadcast_api_admin_broadcasts__broadcast_id__cancel_post",
+        "parameters": [
+          {
+            "name": "broadcast_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Broadcast Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/segments/{segment}/count": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Count Segment Reach",
+        "description": "Охват до запуска — единственная защита от «отправил не тем».",
+        "operationId": "count_segment_reach_api_admin_segments__segment__count_get",
+        "parameters": [
+          {
+            "name": "segment",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentCountResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/tickets": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Tickets",
+        "description": "Очередь персонала: свежие сверху, отбор по тому, чьего хода ждём.",
+        "operationId": "list_tickets_api_admin_tickets_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TicketStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminTicketResponse"
+                  },
+                  "title": "Response List Tickets Api Admin Tickets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/tickets/{ticket_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read Ticket Thread",
+        "operationId": "read_ticket_thread_api_admin_tickets__ticket_id__get",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketThreadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/tickets/{ticket_id}/messages": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reply To Ticket",
+        "description": "Ответ персонала из админки. Копия уходит и в топик супергруппы.",
+        "operationId": "reply_to_ticket_api_admin_tickets__ticket_id__messages_post",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketReplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketMessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/tickets/{ticket_id}/close": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Close Ticket",
+        "description": "Закрывает обращение и его топик. Повтор безобиден.",
+        "operationId": "close_ticket_api_admin_tickets__ticket_id__close_post",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhook/yookassa": {
       "post": {
         "tags": [
@@ -2040,6 +2665,66 @@
         "title": "AdminSubscriptionRequest",
         "description": "Начисление дней или смена тарифа админом."
       },
+      "AdminTicketResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_staff_message_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Staff Message At"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "telegram_topic_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Topic Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "subject",
+          "created_at",
+          "last_staff_message_at",
+          "user_id",
+          "telegram_topic_id"
+        ],
+        "title": "AdminTicketResponse",
+        "description": "То же обращение плюс адресат: персоналу нужно знать, с кем разговор."
+      },
       "AuthMethodsResponse": {
         "properties": {
           "telegram": {
@@ -2084,6 +2769,86 @@
           "auto_renew_enabled"
         ],
         "title": "AutoRenewResponse"
+      },
+      "BroadcastResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "segment": {
+            "type": "string",
+            "title": "Segment"
+          },
+          "title": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Title"
+          },
+          "body": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Body"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "planned_count": {
+            "type": "integer",
+            "title": "Planned Count"
+          },
+          "sent_count": {
+            "type": "integer",
+            "title": "Sent Count"
+          },
+          "failed_count": {
+            "type": "integer",
+            "title": "Failed Count"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "segment",
+          "title",
+          "body",
+          "status",
+          "planned_count",
+          "sent_count",
+          "failed_count",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "BroadcastResponse"
       },
       "CardBindingRequest": {
         "properties": {
@@ -2167,6 +2932,37 @@
         ],
         "title": "CompensationRequest",
         "description": "Одна необратимая местная коррекция, подтверждаемая отдельно."
+      },
+      "CreateBroadcastRequest": {
+        "properties": {
+          "segment": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Segment"
+          },
+          "title": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Title"
+          },
+          "body": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment",
+          "title",
+          "body"
+        ],
+        "title": "CreateBroadcastRequest"
       },
       "CreateOrderRequest": {
         "properties": {
@@ -2572,6 +3368,21 @@
           "marketing_enabled"
         ],
         "title": "NotificationSettingsResponse"
+      },
+      "OpenTicketRequest": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "OpenTicketRequest"
       },
       "OrderResponse": {
         "properties": {
@@ -3351,6 +4162,19 @@
         ],
         "title": "RegisterRequest"
       },
+      "SegmentCountResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "SegmentCountResponse"
+      },
       "SessionResponse": {
         "properties": {
           "id": {
@@ -3533,6 +4357,122 @@
         ],
         "title": "SubscriptionStateResponse",
         "description": "Подписка вместе с правом на триал.\n\nОдним ответом, а не двумя запросами: экран подписки решает по обоим полям\nсразу, показать срок или кнопку триала."
+      },
+      "TicketMessageResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "author",
+          "body",
+          "created_at"
+        ],
+        "title": "TicketMessageResponse"
+      },
+      "TicketReplyRequest": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "TicketReplyRequest"
+      },
+      "TicketResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_staff_message_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Staff Message At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "subject",
+          "created_at",
+          "last_staff_message_at"
+        ],
+        "title": "TicketResponse"
+      },
+      "TicketStatus": {
+        "type": "string",
+        "enum": [
+          "waiting_staff",
+          "waiting_user",
+          "closed"
+        ],
+        "title": "TicketStatus",
+        "description": "Чьего хода ждёт обращение. Это всё, что нужно и очереди, и человеку."
+      },
+      "TicketThreadResponse": {
+        "properties": {
+          "ticket": {
+            "$ref": "#/components/schemas/TicketResponse"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/TicketMessageResponse"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "messages"
+        ],
+        "title": "TicketThreadResponse"
       },
       "TokenRequest": {
         "properties": {
