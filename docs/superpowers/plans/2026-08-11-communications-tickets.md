@@ -545,10 +545,14 @@ Expected: FAIL — модуля нет.
 
 - [ ] **Step 4: Тексты**
 
-В `i18n.py` добавить `ticket.reply.bot`, `ticket.reply.subject`,
-`ticket.reply.body`, `bot.support.opened`, `bot.support.ask`,
-`bot.support.no_open`, `bot.support.closed`. Русский текст ответа:
-«Поддержка ответила:\n\n{body}».
+Ключи `ticket.reply.bot`, `ticket.reply.subject` и `ticket.reply.body` уже
+лежат в `i18n.py` — их завели вместе с реестром видов под проверкой
+`test_every_declared_kind_has_texts_in_every_language`. Их не добавляй, только
+сверь подстановку: там `{body}`, и сервис обязан передавать именно её.
+
+Добавить нужно четыре ключа команд бота, которых в реестре видов нет:
+`bot.support.opened`, `bot.support.ask`, `bot.support.no_open`,
+`bot.support.closed` — на обоих языках.
 
 - [ ] **Step 5: Регистрация**
 

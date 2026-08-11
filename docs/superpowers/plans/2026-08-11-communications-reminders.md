@@ -124,9 +124,17 @@ Expected: FAIL — у `Settings` нет `expiry_reminder_days`.
         return tuple(int(part) for part in value.split(",") if part.strip())
 ```
 
-- [ ] **Step 4: Тексты**
+- [ ] **Step 4: Тексты (уже на месте — только проверить)**
 
-В `i18n.py` добавить в оба словаря. Русский:
+Ключи `subscription.expiring_3.*`, `subscription.expiring_1.*`,
+`subscription.expired.*` и `payment.unpaid.*` уже добавлены в `i18n.py` вместе
+с реестром видов: вид без текстов падает в `translate` у живого человека, и их
+завели сразу под проверкой `test_every_declared_kind_has_texts_in_every_language`.
+
+Ничего не добавляй. Открой `i18n.py`, убедись, что подстановки в текстах —
+именно `{plan}` и `{date}` для трёх видов о подписке и `{plan}` с `{link}` для
+неоплаченного счёта, и что твой сервис передаёт ровно эти параметры. Ниже —
+тексты, которые там должны лежать. Русский:
 
 ```python
         "subscription.expiring_3.subject": "Подписка кончается через три дня",
