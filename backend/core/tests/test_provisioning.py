@@ -162,3 +162,43 @@ async def test_unavailable_panel_raises(db_session: AsyncSession) -> None:
 
     with pytest.raises(RemnawaveUnavailable):
         await _service(db_session, panel).reconcile(user.id)
+
+
+async def test_paid_subscription_becomes_provisioned_when_the_panel_answers(
+    db_session: AsyncSession,
+) -> None:
+    """Финализация оплаты оставляет подписку невыданной: доступ открывает выдача.
+
+    reconcile читает наш статус, чтобы решить, открывать доступ или закрывать,
+    и на невыданной подписке завёл бы в панели отключённого пользователя.
+    Оплаченный доступ не появился бы никогда.
+    """
+    user = await _prepare(db_session)
+    panel = FakePanel()
+
+    state = await _service(db_session, panel).provision(user.id)
+
+    assert panel.users[state.panel_id]["status"] == "ACTIVE"
+    subscription = await SubscriptionRepository(db_session).get_for_user(user.id)
+    assert subscription is not None
+    assert subscription.status is SubscriptionState.active
+
+
+async def test_unanswering_panel_leaves_the_subscription_unprovisioned(
+    db_session: AsyncSession,
+) -> None:
+    """Отказ панели возвращает подписку в невыданную, и очередь повторит выдачу.
+
+    Оставить её выданной значило бы показать человеку рабочую подписку,
+    которой в панели нет.
+    """
+    user = await _prepare(db_session)
+    panel = FakePanel()
+    panel.fail_next(times=10)
+
+    with pytest.raises(RemnawaveUnavailable):
+        await _service(db_session, panel).provision(user.id)
+
+    subscription = await SubscriptionRepository(db_session).get_for_user(user.id)
+    assert subscription is not None
+    assert subscription.status is SubscriptionState.pending_provision

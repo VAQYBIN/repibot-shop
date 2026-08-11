@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -16,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.db.repositories.subscriptions import SubscriptionRepository
 from repibot_core.db.repositories.users import UserRepository
-from repibot_core.domain.subscriptions import SubscriptionState, panel_username
+from repibot_core.domain.subscriptions import SubscriptionState, panel_username, resolve_state
 from repibot_core.integrations.remnawave.types import (
     CreateUserBody,
     PanelUser,
@@ -62,6 +63,46 @@ class ProvisioningService:
         self._users = UserRepository(session)
         self._subscriptions = SubscriptionRepository(session)
         self._plans = PlanRepository(session)
+
+    async def provision(self, user_id: int) -> PanelState:
+        """Выдаёт доступ по невыданной подписке и приводит панель.
+
+        Финализация оплаты не открывает доступ сама: она идёт под замками
+        коммерческих строк и не имеет права ходить в сеть, поэтому оставляет
+        подписку невыданной и задачу в очереди. Открыть доступ — работа этой
+        задачи.
+
+        Статус меняется до обращения к панели, а не после: ``reconcile`` читает
+        его, чтобы решить, открывать доступ или закрывать, и на невыданной
+        подписке завёл бы отключённого пользователя. Отказ панели возвращает
+        подписку в невыданную и уходит наверх: очередь повторит выдачу, а
+        человек до тех пор видит ожидание, а не обещание доступа, которого нет.
+        """
+        subscription = await self._subscriptions.get_for_user(user_id)
+        if subscription is None:
+            msg = "подписки нет, выдавать нечего"
+            raise ServiceError(msg, "subscription_missing")
+        pending = subscription.status
+        if pending is SubscriptionState.pending_provision:
+            plan = await self._plans.get(subscription.plan_id)
+            if plan is None:  # pragma: no cover — тариф не удаляется физически
+                msg = "тариф подписки не найден"
+                raise ServiceError(msg, "plan_not_found")
+            subscription.status = resolve_state(
+                expires_at=subscription.expires_at,
+                now=datetime.now(UTC),
+                disabled=False,
+                provisioned=True,
+                is_trial=plan.is_trial,
+            )
+            await self._session.commit()
+        try:
+            return await self.reconcile(user_id)
+        except Exception:
+            if subscription.status is not pending:
+                subscription.status = pending
+                await self._session.commit()
+            raise
 
     async def reconcile(self, user_id: int) -> PanelState:
         """Приводит пользователя панели к нашему состоянию и возвращает его.
@@ -216,6 +257,6 @@ def build_provision_handler(
 
     async def handle(payload: dict[str, Any]) -> None:
         async with session_factory() as session:
-            await ProvisioningService(session, users).reconcile(int(payload["user_id"]))
+            await ProvisioningService(session, users).provision(int(payload["user_id"]))
 
     return handle
