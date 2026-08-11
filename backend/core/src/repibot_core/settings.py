@@ -114,6 +114,19 @@ class Settings(BaseSettings):
     outbox_batch_size: int = Field(default=100, ge=1, le=1000)
     outbox_concurrency: int = Field(default=10, ge=1, le=50)
 
+    # За сколько суток напоминать об окончании подписки. Список через запятую,
+    # как у идентификаторов админов: NoDecode отключает разбор как JSON.
+    # Каждый порог превращается в вид уведомления expiring_{days}, а вид обязан
+    # быть в реестре и иметь тексты — поэтому значения не произвольные.
+    expiry_reminder_days: Annotated[tuple[int, ...], NoDecode] = (3, 1)
+    # Через сколько минут в pending напомнить о неоплаченном счёте. Меньше
+    # получаса — торопить того, кто ещё не ушёл с формы оплаты.
+    unpaid_invoice_after_minutes: int = Field(default=30, ge=5, le=1440)
+
+    # Темп рассылки. Под лимитом Telegram в тридцать сообщений в секунду:
+    # запас нужен, потому что рядом идут сервисные уведомления той же полосы.
+    broadcast_rate_per_second: int = Field(default=25, ge=1, le=30)
+
     email_sender: Literal["smtp", "log"] = "log"
     smtp_host: str = ""
     smtp_port: int = 1025
@@ -176,6 +189,14 @@ class Settings(BaseSettings):
         Pydantic ждёт для кортежа JSON-массив, а в .env человек пишет список
         через запятую. Пустая строка означает «админов нет».
         """
+        if not isinstance(value, str):
+            return value
+        return tuple(int(part) for part in value.split(",") if part.strip())
+
+    @field_validator("expiry_reminder_days", mode="before")
+    @classmethod
+    def _split_reminder_days(cls, value: object) -> object:
+        """Читает "3, 1" из окружения — по той же причине, что и список админов."""
         if not isinstance(value, str):
             return value
         return tuple(int(part) for part in value.split(",") if part.strip())
