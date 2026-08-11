@@ -130,6 +130,21 @@ def test_miniapp_allows_framing_by_telegram(locations: dict[str, str]) -> None:
     assert "X-Frame-Options" not in locations["/app/"]
 
 
+def test_miniapp_entry_is_revalidated_on_every_open(locations: dict[str, str]) -> None:
+    """Без явного запрета точка входа кешируется на усмотрение браузера.
+
+    index.html называет файлы сборки по именам с хешем, поэтому пережившая
+    обновление копия неделями открывает старую сборку — а внутри Telegram это
+    не лечится ни перезаходом, ни обычным обновлением страницы.
+    """
+    assert 'Cache-Control "no-cache"' in locations["/app/"]
+
+
+def test_miniapp_assets_are_kept_as_long_as_possible(locations: dict[str, str]) -> None:
+    """Имя файла содержит хеш содержимого: новая сборка — новое имя."""
+    assert "immutable" in locations["/app/assets/"]
+
+
 def test_script_source_is_restricted_to_telegram(locations: dict[str, str]) -> None:
     """SDK Telegram нельзя подписать через integrity, поэтому источник ограничен здесь."""
     assert "script-src 'self' https://telegram.org" in locations["/app/"]
