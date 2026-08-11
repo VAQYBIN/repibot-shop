@@ -100,6 +100,17 @@ _SERVICE_STATUS = {
     "trial_requires_telegram": 409,
     "trial_disabled": 409,
     "device_not_found": 404,
+    # Поддержки на стенде может не быть вовсе. Это состояние развёртывания, а
+    # не ошибка запроса: тот же запрос на стенде с супергруппой пройдёт.
+    "support_unavailable": 409,
+    "too_many_tickets": 409,
+    "ticket_closed": 409,
+    "broadcast_not_draft": 409,
+    "broadcast_busy": 409,
+    "broadcast_not_running": 409,
+    # Имя сегмента и тексты кампании — значения, которые прислал клиент.
+    "unknown_segment": 422,
+    "broadcast_text_required": 422,
     # Ссылка отписки испорчена или не наша: ошибка запроса, а не отказ доступа.
     # 401 и 403 увели бы человека без сессии на форму входа.
     "invalid_token": 400,

@@ -396,6 +396,66 @@ class WinbackClaimResponse(BaseModel):
     days: int
 
 
+class TicketResponse(BaseModel):
+    id: int
+    status: str
+    subject: str
+    created_at: datetime
+    last_staff_message_at: datetime | None
+
+
+class TicketMessageResponse(BaseModel):
+    id: int
+    author: str
+    body: str
+    created_at: datetime
+
+
+class TicketThreadResponse(BaseModel):
+    ticket: TicketResponse
+    messages: list[TicketMessageResponse]
+
+
+class OpenTicketRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class TicketReplyRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+
+
+class AdminTicketResponse(TicketResponse):
+    """То же обращение плюс адресат: персоналу нужно знать, с кем разговор."""
+
+    user_id: int
+    telegram_topic_id: int | None
+
+
+class BroadcastResponse(BaseModel):
+    id: int
+    segment: str
+    title: dict[str, str]
+    body: dict[str, str]
+    status: str
+    planned_count: int
+    sent_count: int
+    failed_count: int
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class CreateBroadcastRequest(BaseModel):
+    segment: str = Field(min_length=1, max_length=64)
+    # Тексты по языкам. Русский обязателен — его же берут запасным при
+    # отправке; проверку делает сервис, чтобы правило жило в одном месте.
+    title: dict[str, str]
+    body: dict[str, str]
+
+
+class SegmentCountResponse(BaseModel):
+    count: int
+
+
 class NotificationSettingsResponse(BaseModel):
     marketing_enabled: bool
 
