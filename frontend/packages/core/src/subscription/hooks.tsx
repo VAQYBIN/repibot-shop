@@ -29,6 +29,9 @@ export function useSubscription() {
     // его без перезагрузки страницы.
     refetchInterval: (query) =>
       query.state.data?.subscription?.status === 'pending_provision' ? 3000 : false,
+    // Срок и автопродление меняет оплата, которая идёт вне приложения; после
+    // возврата снимок недостоверен, каким бы свежим он ни был.
+    refetchOnWindowFocus: 'always',
   })
 }
 

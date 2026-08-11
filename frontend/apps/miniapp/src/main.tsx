@@ -4,6 +4,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { trackTelegramActivity } from './activity'
 import { API_BASE_URL, tokenStore } from './api'
 import { telegramAuthOptions, useAuthState } from './auth'
 import { router } from './router'
@@ -11,6 +12,9 @@ import './styles.css'
 import { initTelegram } from './telegram'
 
 initTelegram()
+// До создания клиента запросов: подписка на активность заменяет ту, что кэш
+// ставит себе сам, и делать это после первых запросов уже поздно.
+trackTelegramActivity()
 
 // Обмен initData начинается до отрисовки: Telegram отдаёт свежий initData при
 // каждом открытии, и ждать монтирования компонентов незачем.

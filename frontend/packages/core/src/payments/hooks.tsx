@@ -29,6 +29,10 @@ export function useOrders() {
       if (error || !data) throw error ?? new Error('пустой ответ /api/me/orders')
       return data
     },
+    // Оплата заканчивается у провайдера, пока приложение свёрнуто, поэтому
+    // возврат перечитывает заказы независимо от срока годности снимка:
+    // обычное правило пропустило бы оплату, уложившуюся в эти секунды.
+    refetchOnWindowFocus: 'always',
   })
 }
 
@@ -58,6 +62,9 @@ export function usePaymentMethod() {
       if (error || !data) throw error ?? new Error('пустой ответ /api/me/payment-method')
       return data
     },
+    // Тот же запрос дочитывает привязку у провайдера, так что возврат из
+    // браузера обязан его повторить, а не показывать снимок «карты нет».
+    refetchOnWindowFocus: 'always',
   })
 }
 

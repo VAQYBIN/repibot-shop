@@ -1,7 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { focusManager } from '@tanstack/react-query'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { trackTelegramActivity } from '../activity'
 import { PROFILE, renderWithProviders, stubFetch } from '../test-utils'
 import { Payments } from './payments'
 
@@ -56,7 +58,11 @@ function paymentHandlers(card: PaymentMethod, subscription: unknown = SUBSCRIPTI
   }
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  // Признак активности глобальный: без сброса он утёк бы в следующий тест.
+  focusManager.setFocused(undefined)
+})
 
 describe('оплата в Mini App', () => {
   it('не решает за плательщика, запоминать ли карту', async () => {
@@ -381,6 +387,43 @@ describe('карта для автоплатежа в Mini App', () => {
       expect.objectContaining({ return_surface: 'miniapp' }),
       { return_surface: 'miniapp' },
     ])
+  })
+
+  it('показывает карту сразу после возвращения с формы привязки', async () => {
+    /* Тот самый разрыв: `openLink` не закрывает Mini App, а сворачивает его,
+       и без пересказа события Telegram экран остался бы со снимком «карты
+       нет» до тех пор, пока человек не уйдёт на другую вкладку и не вернётся. */
+    const handlers = new Map<string, () => void>()
+    const openLink = vi.fn()
+    vi.stubGlobal('Telegram', {
+      WebApp: {
+        openLink,
+        onEvent: (event: string, handler: () => void) => handlers.set(event, handler),
+        offEvent: (event: string) => handlers.delete(event),
+      },
+    })
+    trackTelegramActivity()
+    const card: PaymentMethod = { ...NO_CARD, binding_available: true }
+    const base = paymentHandlers(card)
+    stubFetch((request) => {
+      const handled = base(request)
+      if (handled !== null) return handled
+      if (new URL(request.url).pathname === '/api/me/payment-method/bindings')
+        return Response.json({ confirmation_url: 'https://yookassa.test/bind' })
+      return new Response(null, { status: 404 })
+    })
+
+    renderWithProviders(<Payments />, 30_000)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Привязать другую' }))
+    await waitFor(() => expect(openLink).toHaveBeenCalledWith('https://yookassa.test/bind'))
+    // Пока приложение свёрнуто, привязку подтверждает провайдер.
+    card.title = 'MasterCard •••• 4444'
+    card.linked_at = '2026-08-01T12:00:00Z'
+    act(() => handlers.get('deactivated')?.())
+    act(() => handlers.get('activated')?.())
+
+    expect(await screen.findByText('MasterCard •••• 4444')).toBeVisible()
   })
 
   it('отдаёт Telegram ссылку подтверждения привязки, а не открывает вкладку', async () => {

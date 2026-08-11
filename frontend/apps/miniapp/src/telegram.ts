@@ -14,6 +14,8 @@ interface TelegramWebApp {
   expand?: () => void
   openLink?: (url: string) => void
   openTelegramLink?: (url: string) => void
+  onEvent?: (event: string, handler: () => void) => void
+  offEvent?: (event: string, handler: () => void) => void
 }
 
 declare global {
@@ -57,6 +59,30 @@ export function initTelegram(): void {
   app?.ready?.()
   app?.expand?.()
   applyTelegramTheme()
+}
+
+/**
+ * Слежение за тем, свёрнут ли Mini App.
+ *
+ * `openLink` уводит человека во внешний браузер, но приложение не закрывает —
+ * оно остаётся жить свёрнутым, и `visibilitychange` при этом не приходит.
+ * О сворачивании и возврате Telegram сообщает своими событиями; они появились
+ * в Bot API 8.0, поэтому клиентам постарше остаётся видимость документа —
+ * единственный сигнал, который у них есть.
+ */
+export function watchTelegramActivity(handler: (active: boolean) => void): () => void {
+  const app = webApp()
+  const activated = () => handler(true)
+  const deactivated = () => handler(false)
+  const visibility = () => handler(document.visibilityState !== 'hidden')
+  app?.onEvent?.('activated', activated)
+  app?.onEvent?.('deactivated', deactivated)
+  document.addEventListener('visibilitychange', visibility)
+  return () => {
+    app?.offEvent?.('activated', activated)
+    app?.offEvent?.('deactivated', deactivated)
+    document.removeEventListener('visibilitychange', visibility)
+  }
 }
 
 /** Платёжные переходы остаются внутри Telegram WebView, а не создают вкладку. */

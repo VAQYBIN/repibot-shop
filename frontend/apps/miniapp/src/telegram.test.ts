@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { applyTelegramTheme, isInsideTelegram, readInitData } from './telegram'
+import {
+  applyTelegramTheme,
+  isInsideTelegram,
+  readInitData,
+  watchTelegramActivity,
+} from './telegram'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -47,5 +52,51 @@ describe('интеграция с Telegram', () => {
     applyTelegramTheme()
 
     expect(document.documentElement.dataset.theme).toBeUndefined()
+  })
+})
+
+/** Обработчики Telegram по имени события: тест вызывает их вместо клиента. */
+function stubTelegramEvents(): Map<string, () => void> {
+  const handlers = new Map<string, () => void>()
+  stubTelegram({
+    initData: 'x',
+    ready: vi.fn(),
+    onEvent: (event: string, handler: () => void) => handlers.set(event, handler),
+    offEvent: (event: string) => handlers.delete(event),
+  })
+  return handlers
+}
+
+describe('возврат в Mini App', () => {
+  it('сообщает о сворачивании и разворачивании событиями Telegram', () => {
+    const handlers = stubTelegramEvents()
+    const seen: boolean[] = []
+
+    watchTelegramActivity((active) => seen.push(active))
+    handlers.get('deactivated')?.()
+    handlers.get('activated')?.()
+
+    expect(seen).toEqual([false, true])
+  })
+
+  it('отписывается от событий Telegram', () => {
+    const handlers = stubTelegramEvents()
+
+    watchTelegramActivity(vi.fn())()
+
+    expect([...handlers.keys()]).toEqual([])
+  })
+
+  it('вне Telegram слушает видимость документа', () => {
+    /* Старые клиенты и обычный браузер о своих событиях не знают, и остаётся
+       единственный сигнал, который у них есть. */
+    const seen: boolean[] = []
+
+    const stop = watchTelegramActivity((active) => seen.push(active))
+    document.dispatchEvent(new Event('visibilitychange'))
+    stop()
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    expect(seen).toEqual([true])
   })
 })

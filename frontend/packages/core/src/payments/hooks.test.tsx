@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -55,8 +55,9 @@ const CARD = {
   binding_available: true,
 } as const
 
-function createWrapper() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+/** staleTime задаётся тестом: в приложении снимок живёт 30 секунд. */
+function createWrapper(staleTime = 0) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime } } })
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
@@ -69,7 +70,11 @@ function createWrapper() {
   return { queryClient, Wrapper }
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  // Признак активности глобальный: без сброса он утёк бы в следующий тест.
+  focusManager.setFocused(undefined)
+})
 
 describe('hooks заказов и оплаты', () => {
   it('грузит историю заказов только текущего пользователя', async () => {
@@ -277,6 +282,32 @@ describe('hooks заказов и оплаты', () => {
     // Из Mini App возвращать на сайт нельзя: вне Telegram тот экран не работает.
     const request = fetchMock.mock.calls[0]?.[0] as Request
     await expect(request.json()).resolves.toEqual({ return_surface: 'miniapp' })
+  })
+
+  it('перечитывает карту и заказы, когда человек возвращается в приложение', async () => {
+    /* Пока человек на форме провайдера, карта и заказ меняются без нашего
+       участия, а снимок в кэше остаётся свежим: возврат должен перечитать их
+       независимо от срока годности снимка, иначе экран покажет прошлое. */
+    const fetchMock = vi.fn(async (request: Request) =>
+      new URL(request.url).pathname === '/api/me/payment-method'
+        ? Response.json(CARD)
+        : Response.json([ORDER]),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { Wrapper } = createWrapper(30_000)
+    const { result } = renderHook(() => ({ card: usePaymentMethod(), orders: useOrders() }), {
+      wrapper: Wrapper,
+    })
+    await waitFor(() => {
+      expect(result.current.card.isSuccess).toBe(true)
+      expect(result.current.orders.isSuccess).toBe(true)
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    act(() => focusManager.setFocused(false))
+    act(() => focusManager.setFocused(true))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
   })
 
   it('переводит отказ провайдера привязать карту без оплаты', async () => {

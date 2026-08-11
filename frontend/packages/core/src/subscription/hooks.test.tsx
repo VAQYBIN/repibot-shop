@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -51,8 +51,9 @@ const PLANS = [
 const DEVICES = { devices: [], limit: 3, used: 0 } as const
 const TRAFFIC = { used_bytes: 1024, lifetime_bytes: 4096, limit_bytes: 0, days: [] } as const
 
-function createWrapper() {
-  const queries = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+/** staleTime задаётся тестом: в приложении снимок живёт 30 секунд. */
+function createWrapper(staleTime = 0) {
+  const queries = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime } } })
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
@@ -70,6 +71,8 @@ function createWrapper() {
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.useRealTimers()
+  // Признак активности глобальный: без сброса он утёк бы в следующий тест.
+  focusManager.setFocused(undefined)
 })
 
 describe('хуки подписки', () => {
@@ -152,6 +155,22 @@ describe('хуки подписки', () => {
       expect(fetchMock).toHaveBeenCalledTimes(calls)
     },
   )
+
+  it('перечитывает подписку, когда человек возвращается в приложение', async () => {
+    /* Оплата и привязка карты заканчиваются у провайдера: пока человека нет,
+       срок и автопродление успевают измениться, а снимок остаётся свежим. */
+    const fetchMock = vi.fn(async (_request: Request) => Response.json(ACTIVE))
+    vi.stubGlobal('fetch', fetchMock)
+    const { Wrapper } = createWrapper(30_000)
+    const { result } = renderHook(useSubscription, { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    act(() => focusManager.setFocused(false))
+    act(() => focusManager.setFocused(true))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+  })
 
   it('заменяет кэш подписки ответом после активации триала', async () => {
     const fetchMock = vi.fn(async (_request: Request) => Response.json(PENDING, { status: 201 }))

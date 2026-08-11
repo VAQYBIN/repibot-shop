@@ -31,9 +31,12 @@ export function stubFetch(handler: (request: Request) => Response): Mock {
   return mock
 }
 
-/** Запросы в тестах не повторяются: ошибка должна доходить до экрана сразу. */
-export function renderWithProviders(ui: ReactNode): RenderResult {
-  const queries = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+/**
+ * Запросы в тестах не повторяются: ошибка должна доходить до экрана сразу.
+ * Срок годности снимка задаёт тест — в приложении он равен 30 секундам.
+ */
+export function renderWithProviders(ui: ReactNode, staleTime = 0): RenderResult {
+  const queries = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime } } })
   return render(
     <QueryClientProvider client={queries}>
       {/* Адрес абсолютный: jsdom берёт Request из Node, а тот относительный
