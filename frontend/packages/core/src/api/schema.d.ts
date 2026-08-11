@@ -1286,6 +1286,22 @@ export interface components {
             user_id: number;
             /** Telegram Topic Id */
             telegram_topic_id: number | null;
+            /** Last User Message At */
+            last_user_message_at: string | null;
+        };
+        /**
+         * AdminTicketThreadResponse
+         * @description Переписка называет адресата сама.
+         *
+         *     Отдельная схема, а не общая с клиентской: pydantic молча выбрасывает поля
+         *     наследника, и `user_id` в общем `TicketThreadResponse` до персонала не
+         *     доехал бы. Без него подпись разговора пропадает, стоит применить отбор, из
+         *     которого открытое обращение выпало.
+         */
+        AdminTicketThreadResponse: {
+            ticket: components["schemas"]["AdminTicketResponse"];
+            /** Messages */
+            messages: components["schemas"]["TicketMessageResponse"][];
         };
         /**
          * AuthMethodsResponse
@@ -4129,7 +4145,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TicketThreadResponse"];
+                    "application/json": components["schemas"]["AdminTicketThreadResponse"];
                 };
             };
             /** @description Validation Error */

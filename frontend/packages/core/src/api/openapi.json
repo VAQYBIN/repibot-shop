@@ -2475,7 +2475,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TicketThreadResponse"
+                  "$ref": "#/components/schemas/AdminTicketThreadResponse"
                 }
               }
             }
@@ -2710,6 +2710,18 @@
               }
             ],
             "title": "Telegram Topic Id"
+          },
+          "last_user_message_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last User Message At"
           }
         },
         "type": "object",
@@ -2720,10 +2732,32 @@
           "created_at",
           "last_staff_message_at",
           "user_id",
-          "telegram_topic_id"
+          "telegram_topic_id",
+          "last_user_message_at"
         ],
         "title": "AdminTicketResponse",
         "description": "То же обращение плюс адресат: персоналу нужно знать, с кем разговор."
+      },
+      "AdminTicketThreadResponse": {
+        "properties": {
+          "ticket": {
+            "$ref": "#/components/schemas/AdminTicketResponse"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/TicketMessageResponse"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "messages"
+        ],
+        "title": "AdminTicketThreadResponse",
+        "description": "Переписка называет адресата сама.\n\nОтдельная схема, а не общая с клиентской: pydantic молча выбрасывает поля\nнаследника, и `user_id` в общем `TicketThreadResponse` до персонала не\nдоехал бы. Без него подпись разговора пропадает, стоит применить отбор, из\nкоторого открытое обращение выпало."
       },
       "AuthMethodsResponse": {
         "properties": {
