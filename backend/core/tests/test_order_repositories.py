@@ -230,3 +230,28 @@ async def test_order_intent_fields_cannot_be_mutated(db_session: AsyncSession, f
 
     with pytest.raises(DBAPIError, match="order commercial snapshot is immutable"):
         await db_session.flush()
+
+
+async def test_order_cannot_point_at_a_promo_code_that_does_not_exist(
+    db_session: AsyncSession,
+) -> None:
+    """Скидка со ссылкой в никуда превращает разбор денег в догадки.
+
+    Промокоды не удаляются, а снимаются с продажи, поэтому расхождение может
+    появиться только из ошибки в коде — и должно останавливаться базой, а не
+    обнаруживаться через месяц в отчёте.
+    """
+    plan = await _plan(db_session)
+    user = await _user(db_session, code="orderfk1")
+
+    with pytest.raises(IntegrityError):
+        await OrderRepository(db_session).create_pending(
+            user_id=user.id,
+            plan=plan,
+            client_key="order-with-unknown-promo",
+            expires_at=datetime.now(UTC) + timedelta(minutes=30),
+            purpose=OrderPurpose.purchase,
+            gross_rub=plan.price_rub,
+            discount_rub=Decimal("10.00"),
+            promo_code_id=10_000_000,
+        )

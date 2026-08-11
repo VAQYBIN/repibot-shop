@@ -106,9 +106,10 @@ class Order(TimestampMixin, Base):
     gross_rub: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     discount_rub: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"))
     amount_due_rub: Mapped[Decimal] = mapped_column(Numeric(10, 2))
-    # Таблица промокодов появится со своим сервисом позже; до тех пор это
-    # намеренно не FK, чтобы коммерческий фундамент не зависел от неё.
-    promo_code_id: Mapped[int | None] = mapped_column(Integer)
+    # Ссылка на исчезнувший промокод превратила бы разбор скидок в догадки.
+    # Таблица промокодов появилась вместе со своим сервисом, и заказ ссылается
+    # на неё по-настоящему.
+    promo_code_id: Mapped[int | None] = mapped_column(ForeignKey("promo_codes.id"))
     client_key: Mapped[str] = mapped_column(String(128))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[OrderStatus] = mapped_column(
