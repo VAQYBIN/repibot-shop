@@ -68,6 +68,7 @@ export default function PaymentsPage() {
   // Название карты приходит от сервера: собирать его на клиенте не из чего.
   const cardTitle = paymentMethod.data?.title ?? null
   const bindingAvailable = paymentMethod.data?.binding_available === true
+  const waitingForCard = paymentMethod.data?.binding_pending === true
 
   function confirmUnlink() {
     setUnlinkAsked(false)
@@ -280,7 +281,15 @@ export default function PaymentsPage() {
             ) : cardTitle === null ? (
               <>
                 <p className="mt-1 text-sm text-text">{t('payment.card_none')}</p>
-                <p className="mt-1 text-sm text-text-secondary">{t('payment.card_hint')}</p>
+                {/* Ответ провайдера идёт своим ходом; молчащий экран человек
+                    принимает за неудавшуюся привязку и начинает её заново. */}
+                {waitingForCard ? (
+                  <p role="status" className="mt-1 text-sm text-text-secondary">
+                    {t('payment.card_waiting')}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-text-secondary">{t('payment.card_hint')}</p>
+                )}
               </>
             ) : (
               <p className="mt-1 text-sm text-text">{cardTitle}</p>

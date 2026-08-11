@@ -160,6 +160,7 @@ export const ru = {
   'payment.card_unlink_hint': 'Автоплатёж выключится: списывать станет нечем.',
   'payment.card_bind': 'Привязать другую',
   'payment.card_bind_hint': 'Проверим карту без списания и запомним её.',
+  'payment.card_waiting': 'Ждём подтверждения карты. Экран обновится сам.',
   'payment.error.binding_unavailable': 'Привязка карты без оплаты сейчас недоступна',
   'payment.error.provider_unavailable': 'Платёжный провайдер сейчас недоступен',
   'payment.error.telegram_required': 'Для оплаты Stars сначала привяжите Telegram',

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import Protocol
 
@@ -25,6 +25,11 @@ from repibot_core.db.models import (
 from repibot_core.integrations.yookassa.types import YooKassaBindingStatus, YooKassaCardBinding
 from repibot_core.services.errors import ServiceError
 from repibot_core.settings import Settings, get_settings
+
+#: Сколько ждём ответа провайдера, прежде чем считать привязку брошенной.
+#: Форму с подтверждением банка проходят за минуты; всё, что дольше, человек
+#: закрыл, и досчитывает такую привязку сверка по расписанию.
+BINDING_WAIT = timedelta(minutes=10)
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,18 +282,20 @@ class CardBindingService:
                 settled += 1
         return settled
 
-    async def has_pending(self, user_id: int) -> bool:
-        """Есть ли что дочитывать: без этого клиент провайдера собирался бы зря."""
-        found = await self._session.scalar(
-            select(CardBinding.id)
-            .where(
-                CardBinding.user_id == user_id,
-                CardBinding.status == CardBindingStatus.pending,
-                CardBinding.provider_binding_id.is_not(None),
-            )
-            .limit(1)
+    async def has_pending(self, user_id: int, *, since: datetime | None = None) -> bool:
+        """Есть ли что дочитывать: без этого клиент провайдера собирался бы зря.
+
+        ``since`` отсекает брошенные привязки: экрану важно не «есть ли строка»,
+        а стоит ли ждать ответа прямо сейчас.
+        """
+        query = select(CardBinding.id).where(
+            CardBinding.user_id == user_id,
+            CardBinding.status == CardBindingStatus.pending,
+            CardBinding.provider_binding_id.is_not(None),
         )
-        return found is not None
+        if since is not None:
+            query = query.where(CardBinding.created_at >= since)
+        return await self._session.scalar(query.limit(1)) is not None
 
     def _return_url(self) -> str:
         """Адрес кабинета, а не корня сайта.

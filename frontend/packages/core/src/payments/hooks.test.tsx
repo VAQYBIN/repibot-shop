@@ -72,6 +72,7 @@ function createWrapper(staleTime = 0) {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
   // Признак активности глобальный: без сброса он утёк бы в следующий тест.
   focusManager.setFocused(undefined)
 })
@@ -282,6 +283,47 @@ describe('hooks заказов и оплаты', () => {
     // Из Mini App возвращать на сайт нельзя: вне Telegram тот экран не работает.
     const request = fetchMock.mock.calls[0]?.[0] as Request
     await expect(request.json()).resolves.toEqual({ return_surface: 'miniapp' })
+  })
+
+  it('спрашивает о карте, пока провайдер не ответил по начатой привязке', async () => {
+    /* Ответ провайдера приходит не в тот момент, когда человек вернулся в
+       приложение: между возвращением и ответом проходят секунды, и один
+       запрос на возврате попадает ровно в этот промежуток. */
+    const answers = [
+      { ...CARD, title: null, linked_at: null, binding_pending: true },
+      { ...CARD, binding_pending: false },
+    ]
+    const fetchMock = vi.fn(async (_request: Request) =>
+      Response.json(answers[Math.min(fetchMock.mock.calls.length - 1, 1)]),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    vi.useFakeTimers()
+    const { queryClient, Wrapper } = createWrapper(30_000)
+    queryClient.setQueryData(['subscription'], SUBSCRIPTION)
+    const { result } = renderHook(usePaymentMethod, { wrapper: Wrapper })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(result.current.data?.binding_pending).toBe(true)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000)
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    // Ответ приходит не мгновенно, как и от настоящей сети.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+    expect(result.current.data?.title).toBe('Visa •••• 4242')
+    // Привязка включает автоплатёж на сервере: снимок подписки после неё устарел.
+    expect(queryClient.getQueryState(['subscription'])?.isInvalidated).toBe(true)
+
+    // Ждать больше нечего — вопросы прекращаются.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000)
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('перечитывает карту и заказы, когда человек возвращается в приложение', async () => {

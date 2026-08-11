@@ -2666,6 +2666,11 @@
           "binding_available": {
             "type": "boolean",
             "title": "Binding Available"
+          },
+          "binding_pending": {
+            "type": "boolean",
+            "title": "Binding Pending",
+            "default": false
           }
         },
         "type": "object",

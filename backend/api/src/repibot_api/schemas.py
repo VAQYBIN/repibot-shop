@@ -225,6 +225,11 @@ class PaymentMethodResponse(BaseModel):
     title: str | None
     linked_at: datetime | None
     binding_available: bool
+    # Начатая привязка, ответа по которой ещё нет. Провайдер отвечает не в тот
+    # момент, когда человек вернулся в приложение, поэтому экрану нужно знать,
+    # что ответ ещё в пути, — иначе он покажет «карта не привязана» тому, кто
+    # только что её привязал.
+    binding_pending: bool = False
 
 
 class CardBindingResponse(BaseModel):

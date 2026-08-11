@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import type { components } from '../api/schema'
 import { messageFrom } from '../auth/errors'
 import { useAuthClient } from '../auth/hooks'
@@ -49,13 +50,23 @@ export function useGifts() {
   })
 }
 
+/** Как часто спрашиваем о начатой привязке. Дольше — и возврат ощущается зависшим. */
+const BINDING_POLL_MS = 4000
+
 /**
  * Сохранённая карта живёт отдельно от подписки: её название и доступность
  * привязки без оплаты знает только сервер, клиент их не выводит.
+ *
+ * Пока по начатой привязке нет ответа, экран спрашивает сам. Ответ провайдера
+ * приходит не в тот момент, когда человек вернулся в приложение: один запрос
+ * на возврате попадает в промежуток между возвращением и ответом и показывает
+ * «карта не привязана» тому, кто карту только что привязал. Ждать нечего, как
+ * только сервер снимает `binding_pending`, — вопросы прекращаются сами.
  */
 export function usePaymentMethod() {
   const { api } = useAuthClient()
-  return useQuery({
+  const queries = useQueryClient()
+  const query = useQuery({
     queryKey: PAYMENT_METHOD_QUERY_KEY,
     queryFn: async () => {
       const { data, error } = await api.GET('/api/me/payment-method')
@@ -65,7 +76,23 @@ export function usePaymentMethod() {
     // Тот же запрос дочитывает привязку у провайдера, так что возврат из
     // браузера обязан его повторить, а не показывать снимок «карты нет».
     refetchOnWindowFocus: 'always',
+    refetchInterval: (polled) =>
+      polled.state.data?.binding_pending === true ? BINDING_POLL_MS : false,
+    // Форму провайдера человек проходит вне приложения, и на телефоне оно всё
+    // это время свёрнуто: опрос, привязанный к активному окну, не возобновился
+    // бы, не приди о возвращении отдельное событие.
+    refetchIntervalInBackground: true,
   })
+  const awaiting = query.data?.binding_pending === true
+  const wasAwaiting = useRef(false)
+  useEffect(() => {
+    // Привязка включает автоплатёж на сервере, поэтому снимок подписки,
+    // снятый до неё, устарел вместе с окончанием ожидания.
+    if (wasAwaiting.current && !awaiting)
+      void queries.invalidateQueries({ queryKey: SUBSCRIPTION_QUERY_KEY })
+    wasAwaiting.current = awaiting
+  }, [awaiting, queries])
+  return query
 }
 
 /**

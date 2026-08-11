@@ -85,7 +85,12 @@ async def test_absent_card_is_reported_without_inventing_a_title(
     response = await api_client.get("/api/me/payment-method", headers=user_headers)
 
     assert response.status_code == 200
-    assert response.json() == {"title": None, "linked_at": None, "binding_available": False}
+    assert response.json() == {
+        "title": None,
+        "linked_at": None,
+        "binding_available": False,
+        "binding_pending": False,
+    }
 
 
 async def test_linked_card_is_shown_with_the_provider_title(
@@ -228,3 +233,78 @@ async def test_card_screen_settles_a_binding_left_pending_by_the_provider(
     response = await api_client.get("/api/me/payment-method", headers=user_headers)
 
     assert response.json()["title"] == "Bank card *4444"
+    # Ждать больше нечего: привязка дочитана этим же запросом.
+    assert response.json()["binding_pending"] is False
+
+
+async def test_screen_learns_that_the_provider_has_not_answered_yet(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    engine: AsyncEngine,
+    fake_binding_provider: FakeBindingProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ответ провайдера приходит не в тот момент, когда человек вернулся.
+
+    Один запрос на возвращении попадает в промежуток между возвратом и
+    ответом провайдера, поэтому экрану нужно знать, что ответа ещё нет: иначе
+    он покажет «карта не привязана» человеку, который карту только что привязал.
+    """
+    del fake_binding_provider
+    from repibot_core.db.models import CardBinding, CardBindingStatus, PaymentProvider
+    from repibot_core.settings import get_settings
+
+    monkeypatch.setattr(get_settings(), "yookassa_zero_amount_binding", True)
+    user_id = await _user_id(api_client, user_headers)
+    async with create_session_factory(engine)() as session:
+        session.add(
+            CardBinding(
+                user_id=user_id,
+                provider=PaymentProvider.yookassa,
+                provider_binding_id="binding-1",
+                status=CardBindingStatus.pending,
+            )
+        )
+        await session.commit()
+
+    response = await api_client.get("/api/me/payment-method", headers=user_headers)
+
+    assert response.json()["title"] is None
+    assert response.json()["binding_pending"] is True
+
+
+async def test_forgotten_binding_stops_the_wait(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    engine: AsyncEngine,
+    fake_binding_provider: FakeBindingProvider,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Брошенная привязка не должна держать экран в ожидании до конца дня.
+
+    Человек закрыл форму провайдера час назад; такую привязку закрывает сверка
+    по расписанию, а спрашивать о ней каждые несколько секунд незачем.
+    """
+    del fake_binding_provider
+    from datetime import UTC, datetime, timedelta
+
+    from repibot_core.db.models import CardBinding, CardBindingStatus, PaymentProvider
+    from repibot_core.settings import get_settings
+
+    monkeypatch.setattr(get_settings(), "yookassa_zero_amount_binding", True)
+    user_id = await _user_id(api_client, user_headers)
+    async with create_session_factory(engine)() as session:
+        session.add(
+            CardBinding(
+                user_id=user_id,
+                provider=PaymentProvider.yookassa,
+                provider_binding_id="binding-1",
+                status=CardBindingStatus.pending,
+                created_at=datetime.now(UTC) - timedelta(hours=1),
+            )
+        )
+        await session.commit()
+
+    response = await api_client.get("/api/me/payment-method", headers=user_headers)
+
+    assert response.json()["binding_pending"] is False

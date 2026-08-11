@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Annotated
 
 import httpx
@@ -55,7 +56,11 @@ from repibot_core.ratelimit import DEVICE_UNLINK_WINDOW, Rule
 from repibot_core.services.auth.types import AuthError
 from repibot_core.services.devices import DeviceService, DeviceView
 from repibot_core.services.errors import ServiceError
-from repibot_core.services.payment_methods import CardBindingService, PaymentMethodService
+from repibot_core.services.payment_methods import (
+    BINDING_WAIT,
+    CardBindingService,
+    PaymentMethodService,
+)
 from repibot_core.services.payments import PaymentService
 from repibot_core.services.plans import PlanService
 from repibot_core.services.promotions import GiftService
@@ -306,10 +311,14 @@ async def my_payment_method(
     session: Annotated[AsyncSession, Depends(db_session)],
 ) -> PaymentMethodResponse:
     bindings = CardBindingService(session)
+    # Экран спрашивает, пока привязка не закрыта, поэтому дочитываем только
+    # свежие: брошенную форму провайдера иначе перечитывали бы при каждом
+    # открытии экрана до скончания века. Такую закрывает сверка по расписанию.
+    started_after = datetime.now(UTC) - BINDING_WAIT
     # Человек попадает сюда сразу после формы провайдера. Дочитать его
     # привязку здесь дешевле, чем показать «карта не привязана» и получить
     # вторую попытку привязки от растерянного пользователя.
-    if await bindings.has_pending(context.principal.user_id):
+    if await bindings.has_pending(context.principal.user_id, since=started_after):
         try:
             async with yookassa_client() as yookassa:
                 await bindings.settle_for_user(context.principal.user_id, yookassa)
@@ -322,6 +331,9 @@ async def my_payment_method(
         title=None if card is None else card.title,
         linked_at=None if card is None else card.linked_at,
         binding_available=get_settings().yookassa_zero_amount_binding,
+        # После попытки дочитать: привязка, закрытая этим же запросом, ждать
+        # себя больше не заставляет.
+        binding_pending=await bindings.has_pending(context.principal.user_id, since=started_after),
     )
 
 

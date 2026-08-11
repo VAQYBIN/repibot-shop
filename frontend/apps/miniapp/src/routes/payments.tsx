@@ -71,6 +71,7 @@ export function Payments() {
   // Название карты приходит с сервера целиком; клиент не собирает его из
   // маски и платёжной системы, иначе разойдётся с тем, что видит бот.
   const cardTitle = card.data?.title ?? null
+  const waitingForCard = card.data?.binding_pending === true
   async function bindCard() {
     let started: { confirmation_url: string | null }
     try {
@@ -268,9 +269,17 @@ export function Payments() {
         ) : cardTitle === null ? (
           <>
             <p className="mt-2 text-sm text-text">{translate(language, 'payment.card_none')}</p>
-            <p className="mt-1 text-sm text-text-secondary">
-              {translate(language, 'payment.card_hint')}
-            </p>
+            {/* Ответ провайдера идёт своим ходом; молчащий экран человек
+                принимает за неудавшуюся привязку и начинает её заново. */}
+            {waitingForCard ? (
+              <p role="status" className="mt-1 text-sm text-text-secondary">
+                {translate(language, 'payment.card_waiting')}
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-text-secondary">
+                {translate(language, 'payment.card_hint')}
+              </p>
+            )}
           </>
         ) : (
           <div className="mt-2 flex items-center justify-between gap-4">

@@ -1269,6 +1269,11 @@ export interface components {
             linked_at: string | null;
             /** Binding Available */
             binding_available: boolean;
+            /**
+             * Binding Pending
+             * @default false
+             */
+            binding_pending: boolean;
         };
         /**
          * PlanRequest

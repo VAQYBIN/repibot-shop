@@ -162,6 +162,7 @@ export const en: Record<TranslationKey, string> = {
   'payment.card_unlink_hint': 'Automatic payments will stop: there will be nothing to charge.',
   'payment.card_bind': 'Link another',
   'payment.card_bind_hint': 'We will verify the card without charging it and remember it.',
+  'payment.card_waiting': 'Waiting for the card to be confirmed. This screen will update itself.',
   'payment.error.binding_unavailable': 'Linking a card without a payment is unavailable',
   'payment.error.provider_unavailable': 'Payment provider is unavailable',
   'payment.error.telegram_required': 'Link Telegram before paying with Stars',

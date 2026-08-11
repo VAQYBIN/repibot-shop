@@ -32,12 +32,13 @@ const SUBSCRIPTION = {
   auto_renew_enabled: false,
 }
 
-const NO_CARD = { title: null, linked_at: null, binding_available: false }
+const NO_CARD = { title: null, linked_at: null, binding_available: false, binding_pending: false }
 
 interface PaymentMethod {
   title: string | null
   linked_at: string | null
   binding_available: boolean
+  binding_pending?: boolean
 }
 
 /**
@@ -60,6 +61,7 @@ function paymentHandlers(card: PaymentMethod, subscription: unknown = SUBSCRIPTI
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
   // Признак активности глобальный: без сброса он утёк бы в следующий тест.
   focusManager.setFocused(undefined)
 })
@@ -387,6 +389,32 @@ describe('карта для автоплатежа в Mini App', () => {
       expect.objectContaining({ return_surface: 'miniapp' }),
       { return_surface: 'miniapp' },
     ])
+  })
+
+  it('дожидается ответа провайдера сам, без событий от Telegram', async () => {
+    /* Событие о возвращении может не дойти, а ответ провайдера приходит не в
+       момент возвращения: пока привязка не закрыта, экран спрашивает сам. */
+    const card: PaymentMethod = { ...NO_CARD, binding_available: true, binding_pending: true }
+    const base = paymentHandlers(card)
+    stubFetch((request) => base(request) ?? new Response(null, { status: 404 }))
+    vi.useFakeTimers()
+
+    renderWithProviders(<Payments />, 30_000)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100)
+    })
+    expect(screen.getByText('Карта не привязана')).toBeVisible()
+    // Молчащий экран человек принимает за неудачу и привязывает карту второй раз.
+    expect(screen.getByRole('status')).toHaveTextContent('Ждём подтверждения карты')
+
+    card.title = 'MasterCard •••• 4444'
+    card.linked_at = '2026-08-01T12:00:00Z'
+    card.binding_pending = false
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4100)
+    })
+
+    expect(screen.getByText('MasterCard •••• 4444')).toBeVisible()
   })
 
   it('показывает карту сразу после возвращения с формы привязки', async () => {
