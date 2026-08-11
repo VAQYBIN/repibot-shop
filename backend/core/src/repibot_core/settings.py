@@ -127,6 +127,13 @@ class Settings(BaseSettings):
     # запас нужен, потому что рядом идут сервисные уведомления той же полосы.
     broadcast_rate_per_second: int = Field(default=25, ge=1, le=30)
 
+    # Супергруппа с топиками, где персонал ведёт обращения. Пусто — поддержка
+    # выключена целиком: стенд без супергруппы обязан подниматься и работать.
+    support_chat_id: int | None = None
+    # Одного открытого обращения мало: у человека одновременно может сломаться
+    # оплата и доступ. Трёх хватает, дальше это уже поток, а не обращения.
+    ticket_max_open: int = Field(default=3, ge=1, le=20)
+
     email_sender: Literal["smtp", "log"] = "log"
     smtp_host: str = ""
     smtp_port: int = 1025

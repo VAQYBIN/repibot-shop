@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -31,6 +32,8 @@ from repibot_core.integrations.yookassa.client import create_yookassa_client
 from repibot_core.queue import broker
 from repibot_core.services.outbox import OutboxDispatcher
 from repibot_core.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     # Только ради аннотации: настоящий импорт сервиса на уровне модуля
@@ -59,6 +62,39 @@ async def process_outbox() -> dict[str, int]:
         await engine.dispose()
 
     return {"delivered": delivered}
+
+
+@broker.task(schedule=[{"cron": "7 * * * *"}])
+async def notify_subscription_events() -> dict[str, int]:
+    """Ставит напоминания о конце подписки и о неоплаченном счёте.
+
+    Раз в час и со смещением от нуля минут: в ноль работает истечение
+    подписок, и запуск встык дал бы напоминание про состояние, которое
+    меняется прямо сейчас.
+
+    Задача только ставит: ни Telegram, ни SMTP отсюда не вызываются, поэтому
+    недоступный транспорт не мешает собрать поводы.
+    """
+    from repibot_core.services.subscription_notices import SubscriptionNoticeService
+
+    engine = create_engine(get_settings().database_url)
+    try:
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            staged = await SubscriptionNoticeService(session).run(now=datetime.now(UTC))
+            await session.commit()
+    finally:
+        await engine.dispose()
+
+    if staged:
+        # Разбор очереди идёт раз в минуту, и ждать её человеку незачем:
+        # напоминание об окончании доступа тем ценнее, чем раньше пришло.
+        # Отказ брокера ничего не отменяет — очередь разберётся по расписанию.
+        try:
+            await process_outbox.kiq()
+        except Exception:
+            logger.warning("не удалось разбудить разбор очереди", exc_info=True)
+    return {"staged": staged}
 
 
 @broker.task(schedule=[{"cron": "0 * * * *"}])
