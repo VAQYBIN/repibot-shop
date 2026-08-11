@@ -273,16 +273,23 @@ class CardBinding(Base):
 
 
 class NotificationDelivery(Base):
-    """Дедуплицированное намерение отправить уведомление о заказе."""
+    """Дедуплицированное намерение отправить уведомление.
+
+    Ключ произвольный, потому что поводов больше, чем заказов: напоминание об
+    истечении привязано к дате окончания, ступень лесенки — к пользователю и
+    номеру, ответ поддержки — к сообщению.
+    """
 
     __tablename__ = "notification_deliveries"
     __table_args__ = (
-        UniqueConstraint("order_id", "kind", "channel", name="uq_notification_deliveries_dedup"),
+        UniqueConstraint("dedup_key", "channel", name="uq_notification_deliveries_dedup"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
+    # Денежный след там, где он есть. Для истечения и рассылки заказа нет.
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    dedup_key: Mapped[str] = mapped_column(String(160))
     kind: Mapped[str] = mapped_column(String(64))
     channel: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), server_default="pending")

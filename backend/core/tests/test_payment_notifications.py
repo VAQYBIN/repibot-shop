@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from repibot_core.db.models import (
@@ -55,6 +56,46 @@ async def _order(session: AsyncSession, *, telegram: bool, verified_email: bool)
         client_key="notice-order",
         expires_at=datetime.now(UTC) + timedelta(minutes=30),
     )
+
+
+async def test_delivery_exists_without_an_order(db_session: AsyncSession) -> None:
+    """Ни одно уведомление подпроекта 4 не связано с заказом.
+
+    Обязательный order_id означал бы, что напоминание об истечении нужно
+    привязывать к выдуманному заказу — и первый же отчёт по деньгам стал бы
+    врать.
+    """
+    user = User(email=None, telegram_id=100_777, referral_code="freekey1")
+    db_session.add(user)
+    await db_session.flush()
+
+    db_session.add(
+        NotificationDelivery(
+            user_id=user.id, kind="expiring_3", channel="telegram", dedup_key="sub:1:expiring:3:x"
+        )
+    )
+    await db_session.commit()
+
+    stored = await db_session.scalar(select(NotificationDelivery))
+    assert stored is not None
+    assert stored.order_id is None
+    assert stored.dedup_key == "sub:1:expiring:3:x"
+
+
+async def test_same_key_and_channel_cannot_be_staged_twice(db_session: AsyncSession) -> None:
+    """Повторный запуск крона не должен слать второе напоминание."""
+    user = User(email=None, telegram_id=100_778, referral_code="freekey2")
+    db_session.add(user)
+    await db_session.flush()
+    for _ in range(2):
+        db_session.add(
+            NotificationDelivery(
+                user_id=user.id, kind="expired", channel="email", dedup_key="sub:2:expired:x"
+            )
+        )
+
+    with pytest.raises(IntegrityError):
+        await db_session.commit()
 
 
 async def test_success_enqueues_each_available_channel_once(db_session: AsyncSession) -> None:

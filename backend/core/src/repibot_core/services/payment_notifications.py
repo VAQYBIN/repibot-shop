@@ -87,8 +87,14 @@ class NotificationService:
         for channel, topic, recipient in channels:
             delivery_id = await self._session.scalar(
                 insert(NotificationDelivery)
-                .values(order_id=order_id, user_id=user_id, kind=kind, channel=channel)
-                .on_conflict_do_nothing(index_elements=["order_id", "kind", "channel"])
+                .values(
+                    order_id=order_id,
+                    user_id=user_id,
+                    kind=kind,
+                    channel=channel,
+                    dedup_key=f"order:{order_id}:{kind}",
+                )
+                .on_conflict_do_nothing(index_elements=["dedup_key", "channel"])
                 .returning(NotificationDelivery.id)
             )
             if delivery_id is None:
