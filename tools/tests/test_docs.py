@@ -2,6 +2,7 @@
 по развёртыванию хуже её отсутствия.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -55,6 +56,32 @@ def test_readme_points_at_the_brand_kit() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "docs/design/logo" in readme
+
+
+def test_deployment_explains_the_support_supergroup() -> None:
+    """Право управления темами — единственная неочевидная часть настройки.
+
+    Без него `createForumTopic` отвечает отказом, обращения молча копятся в
+    очереди, и человек ждёт ответа, которого никто не увидел.
+    """
+    deployment = (ROOT / "docs" / "deployment.md").read_text(encoding="utf-8")
+
+    for fragment in ("SUPPORT_CHAT_ID", "управление темами", "-100"):
+        assert fragment in deployment
+
+
+def test_deployment_lists_every_scheduled_task() -> None:
+    """Задача без строки в таблице расписаний — задача, о которой узнают
+    только тогда, когда она сломается."""
+    tasks = (ROOT / "backend" / "core" / "src" / "repibot_core" / "tasks.py").read_text(
+        encoding="utf-8"
+    )
+    deployment = (ROOT / "docs" / "deployment.md").read_text(encoding="utf-8")
+
+    scheduled = re.findall(r"@broker\.task\([^\n]*schedule=[^\n]*\)\s*\nasync def (\w+)", tasks)
+
+    assert scheduled, "не найдено ни одной задачи с расписанием — сломался разбор"
+    assert [name for name in scheduled if f"`{name}`" not in deployment] == []
 
 
 def test_ci_runs_on_the_development_branch() -> None:
