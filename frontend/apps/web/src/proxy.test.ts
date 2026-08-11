@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { proxy } from './proxy'
+import { config, proxy } from './proxy'
 
 const SECRET = '0123456789abcdef0123456789abcdef'
 // Получено отдельно тем же форматом HMAC-SHA256, что и на бэкенде:
@@ -42,5 +42,12 @@ describe('серверный гейт платёжной админки', () => 
     const response = proxy(adminRequest(EXPIRED_ASSERTION))
 
     expect(response.headers.get('location')).toBe('https://example.org/login')
+  })
+
+  it('закрывает всю админку, а не только платёжный раздел', () => {
+    /* Проверяется сам matcher: он данные, и другого способа узнать, какие
+       адреса вообще доходят до гейта, у теста нет. Корень админки —
+       отдельная страница, и без первого шаблона она отрисовывалась бы всем. */
+    expect(config.matcher).toEqual(['/admin', '/admin/:path*'])
   })
 })

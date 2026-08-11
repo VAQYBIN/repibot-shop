@@ -61,5 +61,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/admin/payments/:path*',
+  // Вся админка, а не один раздел: гейт закрыт по умолчанию, и новая
+  // страница под /admin не должна оказаться открытой оттого, что о ней
+  // забыли здесь. Корень перечислен отдельно — шаблон с сегментами его
+  // не ловит.
+  matcher: ['/admin', '/admin/:path*'],
 }
