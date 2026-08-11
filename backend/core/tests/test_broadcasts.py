@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,9 +26,12 @@ from repibot_core.db.models import (
 from repibot_core.db.repositories.orders import OrderRepository
 from repibot_core.db.repositories.plans import PlanRepository
 from repibot_core.domain.subscriptions import SubscriptionState
+from repibot_core.integrations.email.sender import LoggingEmailSender
 from repibot_core.services.broadcasts import BroadcastService
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.segments import count_segment, segment_query
+from repibot_core.services.unsubscribe import CALLBACK_DATA
+from repibot_core.settings import Settings, get_settings
 
 pytestmark = pytest.mark.docker
 
@@ -358,3 +361,227 @@ async def test_draft_on_an_unknown_segment_is_refused(db_session: AsyncSession) 
         )
 
     assert refusal.value.code == "unknown_segment"
+
+
+class FakeTelegram:
+    """Двойник узкого протокола отправки, а не всего BotApi.
+
+    Клиент целиком потянул бы за собой Valkey и http-клиент ради одного
+    сообщения; сервису из него нужен ровно один метод.
+    """
+
+    def __init__(self, fail_on: int | None = None) -> None:
+        self.sent: list[tuple[int, str, dict[str, object] | None]] = []
+        self._fail_on = fail_on
+        self._calls = 0
+
+    async def send_message(
+        self, chat_id: int, text: str, reply_markup: dict[str, object] | None = None
+    ) -> None:
+        current = self._calls
+        self._calls += 1
+        if current == self._fail_on:
+            msg = "бот заблокирован получателем"
+            raise RuntimeError(msg)
+        self.sent.append((chat_id, text, reply_markup))
+
+
+def _fast_settings() -> Settings:
+    """Предельный допустимый темп: тест не должен ждать секунды на паузах.
+
+    Задержка при этом остаётся — выдержка темпа и есть проверяемое поведение,
+    просто на тридцати сообщениях в секунду она равна 33 мс на получателя.
+    """
+    return get_settings().model_copy(update={"broadcast_rate_per_second": 30})
+
+
+async def _launched(
+    session: AsyncSession,
+    *,
+    created_by: int,
+    body: dict[str, str] | None = None,
+) -> tuple[Broadcast, BroadcastService]:
+    """Кампания на сегмент «все», уже переведённая в работу."""
+    service = BroadcastService(session, _fast_settings())
+    campaign = await service.create(
+        created_by=created_by,
+        segment="all",
+        title={"ru": "Новость", "en": "News"},
+        body=body if body is not None else {"ru": "Текст", "en": "Text"},
+    )
+    await session.commit()
+    await service.start(campaign.id)
+    return campaign, service
+
+
+async def _running_campaign(
+    session: AsyncSession, *, people: int
+) -> tuple[Broadcast, BroadcastService]:
+    """Идущая кампания на заданное число получателей в Telegram.
+
+    Автор кампании — первый же из них: отдельный администратор сам попал бы в
+    сегмент «все» и сдвинул бы число получателей на единицу.
+    """
+    people_created: list[User] = []
+    for index in range(people):
+        person = User(email=None, telegram_id=401_000 + index, referral_code=f"bcrun{index:03d}")
+        session.add(person)
+        people_created.append(person)
+    await session.flush()
+    await session.commit()
+    return await _launched(session, created_by=people_created[0].id)
+
+
+async def test_cancel_stops_the_campaign_between_batches(db_session: AsyncSession) -> None:
+    """Остановить кампанию — единственный способ исправить ошибку в тексте.
+
+    Отправленное не отзывается; всё, что можно спасти, — остаток аудитории.
+    """
+    campaign, service = await _running_campaign(db_session, people=5)
+    sender = FakeTelegram()
+
+    await service.send_batch(telegram=sender, email=None, limit=2)
+    await service.cancel(campaign.id)
+    after_cancel = await service.send_batch(telegram=sender, email=None, limit=10)
+    await db_session.commit()
+
+    assert len(sender.sent) == 2
+    assert after_cancel == 0
+    assert campaign.status is BroadcastStatus.canceled
+
+
+async def test_cancel_stops_inside_a_batch(db_session: AsyncSession) -> None:
+    """Отмена обязана останавливать рассылку в пределах секунд, а не пачки.
+
+    Проверка между пачками означала бы, что после нажатия «Отменить» уходит
+    ещё вся текущая пачка — при темпе в 25 в секунду это полторы тысячи писем.
+    """
+    campaign, service = await _running_campaign(db_session, people=5)
+
+    class CancelingTelegram:
+        """Отменяет кампанию чужой рукой прямо посреди пачки."""
+
+        def __init__(self) -> None:
+            self.sent: list[int] = []
+
+        async def send_message(
+            self, chat_id: int, text: str, reply_markup: dict[str, object] | None = None
+        ) -> None:
+            self.sent.append(chat_id)
+            await db_session.execute(
+                update(Broadcast)
+                .where(Broadcast.id == campaign.id)
+                .values(status=BroadcastStatus.canceled)
+            )
+
+    sender = CancelingTelegram()
+
+    await service.send_batch(telegram=sender, email=None, limit=5)
+    await db_session.commit()
+
+    assert len(sender.sent) == 1
+    assert campaign.status is not BroadcastStatus.done
+
+
+async def test_failed_recipient_does_not_stop_the_rest(db_session: AsyncSession) -> None:
+    """Один заблокировавший бота человек не должен обрывать рассылку на всех."""
+    campaign, service = await _running_campaign(db_session, people=3)
+    sender = FakeTelegram(fail_on=1)
+
+    await service.send_batch(telegram=sender, email=None, limit=10)
+    await db_session.commit()
+
+    error = await db_session.scalar(
+        select(BroadcastRecipient.error).where(
+            BroadcastRecipient.broadcast_id == campaign.id,
+            BroadcastRecipient.status == RecipientStatus.failed,
+        )
+    )
+    assert (campaign.sent_count, campaign.failed_count) == (2, 1)
+    assert campaign.status is BroadcastStatus.done
+    assert error
+
+
+async def test_telegram_message_carries_an_unsubscribe_button(db_session: AsyncSession) -> None:
+    """Отписка обязана быть на расстоянии одного касания.
+
+    Без неё человек блокирует бота, и вместе с предложениями теряются
+    сообщения об оплате и об окончании подписки, отключить которые он не просил.
+    """
+    campaign, service = await _running_campaign(db_session, people=1)
+    sender = FakeTelegram()
+
+    await service.send_batch(telegram=sender, email=None, limit=1)
+    await db_session.commit()
+
+    _, text, markup = sender.sent[0]
+    assert markup is not None
+    keyboard = markup["inline_keyboard"]
+    assert isinstance(keyboard, list)
+    assert keyboard[0][0]["callback_data"] == CALLBACK_DATA
+    assert campaign.body["ru"] in text
+
+
+async def test_email_recipient_gets_a_link_to_unsubscribe(db_session: AsyncSession) -> None:
+    """Письмо без отписки — жалоба на спам, а следом падение доставляемости.
+
+    Почтовый провайдер понижает домен целиком, вместе с чеками об оплате,
+    поэтому ссылка обязана быть под каждым маркетинговым письмом.
+    """
+    reader = User(
+        email="reader@example.org",
+        email_verified_at=datetime.now(UTC),
+        referral_code="bcmail2",
+    )
+    db_session.add(reader)
+    await db_session.flush()
+    await db_session.commit()
+    campaign, service = await _launched(db_session, created_by=reader.id)
+    sender = LoggingEmailSender()
+
+    await service.send_batch(telegram=None, email=sender, limit=1)
+    await db_session.commit()
+
+    assert len(sender.sent) == 1
+    assert "/unsubscribe?token=" in sender.sent[0].text
+    assert sender.sent[0].subject == "Новость"
+    assert campaign.sent_count == 1
+
+
+async def test_text_falls_back_to_russian(db_session: AsyncSession) -> None:
+    """Языка получателя может не быть в кампании — тогда русский, а не пустота.
+
+    Пустое сообщение Telegram просто отвергнет, и вся англоязычная часть базы
+    оказалась бы в неудачах на ровном месте.
+    """
+    person = User(email=None, telegram_id=401_500, referral_code="bclang1", language="en")
+    db_session.add(person)
+    await db_session.flush()
+    await db_session.commit()
+    _, service = await _launched(db_session, created_by=person.id, body={"ru": "Только так"})
+    sender = FakeTelegram()
+
+    await service.send_batch(telegram=sender, email=None, limit=1)
+    await db_session.commit()
+
+    # Проверяется откат языка, а не состав сообщения: заголовок идёт первой
+    # строкой, и точное равенство здесь ломалось бы от любой правки вёрстки.
+    assert "Только так" in sender.sent[0][1]
+
+
+async def test_telegram_recipient_sees_the_campaign_title(db_session: AsyncSession) -> None:
+    """Заголовок обязан дойти до всех, а не до одних почтовых адресатов.
+
+    В письме он становится темой, а у сообщения в Telegram темы нет — и без
+    первой строки половина аудитории не увидела бы того, что админ написал
+    в поле «заголовок», а сам админ об этом даже не узнал бы.
+    """
+    campaign, service = await _running_campaign(db_session, people=1)
+    sender = FakeTelegram()
+
+    await service.send_batch(telegram=sender, email=None, limit=1)
+    await db_session.commit()
+
+    _, text, _ = sender.sent[0]
+    assert text.startswith(campaign.title["ru"])
+    assert campaign.body["ru"] in text
