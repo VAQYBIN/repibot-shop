@@ -26,6 +26,9 @@ function Navigation() {
       <Link to="/profile" className="text-text-accent">
         {translate(language, 'account.title')}
       </Link>
+      <Link to="/support" className="text-text-accent">
+        {translate(language, 'support.title')}
+      </Link>
     </nav>
   )
 }

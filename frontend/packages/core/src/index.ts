@@ -69,3 +69,16 @@ export {
   useTraffic,
   useUnlinkDevice,
 } from './subscription/hooks'
+export {
+  type OpenTicketRequest,
+  supportErrorCode,
+  type TicketMessageResponse,
+  type TicketReplyInput,
+  type TicketResponse,
+  type TicketThreadResponse,
+  useCloseTicket,
+  useOpenTicket,
+  useReplyToTicket,
+  useTicket,
+  useTickets,
+} from './support/hooks'

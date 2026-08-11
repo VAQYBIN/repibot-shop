@@ -6,6 +6,7 @@ import { paymentsRoute } from './routes/payments'
 import { profileRoute } from './routes/profile'
 import { rootRoute } from './routes/root'
 import { subscriptionRoute } from './routes/subscription'
+import { supportRoute } from './routes/support'
 import { winbackRoute } from './routes/winback'
 
 export const router = createRouter({
@@ -15,6 +16,7 @@ export const router = createRouter({
     paymentsRoute,
     devicesRoute,
     profileRoute,
+    supportRoute,
     winbackRoute,
   ]),
   basepath: '/app',
