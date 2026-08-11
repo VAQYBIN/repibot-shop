@@ -382,3 +382,15 @@ class GiftVoucherResponse(BaseModel):
     expires_at: datetime
     purchased_by_me: bool
     redeemed_by_me: bool
+
+
+class UnsubscribeRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=2048)
+
+
+class NotificationSettingsResponse(BaseModel):
+    marketing_enabled: bool
+
+
+class UpdateNotificationSettingsRequest(BaseModel):
+    marketing_enabled: bool
