@@ -92,6 +92,16 @@ _MESSAGES: dict[str, dict[str, str]] = {
             "Это последнее письмо о подписке. Если захотите вернуться — "
             "мы на месте, ничего делать заранее не нужно."
         ),
+        # Отписка одна на все маркетинговые виды: человек отказывается от
+        # предложений вообще, а не от конкретной ступени лесенки.
+        "notify.unsubscribe": "Не присылать предложения",
+        "notify.unsubscribed": (
+            "Больше не будем присылать предложения. Сообщения об оплате, "
+            "окончании подписки и ответах поддержки остаются."
+        ),
+        "notify.unsubscribe_link": (
+            "Не хотите получать такие письма? Отписаться одним нажатием: {link}"
+        ),
         "bot.start.greeting": "Здравствуйте, {name}. Это Re:Pibot.",
         "bot.start.open_app": "Открыть приложение",
         "bot.language.choose": "Выберите язык",
@@ -198,6 +208,14 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "winback.step4.bot": (
             "This is the last note about your subscription. If you want to come back — "
             "we are here, and nothing needs doing in advance."
+        ),
+        "notify.unsubscribe": "Stop sending offers",
+        "notify.unsubscribed": (
+            "We will not send offers any more. Notices about payments, "
+            "subscription expiry and support replies stay."
+        ),
+        "notify.unsubscribe_link": (
+            "Do not want letters like this? Unsubscribe in one click: {link}"
         ),
         "bot.start.greeting": "Hello, {name}. This is Re:Pibot.",
         "bot.start.open_app": "Open the app",

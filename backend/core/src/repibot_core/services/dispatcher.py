@@ -17,10 +17,12 @@ from repibot_core.services.email_dispatch import build_dispatcher as build_email
 from repibot_core.services.notifications import (
     PAYLOAD_KEYS,
     TOPIC_NOTIFY_TELEGRAM,
+    NotificationCategory,
     resolve_kind,
 )
 from repibot_core.services.outbox import OutboxDispatcher
 from repibot_core.services.provisioning import TOPIC_PROVISION, build_provision_handler
+from repibot_core.services.unsubscribe import CALLBACK_DATA
 
 
 def build_dispatcher(
@@ -56,7 +58,23 @@ def build_dispatcher(
             # уйдёт следующим прогоном, уже с клиентом.
             msg = "клиент бота не передан диспетчеру"
             raise RuntimeError(msg)
-        await telegram.send_message(recipient, text)
+
+        markup: dict[str, object] | None = None
+        if kind.category is NotificationCategory.marketing:
+            # Отписка обязана быть на расстоянии одного касания: иначе человек
+            # блокирует бота, и вместе с предложениями теряются сообщения о
+            # платеже и о конце подписки, отключить которые он не просил.
+            markup = {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": translate(language, "notify.unsubscribe"),
+                            "callback_data": CALLBACK_DATA,
+                        }
+                    ]
+                ]
+            }
+        await telegram.send_message(recipient, text, markup)
 
     dispatcher.register(TOPIC_NOTIFY_TELEGRAM, handle_notify_telegram)
     return dispatcher

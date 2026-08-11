@@ -17,8 +17,14 @@ from repibot_core.integrations.email.templates import (
     render_password_reset,
     render_verification,
 )
-from repibot_core.services.notifications import PAYLOAD_KEYS, TOPIC_NOTIFY_EMAIL, resolve_kind
+from repibot_core.services.notifications import (
+    PAYLOAD_KEYS,
+    TOPIC_NOTIFY_EMAIL,
+    NotificationCategory,
+    resolve_kind,
+)
 from repibot_core.services.outbox import OutboxDispatcher
+from repibot_core.services.unsubscribe import sign_unsubscribe_token
 from repibot_core.settings import get_settings
 
 TOPIC_EMAIL_VERIFY = "email.verify"
@@ -56,14 +62,26 @@ def build_dispatcher(sender: EmailSender | None = None) -> OutboxDispatcher:
         # Служебные поля не попадают в текст: translate подставляет всё, что
         # получил, и лишний ключ в шаблоне даёт KeyError на живом уведомлении.
         params = {key: value for key, value in payload.items() if key not in PAYLOAD_KEYS}
+        site = get_settings().public_web_url.rstrip("/")
+        body = translate(language, f"{kind.text_key}.body", **params)
+        if kind.category is NotificationCategory.marketing:
+            # Ссылка отписки в каждом маркетинговом письме — требование закона
+            # и условие доставляемости: без неё отказываются кнопкой «спам», и
+            # почтовый провайдер понижает весь наш домен, включая чеки.
+            # Идентификатор берётся из полезной нагрузки: собрать токен из
+            # адреса нельзя, он подписывается по номеру пользователя.
+            token = sign_unsubscribe_token(int(str(payload["user_id"])))
+            body += "\n\n" + translate(
+                language, "notify.unsubscribe_link", link=f"{site}/unsubscribe?token={token}"
+            )
         message = render_notification(
             language,
             to=str(payload["recipient"]),
             subject=translate(language, f"{kind.text_key}.subject", **params),
-            body=translate(language, f"{kind.text_key}.body", **params),
+            body=body,
             # Адрес берётся у вида события: одна ссылка на все письма привела
             # бы человека с ответом поддержки на страницу оплат.
-            link=f"{get_settings().public_web_url.rstrip('/')}{kind.link_path}",
+            link=f"{site}{kind.link_path}",
         )
         await resolved.send(message)
 

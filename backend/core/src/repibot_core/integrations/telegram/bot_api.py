@@ -49,13 +49,23 @@ class BotApi:
         await self._redis.set(CACHE_KEY, name, ex=CACHE_TTL_SECONDS)
         return name
 
-    async def send_message(self, chat_id: int, text: str) -> None:
-        """Отправляет простое локализованное уведомление в привязанный Telegram."""
+    async def send_message(
+        self, chat_id: int, text: str, reply_markup: dict[str, object] | None = None
+    ) -> None:
+        """Отправляет простое локализованное уведомление в привязанный Telegram.
+
+        Клавиатура необязательна и уходит только когда она есть: пустое поле
+        reply_markup Bot API понимает как «убрать клавиатуру», и каждое
+        сервисное уведомление гасило бы кнопки предыдущего сообщения.
+        """
         token = self._settings.bot_token.get_secret_value()
+        body: dict[str, object] = {"chat_id": chat_id, "text": text}
+        if reply_markup is not None:
+            body["reply_markup"] = reply_markup
         try:
             response = await self._client.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": chat_id, "text": text},
+                json=body,
             )
             response.raise_for_status()
         except httpx.HTTPError as error:
