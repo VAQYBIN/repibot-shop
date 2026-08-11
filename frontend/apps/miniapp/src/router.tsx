@@ -6,6 +6,7 @@ import { paymentsRoute } from './routes/payments'
 import { profileRoute } from './routes/profile'
 import { rootRoute } from './routes/root'
 import { subscriptionRoute } from './routes/subscription'
+import { winbackRoute } from './routes/winback'
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
@@ -14,6 +15,7 @@ export const router = createRouter({
     paymentsRoute,
     devicesRoute,
     profileRoute,
+    winbackRoute,
   ]),
   basepath: '/app',
 })
