@@ -1,8 +1,10 @@
 'use client'
 
 import { formatBytes, useAuthClient } from '@repibot/core'
-import { Button, Card } from '@repibot/ui'
+import { Alert, Badge, type BadgeTone, Button, Card, EmptyState, Spinner } from '@repibot/ui'
 import { useQuery } from '@tanstack/react-query'
+
+import { AdminPage } from '@/components/admin-page'
 
 /**
  * Состояние узла меняется само, а открывают эту страницу ровно тогда, когда
@@ -26,7 +28,7 @@ function errorText(error: unknown): string {
 
 interface NodeState {
   label: string
-  className: string
+  tone: BadgeTone
 }
 
 /**
@@ -36,9 +38,9 @@ interface NodeState {
  * выключенная нода и не должна быть на связи.
  */
 function nodeState(node: { is_disabled: boolean; is_connected: boolean }): NodeState {
-  if (node.is_disabled) return { label: 'Выключена', className: 'text-warning' }
-  if (!node.is_connected) return { label: 'Нет связи', className: 'text-danger' }
-  return { label: 'На связи', className: 'text-success' }
+  if (node.is_disabled) return { label: 'Выключена', tone: 'neutral' }
+  if (!node.is_connected) return { label: 'Нет связи', tone: 'danger' }
+  return { label: 'На связи', tone: 'success' }
 }
 
 /** Адрес без порта панель отдаёт, когда узел ещё не настроен до конца. */
@@ -84,24 +86,17 @@ export default function AdminNodesPage() {
   })
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6 text-text">
-      <header>
-        <h1 className="text-2xl font-semibold">Ноды</h1>
-        <p className="mt-1 max-w-prose text-sm text-text-secondary">
-          Состояние узлов панели, только просмотр. Список сам обновляется раз в полминуты, включать
-          и перезапускать узлы отсюда нельзя.
-        </p>
-      </header>
-
+    <AdminPage
+      title="Ноды"
+      description="Состояние узлов панели, только просмотр. Список сам обновляется раз в полминуты, включать и перезапускать узлы отсюда нельзя."
+    >
       {nodes.isPending ? (
-        <p className="text-sm text-text-secondary">Загружаем узлы…</p>
+        <Spinner label="Загружаем узлы" />
       ) : nodes.error !== null ? (
         // Пустой список вместо отказа читался бы как «узлов нет», а узлы
         // просто не спросили: показываем причину и даём повторить.
         <Card>
-          <p role="alert" className="text-sm text-danger">
-            {errorText(nodes.error)}
-          </p>
+          <Alert tone="error">{errorText(nodes.error)}</Alert>
           <Button
             className="mt-4"
             variant="secondary"
@@ -112,9 +107,7 @@ export default function AdminNodesPage() {
           </Button>
         </Card>
       ) : nodes.data.length === 0 ? (
-        <Card>
-          <p className="text-sm text-text-secondary">Панель не знает ни одного узла.</p>
-        </Card>
+        <EmptyState title="Панель не знает ни одного узла." />
       ) : (
         <ul aria-label="Узлы" className="flex flex-col gap-4">
           {nodes.data.map((item) => {
@@ -124,24 +117,24 @@ export default function AdminNodesPage() {
                 <article aria-label={item.name}>
                   <Card>
                     <div className="flex flex-wrap items-baseline justify-between gap-3">
-                      <h2 className="text-lg font-semibold text-text">
+                      <h2 className="text-h3 font-medium text-text">
                         {item.name}
-                        <span className="ml-2 text-sm font-normal text-text-muted">
+                        <span className="ml-2 text-small font-normal text-text-muted">
                           {item.country_code}
                         </span>
                       </h2>
-                      <p className={`text-sm font-medium ${state.className}`}>{state.label}</p>
+                      <Badge tone={state.tone}>{state.label}</Badge>
                     </div>
 
                     {/* Последнее сообщение о состоянии — сразу под именем:
                         читают его только когда что-то не так. */}
                     {item.last_status_message === null ? null : (
-                      <p className="mt-1 text-sm break-words text-text-secondary">
+                      <p className="mt-1 text-small break-words text-text-secondary">
                         {item.last_status_message}
                       </p>
                     )}
 
-                    <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+                    <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-small sm:grid-cols-4">
                       <div>
                         <dt className="text-text-muted">Адрес</dt>
                         <dd className="mt-1 break-all text-text">
@@ -172,6 +165,6 @@ export default function AdminNodesPage() {
           })}
         </ul>
       )}
-    </main>
+    </AdminPage>
   )
 }

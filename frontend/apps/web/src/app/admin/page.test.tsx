@@ -54,7 +54,8 @@ describe('главная админки', () => {
     })
 
     expect(await screen.findByText('12')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '30 дней' }))
+    // Период стал вкладкой, а не кнопкой — вид сменился, значения и обработчик те же.
+    await userEvent.click(screen.getByRole('tab', { name: '30 дней' }))
 
     expect(await screen.findByText('40')).toBeInTheDocument()
     expect(periods).toEqual(['today', 'month'])
@@ -95,11 +96,15 @@ describe('главная админки', () => {
   })
 
   it('показывает загрузку, а не нули, пока числа не пришли', async () => {
-    // Ноль выручки и неизвестная выручка выглядят одинаково, но значат разное.
-    show('admin', () => new Promise(() => undefined))
+    // Ноль выручки и неизвестная выручка выглядят одинаково, но значат разное:
+    // вместо текста на время загрузки теперь шесть плиток-заглушек, чтобы
+    // сетка не прыгала, когда числа придут.
+    const { container } = show('admin', () => new Promise(() => undefined))
 
-    const revenue = await screen.findByRole('group', { name: 'Выручка' })
-    expect(within(revenue).getByText('Загрузка…')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(6)
+    })
     expect(screen.queryByText(/₽/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('group')).not.toBeInTheDocument()
   })
 })

@@ -1,12 +1,14 @@
 'use client'
 
 import { useAuthClient, useMe } from '@repibot/core'
-import { Button, Card } from '@repibot/ui'
+import { Alert, Card, Skeleton, Tabs, TabsList, TabsTrigger } from '@repibot/ui'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
+
+import { AdminPage } from '@/components/admin-page'
 
 type Period = 'today' | 'week' | 'month'
 
@@ -22,6 +24,9 @@ const PERIODS: readonly { value: Period; label: string; caption: string }[] = [
 
 /** Подпись плиток, которых выбранный период не касается. */
 const NOW = 'Сейчас, независимо от периода'
+
+/** Плиток в сводке шесть — ровно столько же заглушек нужно на время загрузки. */
+const SKELETON_TILES = [0, 1, 2, 3, 4, 5] as const
 
 /** Разряды и знак рубля отделяем неразрывным пробелом: число не должно рваться переносом. */
 const NBSP = ' '
@@ -54,9 +59,10 @@ function Tile({ label, value, caption, href }: TileProps) {
   // того, чего именно три.
   const card: ReactNode = (
     <Card aria-label={label} className="h-full" role="group">
-      <p className="text-sm text-text-secondary">{label}</p>
-      <p className="mt-2 font-semibold text-2xl text-text">{value}</p>
-      <p className="mt-1 text-text-muted text-xs">{caption}</p>
+      <p className="text-small text-text-secondary">{label}</p>
+      {/* Число крупнее подписи вдвое: в сводке первым читается оно. */}
+      <p className="mt-2 font-semibold text-h1 text-text">{value}</p>
+      <p className="mt-1 text-caption text-text-muted">{caption}</p>
     </Card>
   )
 
@@ -77,7 +83,7 @@ function Tile({ label, value, caption, href }: TileProps) {
  * Сотруднику поддержки сводка не положена, а пустая главная выглядела бы
  * поломкой: он попадает туда, ради чего и открыл админку.
  */
-export default function AdminPage() {
+export default function AdminMetricsPage() {
   const router = useRouter()
   const me = useMe()
   const { api } = useAuthClient()
@@ -113,58 +119,55 @@ export default function AdminPage() {
   const caption = PERIODS.find((option) => option.value === period)?.caption ?? ''
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6 text-text">
-      <header>
-        <h1 className="font-semibold text-2xl">Сводка</h1>
-        <p className="mt-1 max-w-prose text-sm text-text-secondary">
-          Деньги и подписки по нашей базе. Границы периодов считаются по UTC, как и всё остальное
-          время в системе.
-        </p>
-      </header>
-
-      {/* Переключатель — набор кнопок, а не ссылок: период живёт в состоянии
-          страницы, адрес раздела от него не зависит. */}
-      <fieldset className="border-0 p-0">
-        <legend className="sr-only">Период</legend>
-        <div className="flex flex-wrap gap-2">
+    <AdminPage
+      title="Сводка"
+      description="Деньги и подписки по нашей базе. Границы периодов считаются по UTC, как и всё остальное время в системе."
+    >
+      {/* Период живёт в состоянии страницы, адрес раздела от него не зависит —
+          вкладки, а не ссылки. */}
+      <Tabs value={period} onValueChange={(next) => setPeriod(next as Period)}>
+        <TabsList aria-label="Период">
           {PERIODS.map((option) => (
-            <Button
-              key={option.value}
-              type="button"
-              size="sm"
-              variant={option.value === period ? 'primary' : 'secondary'}
-              aria-pressed={option.value === period}
-              onClick={() => setPeriod(option.value)}
-            >
+            <TabsTrigger key={option.value} value={option.value}>
               {option.label}
-            </Button>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      {metrics.error === null ? null : <Alert tone="error">Не удалось загрузить сводку.</Alert>}
+
+      {metrics.isPending ? (
+        // Заглушки по форме плиток: сетка не должна прыгать, когда числа
+        // приедут.
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {SKELETON_TILES.map((key) => (
+            <Skeleton key={key} className="h-28 w-full" />
           ))}
         </div>
-      </fieldset>
-
-      {metrics.error === null ? null : (
-        <p role="alert" className="text-danger text-sm">
-          Не удалось загрузить сводку.
-        </p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Tile
+            label="Выручка"
+            value={shown === undefined ? unknown : formatRevenue(shown.revenue_rub)}
+            caption={caption}
+          />
+          <Tile label="Оплаты" value={count(shown?.payments)} caption={caption} />
+          <Tile label="Новые подписки" value={count(shown?.new_subscriptions)} caption={caption} />
+          <Tile label="Продления" value={count(shown?.renewals)} caption={caption} />
+          <Tile
+            label="Активные подписки"
+            value={count(shown?.active_subscriptions)}
+            caption={NOW}
+          />
+          <Tile
+            label="Ждут ответа"
+            value={count(shown?.tickets_waiting)}
+            caption={NOW}
+            href="/admin/tickets"
+          />
+        </div>
       )}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Tile
-          label="Выручка"
-          value={shown === undefined ? unknown : formatRevenue(shown.revenue_rub)}
-          caption={caption}
-        />
-        <Tile label="Оплаты" value={count(shown?.payments)} caption={caption} />
-        <Tile label="Новые подписки" value={count(shown?.new_subscriptions)} caption={caption} />
-        <Tile label="Продления" value={count(shown?.renewals)} caption={caption} />
-        <Tile label="Активные подписки" value={count(shown?.active_subscriptions)} caption={NOW} />
-        <Tile
-          label="Ждут ответа"
-          value={count(shown?.tickets_waiting)}
-          caption={NOW}
-          href="/admin/tickets"
-        />
-      </div>
-    </main>
+    </AdminPage>
   )
 }

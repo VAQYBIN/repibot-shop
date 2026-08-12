@@ -27,7 +27,7 @@ function show(role: string) {
     {
       handlers: {
         '/api/auth/refresh': { access_token: 'jwt', expires_in: 900 },
-        '/api/me': { id: 1, role },
+        '/api/me': { id: 1, role, email: 'staff@example.com' },
       },
     },
   )
@@ -69,5 +69,19 @@ describe('оболочка админки', () => {
     const inside = within(await menu())
     expect(inside.getByRole('link', { name: 'Обращения' })).toHaveAttribute('aria-current', 'page')
     expect(inside.getByRole('link', { name: 'Сводка' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('показывает, под кем вошёл сотрудник', async () => {
+    show('admin')
+
+    expect(await screen.findByText('staff@example.com')).toBeInTheDocument()
+  })
+
+  it('даёт выйти', async () => {
+    /* До этой правки выйти из админки было нельзя вообще: кнопки не было
+       ни на одном из семи экранов. */
+    show('admin')
+
+    expect(await screen.findByRole('button', { name: /выйти/i })).toBeInTheDocument()
   })
 })
