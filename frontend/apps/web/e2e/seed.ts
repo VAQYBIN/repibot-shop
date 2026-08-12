@@ -118,6 +118,21 @@ export function seed(subscription?: SeededSubscription): void {
  * сессии, письма, кэши и стек разработчика не затрагиваются.
  */
 export function resetRegistrationRateLimit(): void {
+  resetRateLimitKeys('ratelimit:register:ip:*')
+}
+
+/**
+ * То же для создания заказов: пять в минуту с адреса.
+ *
+ * Полный прогон заводит заказы в нескольких файлах подряд, и все они приходят
+ * с одного адреса — к платёжным сценариям лимит уже исчерпан соседями. Без
+ * сброса тест падает не на своём предмете, а на защите от кликера формы.
+ */
+export function resetOrderRateLimit(): void {
+  resetRateLimitKeys('ratelimit:payment-create:ip:*')
+}
+
+function resetRateLimitKeys(pattern: string): void {
   const script = [
     "local keys = redis.call('keys', ARGV[1])",
     "for _, key in ipairs(keys) do redis.call('del', key) end",
@@ -132,7 +147,7 @@ export function resetRegistrationRateLimit(): void {
     'EVAL',
     script,
     '0',
-    'ratelimit:register:ip:*',
+    pattern,
   ])
 }
 

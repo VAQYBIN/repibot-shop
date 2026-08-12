@@ -14,7 +14,9 @@ const ROOT = resolve(__dirname, '../../../..')
 const PROJECT = 'repibot-e2e'
 const ENV_FILE = 'frontend/apps/web/e2e/stack.env'
 const FILES = ['compose.yml', 'frontend/apps/web/e2e/compose.e2e.yml']
-const PROBE_DIR = 'frontend/apps/web/e2e/landing-probe'
+// Ведущая точка обязательна: путь без неё compose считает именем тома, а не
+// каталогом на диске, и отказывается разбирать файл целиком.
+const PROBE_DIR = './frontend/apps/web/e2e/landing-probe'
 
 function compose(landingDir: string, ...args: string[]): void {
   const command = [

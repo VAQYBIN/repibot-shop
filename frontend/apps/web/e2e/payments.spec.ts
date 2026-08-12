@@ -3,14 +3,17 @@ import { resolve } from 'node:path'
 import { expect, type Page, test } from '@playwright/test'
 
 import { waitForLink } from './mailpit'
-import { grantE2eAdmin, resetRegistrationRateLimit } from './seed'
+import { grantE2eAdmin, resetOrderRateLimit, resetRegistrationRateLimit } from './seed'
 import { MAILPIT_URL, WEB_URL } from './stack'
 
 const PASSWORD = 'надёжный пароль для платежного сценария'
 const VERIFY_LINK = /https?:\/\/\S+\/verify-email\S+/
 const FAKE_YOOKASSA_URL = process.env.E2E_YOOKASSA_URL ?? 'http://127.0.0.1:3002'
 
-test.beforeEach(() => resetRegistrationRateLimit())
+test.beforeEach(() => {
+  resetRegistrationRateLimit()
+  resetOrderRateLimit()
+})
 
 function uniqueEmail(prefix: string): string {
   return `${prefix}-${Date.now()}@example.com`
@@ -89,7 +92,10 @@ test('оплата картой проверяется по провайдеру
   await setProviderStatus(page, paymentId, 'succeeded')
   await page.reload()
 
-  await expect(page.getByText('Оплачен', { exact: true })).toBeVisible()
+  // Именно ячейка таблицы: историю заказов рисуют двумя вёрстками сразу —
+  // карточками для узкого экрана и таблицей для широкого, — и обе лежат в
+  // разметке, одна скрыта стилями. По тексту такой поиск неоднозначен.
+  await expect(page.getByRole('cell', { name: 'Оплачен', exact: true })).toBeVisible()
   await page.goto('/account/subscription')
   await expect(page.getByText('Месяц', { exact: true })).toBeVisible()
 })
@@ -103,7 +109,7 @@ test('неуспешный платёж не выдаёт подписку', asy
 
   // Провайдерская отмена остаётся ожидающим заказом до TTL: пользователь может
   // повторить оплату, но право не выдаётся без подтверждённого success.
-  await expect(page.getByText('Ожидает оплаты', { exact: true })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'Ожидает оплаты', exact: true })).toBeVisible()
   await page.goto('/account/subscription')
   await expect(page.getByText('Подписки пока нет')).toBeVisible()
 })

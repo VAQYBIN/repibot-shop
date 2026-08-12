@@ -1,7 +1,13 @@
 import { expect, type Page, test } from '@playwright/test'
 
 import { waitForLink } from './mailpit'
-import { grantE2eAdmin, PANEL_URL, seed, seedTelegramUser } from './seed'
+import {
+  grantE2eAdmin,
+  PANEL_URL,
+  resetRegistrationRateLimit,
+  seed,
+  seedTelegramUser,
+} from './seed'
 import { MAILPIT_URL } from './stack'
 import { signInitData } from './telegram'
 
@@ -61,6 +67,12 @@ function uniqueEmail(prefix: string): string {
 
 /** Тот же способ входа, что в auth.spec.ts: регистрация и переход по ссылке из письма. */
 async function registerAndVerify(page: Page, email: string): Promise<void> {
+  // Регистраций разрешено пять в час на адрес, а обход заводит по человеку на
+  // каждый набор — и все с одного адреса. Счётчик сбрасывается перед каждой,
+  // тем же способом, что в payments.spec.ts: иначе половина наборов падает
+  // не на своём предмете, а на защите от перебора.
+  resetRegistrationRateLimit()
+
   await page.goto('/register')
   await page.getByLabel('Почта', { exact: true }).fill(email)
   await page.getByLabel('Пароль', { exact: true }).fill(PASSWORD)
