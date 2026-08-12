@@ -226,8 +226,10 @@ describe('оплата в кабинете', () => {
     await userEvent.type(screen.getByLabelText('Код ваучера'), 'GIFT-1')
     await userEvent.click(screen.getByRole('button', { name: 'Активировать ваучер' }))
     await userEvent.click(screen.getByRole('switch', { name: 'Автопродление' }))
-    expect(await screen.findByText('Срок оплаты истёк')).toBeVisible()
-    expect(screen.getByText('Оплачен')).toBeVisible()
+    // Список заказов теперь живёт в двух представлениях сразу — карточках до
+    // md и таблице от md, — оба в DOM одновременно, поэтому статус встречается дважды.
+    expect(await screen.findAllByText('Срок оплаты истёк')).toHaveLength(2)
+    expect(screen.getAllByText('Оплачен')).toHaveLength(2)
     expect(screen.getByText('Подарочный ваучер').parentElement).toHaveTextContent('GIFT-1')
     const bodies = await Promise.all(
       requests.filter((request) => request.method !== 'GET').map((request) => request.json()),

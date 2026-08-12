@@ -1,7 +1,7 @@
 'use client'
 
 import { type Language, useMe, useUpdateProfile } from '@repibot/core'
-import { Button, Card, FormField, Input } from '@repibot/ui'
+import { Alert, Button, Card, FormField, Input, Select, Spinner } from '@repibot/ui'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 
@@ -25,8 +25,8 @@ export default function AccountPage() {
     setChosen(me.data.language)
   }, [me.data])
 
-  if (me.isPending) return <p className="text-text-secondary">{t('common.loading')}</p>
-  if (me.data === undefined) return <p role="alert">{t('common.error')}</p>
+  if (me.isPending) return <Spinner label={t('common.loading')} />
+  if (me.data === undefined) return <Alert tone="error">{t('common.error')}</Alert>
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -35,8 +35,8 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('account.title')}</h1>
+    <main className="flex flex-col gap-6">
+      <h1 className="text-h1 font-semibold text-text">{t('account.title')}</h1>
 
       <Card>
         <form onSubmit={submit} noValidate className="flex flex-col gap-4">
@@ -51,24 +51,21 @@ export default function AccountPage() {
           </FormField>
 
           <FormField label={t('account.language')} htmlFor="language">
-            <select
+            <Select
               id="language"
               value={chosen}
               onChange={(event) => setChosen(event.target.value as Language)}
-              className="h-10 w-full rounded-md border border-border-subtle bg-surface px-3 text-text focus:border-accent focus:ring-3 focus:ring-jade-mist focus:outline-none"
             >
               {LANGUAGES.map((code) => (
                 <option key={code} value={code}>
                   {code === 'ru' ? 'Русский' : 'English'}
                 </option>
               ))}
-            </select>
+            </Select>
           </FormField>
 
           {update.error === null ? null : (
-            <p role="alert" className="text-sm text-danger">
-              {errorText(update.error, language)}
-            </p>
+            <Alert tone="error">{errorText(update.error, language)}</Alert>
           )}
 
           <div className="flex items-center gap-3">
@@ -76,14 +73,14 @@ export default function AccountPage() {
               {t('common.save')}
             </Button>
             {update.isSuccess ? (
-              <span className="text-sm text-text-secondary">{t('account.saved')}</span>
+              <span className="text-small text-text-secondary">{t('account.saved')}</span>
             ) : null}
           </div>
         </form>
       </Card>
 
       <Card>
-        <dl className="flex flex-col gap-3 text-sm">
+        <dl className="flex flex-col gap-3 text-small">
           <div className="flex justify-between gap-4">
             <dt className="text-text-secondary">{t('account.email')}</dt>
             <dd className="flex flex-col items-end gap-1 text-text">
@@ -101,6 +98,6 @@ export default function AccountPage() {
           </div>
         </dl>
       </Card>
-    </div>
+    </main>
   )
 }

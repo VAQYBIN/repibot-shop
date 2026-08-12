@@ -16,7 +16,22 @@ import {
   useSubscription,
   useUnlinkCard,
 } from '@repibot/core'
-import { Button, Card, Dialog, EmptyState, Input, Switch } from '@repibot/ui'
+import {
+  Alert,
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  Input,
+  Spinner,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from '@repibot/ui'
 import { useState } from 'react'
 
 import { OrderDialog } from '@/components/order-dialog'
@@ -123,11 +138,11 @@ export default function PaymentsPage() {
   return (
     <main className="flex max-w-3xl flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-text">{t('payment.title')}</h1>
-        <p className="mt-1 text-sm text-text-secondary">{t('payment.retry_hint')}</p>
+        <h1 className="text-h1 font-semibold text-text">{t('payment.title')}</h1>
+        <p className="mt-1 text-small text-text-secondary">{t('payment.retry_hint')}</p>
       </div>
       <Card>
-        <label htmlFor="promo" className="text-sm font-medium text-text">
+        <label htmlFor="promo" className="text-small font-medium text-text">
           {t('payment.promo')}
         </label>
         <Input
@@ -137,20 +152,16 @@ export default function PaymentsPage() {
           className="mt-2"
         />
         {promoApplied ? (
-          <p role="status" className="mt-2 text-sm text-text-accent">
+          <Alert tone="success" className="mt-2">
             {t('payment.promo_applied')}
-          </p>
+          </Alert>
         ) : null}
       </Card>
       {plans.isPending ? (
-        <p role="status" className="text-text-secondary">
-          {t('common.loading')}
-        </p>
+        <Spinner label={t('common.loading')} />
       ) : plans.error !== null ? (
         <Card>
-          <p role="alert" className="text-danger">
-            {errorText(plans.error, language)}
-          </p>
+          <Alert tone="error">{errorText(plans.error, language)}</Alert>
           <Button className="mt-4" onClick={() => void plans.refetch()}>
             {t('common.retry')}
           </Button>
@@ -159,7 +170,7 @@ export default function PaymentsPage() {
         <EmptyState title={t('plans.empty')} />
       ) : (
         <section aria-labelledby="payment-plans">
-          <h2 id="payment-plans" className="text-lg font-semibold text-text">
+          <h2 id="payment-plans" className="text-h3 font-medium text-text">
             {t('payment.choose_plan')}
           </h2>
           <ul className="mt-3 grid gap-3 md:grid-cols-2">
@@ -168,10 +179,10 @@ export default function PaymentsPage() {
               .map((plan) => (
                 <li key={plan.id}>
                   <Card>
-                    <h3 className="text-lg font-semibold text-text">
+                    <h3 className="text-h3 font-medium text-text">
                       {localized(plan.name, language, plan.code)}
                     </h3>
-                    <p className="mt-1 text-sm text-text-secondary">
+                    <p className="mt-1 text-small text-text-secondary">
                       {t('plans.per_days').replace('{days}', String(plan.duration_days))}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -207,26 +218,18 @@ export default function PaymentsPage() {
           </ul>
         </section>
       )}
-      {subscription.isPending ? (
-        <p role="status" className="text-sm text-text-secondary">
-          {t('common.loading')}
-        </p>
-      ) : null}
+      {subscription.isPending ? <Spinner label={t('common.loading')} /> : null}
       {createOrder.error !== null ? (
-        <p role="alert" className="text-sm text-danger">
-          {errorText(createOrder.error, language)}
-        </p>
+        <Alert tone="error">{errorText(createOrder.error, language)}</Alert>
       ) : null}
       {starsHint ? (
         <Card>
-          <p role="status" className="text-sm text-text">
-            {t('payment.stars_instruction')}
-          </p>
-          <p className="mt-1 text-sm text-text-secondary">{t('payment.stars_handoff')}</p>
+          <Alert tone="success">{t('payment.stars_instruction')}</Alert>
+          <p className="mt-1 text-small text-text-secondary">{t('payment.stars_handoff')}</p>
         </Card>
       ) : null}
       <Card>
-        <h2 className="text-lg font-semibold text-text">{t('payment.voucher')}</h2>
+        <h2 className="text-h3 font-medium text-text">{t('payment.voucher')}</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           <Input
             aria-label={t('payment.redeem_placeholder')}
@@ -241,20 +244,18 @@ export default function PaymentsPage() {
           </Button>
         </div>
         {redeemGift.error !== null ? (
-          <p role="alert" className="mt-2 text-sm text-danger">
+          <Alert tone="error" className="mt-2">
             {errorText(redeemGift.error, language)}
-          </p>
+          </Alert>
         ) : null}
         {gifts.isPending ? (
-          <p role="status" className="mt-3 text-sm text-text-secondary">
-            {t('common.loading')}
-          </p>
+          <Spinner label={t('common.loading')} className="mt-3" />
         ) : gifts.error !== null ? (
-          <p role="alert" className="mt-3 text-sm text-danger">
+          <Alert tone="error" className="mt-3">
             {errorText(gifts.error, language)}
-          </p>
+          </Alert>
         ) : gifts.data?.length === 0 ? null : (
-          <ul className="mt-3 space-y-1 text-sm text-text-secondary">
+          <ul className="mt-3 space-y-1 text-small text-text-secondary">
             {gifts.data?.map((gift) => (
               <li key={gift.code}>
                 {gift.code} —{' '}
@@ -269,33 +270,29 @@ export default function PaymentsPage() {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-text">{t('payment.card')}</h2>
+            <h2 className="text-h3 font-medium text-text">{t('payment.card')}</h2>
             {paymentMethod.isPending ? (
-              <p role="status" className="mt-1 text-sm text-text-secondary">
-                {t('common.loading')}
-              </p>
+              <Spinner label={t('common.loading')} className="mt-1" />
             ) : paymentMethod.error !== null ? (
-              <p role="alert" className="mt-1 text-sm text-danger">
+              <Alert tone="error" className="mt-1">
                 {errorText(paymentMethod.error, language)}
-              </p>
+              </Alert>
             ) : cardTitle === null ? (
               <>
-                <p className="mt-1 text-sm text-text">{t('payment.card_none')}</p>
+                <p className="mt-1 text-small text-text">{t('payment.card_none')}</p>
                 {/* Ответ провайдера идёт своим ходом; молчащий экран человек
                     принимает за неудавшуюся привязку и начинает её заново. */}
                 {waitingForCard ? (
-                  <p role="status" className="mt-1 text-sm text-text-secondary">
-                    {t('payment.card_waiting')}
-                  </p>
+                  <Spinner label={t('payment.card_waiting')} className="mt-1" />
                 ) : (
-                  <p className="mt-1 text-sm text-text-secondary">{t('payment.card_hint')}</p>
+                  <p className="mt-1 text-small text-text-secondary">{t('payment.card_hint')}</p>
                 )}
               </>
             ) : (
-              <p className="mt-1 text-sm text-text">{cardTitle}</p>
+              <p className="mt-1 text-small text-text">{cardTitle}</p>
             )}
             {bindingAvailable ? (
-              <p className="mt-1 text-sm text-text-secondary">{t('payment.card_bind_hint')}</p>
+              <p className="mt-1 text-small text-text-secondary">{t('payment.card_bind_hint')}</p>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -323,31 +320,29 @@ export default function PaymentsPage() {
           </div>
         </div>
         {unlinkCard.error !== null ? (
-          <p role="alert" className="mt-2 text-sm text-danger">
+          <Alert tone="error" className="mt-2">
             {errorText(unlinkCard.error, language)}
-          </p>
+          </Alert>
         ) : null}
         {startBinding.error !== null ? (
-          <p role="alert" className="mt-2 text-sm text-danger">
+          <Alert tone="error" className="mt-2">
             {errorText(startBinding.error, language)}
-          </p>
+          </Alert>
         ) : null}
         <div className="mt-4 flex items-start justify-between gap-4 border-t border-border-subtle pt-4">
           <div>
-            <h2 className="text-lg font-semibold text-text">{t('payment.auto_renew')}</h2>
-            <p className="mt-1 text-sm text-text-secondary">{t('payment.auto_renew_hint')}</p>
+            <h2 className="text-h3 font-medium text-text">{t('payment.auto_renew')}</h2>
+            <p className="mt-1 text-small text-text-secondary">{t('payment.auto_renew_hint')}</p>
           </div>
           {subscription.error !== null ? (
             <div>
-              <p role="alert" className="text-sm text-danger">
-                {errorText(subscription.error, language)}
-              </p>
+              <Alert tone="error">{errorText(subscription.error, language)}</Alert>
               <Button size="sm" className="mt-2" onClick={() => void subscription.refetch()}>
                 {t('common.retry')}
               </Button>
             </div>
           ) : current === undefined || current === null ? (
-            <p className="text-sm text-text-secondary">{t('payment.auto_renew.unavailable')}</p>
+            <p className="text-small text-text-secondary">{t('payment.auto_renew.unavailable')}</p>
           ) : (
             <Switch
               label={t('payment.auto_renew')}
@@ -360,9 +355,9 @@ export default function PaymentsPage() {
           )}
         </div>
         {autoRenew.error !== null ? (
-          <p role="alert" className="mt-2 text-sm text-danger">
+          <Alert tone="error" className="mt-2">
             {errorText(autoRenew.error, language)}
-          </p>
+          </Alert>
         ) : null}
       </Card>
       <Dialog
@@ -379,18 +374,14 @@ export default function PaymentsPage() {
         </Button>
       </Dialog>
       <section aria-labelledby="orders">
-        <h2 id="orders" className="text-lg font-semibold text-text">
+        <h2 id="orders" className="text-h3 font-medium text-text">
           {t('payment.orders')}
         </h2>
         {orders.isPending ? (
-          <p role="status" className="mt-3 text-text-secondary">
-            {t('common.loading')}
-          </p>
+          <Spinner label={t('common.loading')} className="mt-3" />
         ) : orders.error !== null ? (
           <Card className="mt-3">
-            <p role="alert" className="text-danger">
-              {errorText(orders.error, language)}
-            </p>
+            <Alert tone="error">{errorText(orders.error, language)}</Alert>
             <Button className="mt-3" onClick={() => void orders.refetch()}>
               {t('common.retry')}
             </Button>
@@ -398,26 +389,62 @@ export default function PaymentsPage() {
         ) : orders.data?.length === 0 ? (
           <EmptyState className="mt-3" title={t('payment.orders_empty')} />
         ) : (
-          <ul className="mt-3 space-y-2">
-            {orders.data?.map((order) => (
-              <li key={order.id}>
-                <Card>
-                  <div className="flex justify-between gap-3">
-                    <span className="font-medium text-text">
-                      {localized(order.plan_name, language, order.plan_code)}
-                    </span>
-                    <span className="text-sm text-text-secondary">{orderStatus(order, t)}</span>
-                  </div>
-                  <time
-                    className="mt-1 block text-sm text-text-secondary"
-                    dateTime={order.expires_at}
-                  >
-                    {formatDate(order.expires_at, language)}
-                  </time>
-                </Card>
-              </li>
-            ))}
-          </ul>
+          <>
+            {/* Ниже md таблица не помещается: восемь столбцов на четырёх
+                дюймах превращаются в горизонтальную прокрутку каждой строки. */}
+            <ul className="mt-3 space-y-2 md:hidden">
+              {orders.data?.map((order) => (
+                <li key={order.id}>
+                  <Card>
+                    <div className="flex justify-between gap-3">
+                      <span className="font-medium text-text">
+                        {localized(order.plan_name, language, order.plan_code)}
+                      </span>
+                      <span className="text-small text-text-secondary">
+                        {orderStatus(order, t)}
+                      </span>
+                    </div>
+                    <time
+                      className="mt-1 block text-small text-text-secondary"
+                      dateTime={order.expires_at}
+                    >
+                      {formatDate(order.expires_at, language)}
+                    </time>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-3 hidden md:block">
+              {/* Ключа "статус" отдельным словом в словаре нет: заголовок
+                  столбца берёт тот же ключ, что и заголовок раздела/подпись
+                  таблицы — новый ключ ради одного слова план заводить не даёт. */}
+              <Table caption={t('payment.orders')}>
+                <TableHead>
+                  <TableRow>
+                    <TableHeaderCell>{t('plans.title')}</TableHeaderCell>
+                    <TableHeaderCell>{t('subscription.expires_at')}</TableHeaderCell>
+                    <TableHeaderCell>{t('payment.orders')}</TableHeaderCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {orders.data?.map((order) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">
+                        {localized(order.plan_name, language, order.plan_code)}
+                      </TableCell>
+                      <TableCell className="tabular-nums text-text-secondary">
+                        <time dateTime={order.expires_at}>
+                          {formatDate(order.expires_at, language)}
+                        </time>
+                      </TableCell>
+                      <TableCell>{orderStatus(order, t)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </section>
       <OrderDialog

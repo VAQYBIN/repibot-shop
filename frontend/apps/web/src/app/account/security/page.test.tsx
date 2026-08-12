@@ -185,8 +185,10 @@ describe('привязка Telegram в разделе безопасности',
 
     // Роль проверяется у самой фразы: на странице есть и другие карточки со
     // своими сообщениями, и getByRole('alert') нашёл бы их вместе с этим.
+    // Alert из @repibot/ui кладёт текст во вложенный div, а role="alert" —
+    // на внешний: проверяем ближайшего предка с этой ролью.
     const alert = await screen.findByText('Это единственный способ входа — сначала добавьте другой')
-    expect(alert).toHaveAttribute('role', 'alert')
+    expect(alert.closest('[role="alert"]')).not.toBeNull()
   })
 })
 

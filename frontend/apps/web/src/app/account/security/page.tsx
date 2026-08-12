@@ -9,7 +9,17 @@ import {
   useRevokeSession,
   useSessions,
 } from '@repibot/core'
-import { Button, Card, Dialog, EmptyState, FormField, Input, PasswordInput } from '@repibot/ui'
+import {
+  Alert,
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  FormField,
+  Input,
+  PasswordInput,
+  Spinner,
+} from '@repibot/ui'
 import { useMutation } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
@@ -103,264 +113,275 @@ export default function SecurityPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('account.security')}</h1>
+    <main className="flex flex-col gap-6">
+      <h1 className="text-h1 font-semibold text-text">{t('account.security')}</h1>
 
-      <Card>
-        <h2 className="text-lg font-semibold text-text">{t('account.password_change')}</h2>
-        <form onSubmit={submitPassword} noValidate className="mt-4 flex flex-col gap-4">
-          {hasPassword ? (
-            <FormField label={t('auth.field.current_password')} htmlFor="current-password">
-              <PasswordInput
-                id="current-password"
-                autoComplete="current-password"
-                showLabel={t('auth.field.password_show')}
-                hideLabel={t('auth.field.password_hide')}
-                value={current}
-                onChange={(event) => setCurrent(event.target.value)}
-              />
-            </FormField>
-          ) : null}
+      <section className="flex flex-col gap-4">
+        {/* Ключа account.login_methods в словаре нет — план велит взять
+            account.security для заголовка первой группы, а новый ключ ради
+            одного слова не заводить. */}
+        <h2 className="text-h2 font-semibold text-text">{t('account.security')}</h2>
 
-          <FormField
-            label={t('auth.field.new_password')}
-            htmlFor="new-password"
-            hint={t('auth.hint.password')}
-            error={passwordError}
-          >
-            <PasswordInput
-              id="new-password"
-              autoComplete="new-password"
-              showLabel={t('auth.field.password_show')}
-              hideLabel={t('auth.field.password_hide')}
-              value={next}
-              onChange={(event) => setNext(event.target.value)}
-            />
-          </FormField>
-
-          {changePassword.error === null ? null : (
-            <p role="alert" className="text-sm text-danger">
-              {errorText(changePassword.error, language)}
-            </p>
-          )}
-
-          <div className="flex items-center gap-3">
-            <Button type="submit" disabled={changePassword.isPending}>
-              {t('common.save')}
-            </Button>
-            {changePassword.isSuccess ? (
-              <span className="text-sm text-text-secondary">{t('account.password_saved')}</span>
-            ) : null}
-          </div>
-        </form>
-      </Card>
-
-      <Card>
-        {/* Подписи зависят от того, есть ли адрес, поэтому карточка ждёт
-            профиль: иначе первый кадр звал бы менять несуществующую почту. */}
-        {me.isPending ? (
-          <p className="text-text-secondary">{t('common.loading')}</p>
-        ) : (
-          <>
-            <h2 className="text-lg font-semibold text-text">
-              {hasEmail ? t('account.email_change') : t('account.email_add')}
-            </h2>
-            <form onSubmit={submitEmail} noValidate className="mt-4 flex flex-col gap-4">
-              <FormField
-                label={hasEmail ? t('account.email_new') : t('account.email')}
-                htmlFor="new-email"
-                hint={t('account.email_change_hint')}
-                error={emailError}
-              >
-                <Input
-                  id="new-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+        <Card>
+          <h2 className="text-h3 font-medium text-text">{t('account.password_change')}</h2>
+          <form onSubmit={submitPassword} noValidate className="mt-4 flex flex-col gap-4">
+            {hasPassword ? (
+              <FormField label={t('auth.field.current_password')} htmlFor="current-password">
+                <PasswordInput
+                  id="current-password"
+                  autoComplete="current-password"
+                  showLabel={t('auth.field.password_show')}
+                  hideLabel={t('auth.field.password_hide')}
+                  value={current}
+                  onChange={(event) => setCurrent(event.target.value)}
                 />
               </FormField>
+            ) : null}
 
-              {requestEmail.error === null ? null : (
-                <p role="alert" className="text-sm text-danger">
-                  {errorText(requestEmail.error, language)}
-                </p>
-              )}
+            <FormField
+              label={t('auth.field.new_password')}
+              htmlFor="new-password"
+              hint={t('auth.hint.password')}
+              error={passwordError}
+            >
+              <PasswordInput
+                id="new-password"
+                autoComplete="new-password"
+                showLabel={t('auth.field.password_show')}
+                hideLabel={t('auth.field.password_hide')}
+                value={next}
+                onChange={(event) => setNext(event.target.value)}
+              />
+            </FormField>
 
-              <div className="flex items-center gap-3">
-                <Button type="submit" disabled={requestEmail.isPending}>
-                  {t('account.email_change_submit')}
-                </Button>
-                {requestEmail.isSuccess ? (
-                  <span className="text-sm text-text-secondary">
-                    {t('account.email_change_sent')}
-                  </span>
-                ) : null}
-              </div>
-            </form>
-          </>
-        )}
-      </Card>
+            {changePassword.error === null ? null : (
+              <Alert tone="error">{errorText(changePassword.error, language)}</Alert>
+            )}
 
-      <Card>
-        <h2 className="text-lg font-semibold text-text">{t('account.passkeys.title')}</h2>
-        <p className="mt-1 text-sm text-text-secondary">{t('account.passkeys.hint')}</p>
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={changePassword.isPending}>
+                {t('common.save')}
+              </Button>
+              {changePassword.isSuccess ? (
+                <span className="text-small text-text-secondary">
+                  {t('account.password_saved')}
+                </span>
+              ) : null}
+            </div>
+          </form>
+        </Card>
 
-        {passkeyError === null ? null : (
-          <p role="alert" className="mt-2 text-sm text-danger">
-            {passkeyError}
-          </p>
-        )}
-
-        {passkeys.isPending ? (
-          <p className="mt-4 text-text-secondary">{t('common.loading')}</p>
-        ) : passkeys.data === undefined || passkeys.data.length === 0 ? (
-          <EmptyState className="mt-4" title={t('account.passkeys.empty')} />
-        ) : (
-          <ul className="mt-4 flex flex-col gap-3">
-            {passkeys.data.map((key) => (
-              <li key={key.id} className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-text">{key.name}</p>
-                  <p className="text-sm text-text-muted">
-                    {key.last_used_at === null
-                      ? t('account.passkeys.never_used')
-                      : `${t('account.passkeys.last_used')}: ${new Date(
-                          key.last_used_at,
-                        ).toLocaleString(language)}`}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setPendingKey(key.id)}
+        <Card>
+          {/* Подписи зависят от того, есть ли адрес, поэтому карточка ждёт
+            профиль: иначе первый кадр звал бы менять несуществующую почту. */}
+          {me.isPending ? (
+            <Spinner label={t('common.loading')} />
+          ) : (
+            <>
+              <h2 className="text-h3 font-medium text-text">
+                {hasEmail ? t('account.email_change') : t('account.email_add')}
+              </h2>
+              <form onSubmit={submitEmail} noValidate className="mt-4 flex flex-col gap-4">
+                <FormField
+                  label={hasEmail ? t('account.email_new') : t('account.email')}
+                  htmlFor="new-email"
+                  hint={t('account.email_change_hint')}
+                  error={emailError}
                 >
-                  {t('account.passkeys.delete')}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+                  <Input
+                    id="new-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </FormField>
 
-        <form onSubmit={submitPasskey} noValidate className="mt-4 flex flex-col gap-4">
-          <FormField label={t('account.passkeys.name')} htmlFor="passkey-name">
-            <Input
-              id="passkey-name"
-              value={keyName}
-              placeholder={t('account.passkeys.name_placeholder')}
-              onChange={(event) => setKeyName(event.target.value)}
-            />
-          </FormField>
-          <div>
-            <Button type="submit" disabled={addPasskey.isPending}>
-              {addPasskey.isPending ? t('account.passkeys.adding') : t('account.passkeys.add')}
-            </Button>
-          </div>
-        </form>
-      </Card>
+                {requestEmail.error === null ? null : (
+                  <Alert tone="error">{errorText(requestEmail.error, language)}</Alert>
+                )}
 
-      <Card>
-        <h2 className="text-lg font-semibold text-text">{t('account.sessions')}</h2>
-        {revoke.error === null ? null : (
-          <p role="alert" className="mt-2 text-sm text-danger">
-            {errorText(revoke.error, language)}
-          </p>
-        )}
-        {sessions.isPending ? (
-          <p className="mt-4 text-text-secondary">{t('common.loading')}</p>
-        ) : sessions.data === undefined || sessions.data.length === 0 ? (
-          <EmptyState className="mt-4" title={t('account.sessions_empty')} />
-        ) : (
-          <ul className="mt-4 flex flex-col gap-3">
-            {sessions.data.map((session) => (
-              <li key={session.id} className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="truncate text-sm text-text">
-                    {session.user_agent ?? t('account.unknown_device')}
-                  </p>
-                  <p className="text-sm text-text-muted">
-                    {session.is_current
-                      ? t('account.current_session')
-                      : new Date(session.created_at).toLocaleString(language)}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <Button type="submit" disabled={requestEmail.isPending}>
+                    {t('account.email_change_submit')}
+                  </Button>
+                  {requestEmail.isSuccess ? (
+                    <span className="text-small text-text-secondary">
+                      {t('account.email_change_sent')}
+                    </span>
+                  ) : null}
                 </div>
-                {session.is_current ? null : (
+              </form>
+            </>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="text-h3 font-medium text-text">{t('account.passkeys.title')}</h2>
+          <p className="mt-1 text-small text-text-secondary">{t('account.passkeys.hint')}</p>
+
+          {passkeyError === null ? null : (
+            <Alert tone="error" className="mt-2">
+              {passkeyError}
+            </Alert>
+          )}
+
+          {passkeys.isPending ? (
+            <Spinner label={t('common.loading')} className="mt-4" />
+          ) : passkeys.data === undefined || passkeys.data.length === 0 ? (
+            <EmptyState className="mt-4" title={t('account.passkeys.empty')} />
+          ) : (
+            <ul className="mt-4 flex flex-col gap-3">
+              {passkeys.data.map((key) => (
+                <li key={key.id} className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-small text-text">{key.name}</p>
+                    <p className="text-small text-text-muted">
+                      {key.last_used_at === null
+                        ? t('account.passkeys.never_used')
+                        : `${t('account.passkeys.last_used')}: ${new Date(
+                            key.last_used_at,
+                          ).toLocaleString(language)}`}
+                    </p>
+                  </div>
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
-                    onClick={() => setPendingRevoke(session.id)}
+                    onClick={() => setPendingKey(key.id)}
                   >
-                    {t('account.revoke')}
+                    {t('account.passkeys.delete')}
                   </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+                </li>
+              ))}
+            </ul>
+          )}
 
-      <Card>
-        <h2 className="text-lg font-semibold text-text">{t('account.telegram')}</h2>
-
-        {me.data?.has_telegram === true ? (
-          <>
-            <p className="mt-2 text-sm text-text-secondary">
-              {me.data.telegram_username === null
-                ? t('account.telegram_linked')
-                : `@${me.data.telegram_username}`}
-            </p>
-            {unlink.error === null ? null : (
-              <p role="alert" className="mt-2 text-sm text-danger">
-                {errorText(unlink.error, language)}
-              </p>
-            )}
-            <div className="mt-4">
-              <Button type="button" variant="secondary" onClick={() => setUnlinkOpen(true)}>
-                {t('account.telegram.unlink')}
+          <form onSubmit={submitPasskey} noValidate className="mt-4 flex flex-col gap-4">
+            <FormField label={t('account.passkeys.name')} htmlFor="passkey-name">
+              <Input
+                id="passkey-name"
+                value={keyName}
+                placeholder={t('account.passkeys.name_placeholder')}
+                onChange={(event) => setKeyName(event.target.value)}
+              />
+            </FormField>
+            <div>
+              <Button type="submit" disabled={addPasskey.isPending}>
+                {addPasskey.isPending ? t('account.passkeys.adding') : t('account.passkeys.add')}
               </Button>
             </div>
-          </>
-        ) : (
-          <>
-            <p className="mt-2 text-sm text-text-secondary">{t('account.telegram_absent')}</p>
-            {linkCode.data === undefined ? (
+          </form>
+        </Card>
+
+        <Card>
+          <h2 className="text-h3 font-medium text-text">{t('account.telegram')}</h2>
+
+          {me.data?.has_telegram === true ? (
+            <>
+              <p className="mt-2 text-small text-text-secondary">
+                {me.data.telegram_username === null
+                  ? t('account.telegram_linked')
+                  : `@${me.data.telegram_username}`}
+              </p>
+              {unlink.error === null ? null : (
+                <Alert tone="error" className="mt-2">
+                  {errorText(unlink.error, language)}
+                </Alert>
+              )}
               <div className="mt-4">
-                <Button
-                  type="button"
-                  onClick={() => linkCode.mutate()}
-                  disabled={linkCode.isPending}
-                >
-                  {t('account.telegram.link')}
+                <Button type="button" variant="secondary" onClick={() => setUnlinkOpen(true)}>
+                  {t('account.telegram.unlink')}
                 </Button>
               </div>
-            ) : (
-              <div className="mt-4 flex flex-col gap-3">
-                <p className="text-sm text-text-secondary">{t('account.telegram.code_hint')}</p>
-                {/* Код набирают руками в чате бота: моноширинный шрифт и
-                    разрядка нужны, чтобы не спутать похожие знаки. */}
-                <p className="font-mono text-2xl tracking-widest text-text">{linkCode.data.code}</p>
-                <p className="text-sm text-text-muted">{t('account.telegram.code_expires')}</p>
-                <div>
-                  {/* Ссылка, а не window.open: чужой домен должен быть виден
-                      до перехода и открываться средствами браузера. */}
-                  <Button asChild>
-                    <a href={linkCode.data.url} target="_blank" rel="noopener noreferrer">
-                      {t('account.telegram.open_bot')}
-                    </a>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-small text-text-secondary">{t('account.telegram_absent')}</p>
+              {linkCode.data === undefined ? (
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    onClick={() => linkCode.mutate()}
+                    disabled={linkCode.isPending}
+                  >
+                    {t('account.telegram.link')}
                   </Button>
                 </div>
-              </div>
-            )}
-            {linkCode.error === null ? null : (
-              <p role="alert" className="mt-2 text-sm text-danger">
-                {errorText(linkCode.error, language)}
-              </p>
-            )}
-          </>
-        )}
-      </Card>
+              ) : (
+                <div className="mt-4 flex flex-col gap-3">
+                  <p className="text-small text-text-secondary">
+                    {t('account.telegram.code_hint')}
+                  </p>
+                  {/* Код набирают руками в чате бота: моноширинный шрифт и
+                    разрядка нужны, чтобы не спутать похожие знаки. */}
+                  <p className="font-mono text-h1 tracking-widest text-text">
+                    {linkCode.data.code}
+                  </p>
+                  <p className="text-small text-text-muted">{t('account.telegram.code_expires')}</p>
+                  <div>
+                    {/* Ссылка, а не window.open: чужой домен должен быть виден
+                      до перехода и открываться средствами браузера. */}
+                    <Button asChild>
+                      <a href={linkCode.data.url} target="_blank" rel="noopener noreferrer">
+                        {t('account.telegram.open_bot')}
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {linkCode.error === null ? null : (
+                <Alert tone="error" className="mt-2">
+                  {errorText(linkCode.error, language)}
+                </Alert>
+              )}
+            </>
+          )}
+        </Card>
+      </section>
+
+      <section className="flex flex-col gap-4 border-t border-border-subtle pt-6">
+        <h2 className="text-h2 font-semibold text-text">{t('account.sessions')}</h2>
+        <Card>
+          {/* Заголовок карточки убран: группа выше уже назвала раздел тем же
+              ключом — вторая одинаковая подпись подряд не несёт новой информации. */}
+          {revoke.error === null ? null : (
+            <Alert tone="error">{errorText(revoke.error, language)}</Alert>
+          )}
+          {sessions.isPending ? (
+            <Spinner label={t('common.loading')} className="mt-4" />
+          ) : sessions.data === undefined || sessions.data.length === 0 ? (
+            <EmptyState className="mt-4" title={t('account.sessions_empty')} />
+          ) : (
+            <ul className="mt-4 flex flex-col gap-3">
+              {sessions.data.map((session) => (
+                <li key={session.id} className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-small text-text">
+                      {session.user_agent ?? t('account.unknown_device')}
+                    </p>
+                    <p className="text-small text-text-muted">
+                      {session.is_current
+                        ? t('account.current_session')
+                        : new Date(session.created_at).toLocaleString(language)}
+                    </p>
+                  </div>
+                  {session.is_current ? null : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setPendingRevoke(session.id)}
+                    >
+                      {t('account.revoke')}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </section>
 
       <Dialog
         open={pendingKey !== null}
@@ -415,6 +436,6 @@ export default function SecurityPage() {
           {t('account.revoke')}
         </Button>
       </Dialog>
-    </div>
+    </main>
   )
 }

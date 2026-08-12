@@ -1,7 +1,7 @@
 'use client'
 
 import { useNotificationSettings, useUpdateNotificationSettings } from '@repibot/core'
-import { Card, Switch } from '@repibot/ui'
+import { Alert, Card, Spinner, Switch } from '@repibot/ui'
 
 import { errorText, useProfileLanguage, useTranslate } from '@/lib/i18n'
 
@@ -16,16 +16,14 @@ export default function NotificationsPage() {
   const enabled = settings.data?.marketing_enabled
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('notifications.title')}</h1>
+    <main className="flex flex-col gap-6">
+      <h1 className="text-h1 font-semibold text-text">{t('notifications.title')}</h1>
 
       <Card>
         {settings.isPending ? (
-          <p className="text-text-secondary">{t('common.loading')}</p>
+          <Spinner label={t('common.loading')} />
         ) : enabled === undefined ? (
-          <p role="alert" className="text-sm text-danger">
-            {t('common.error')}
-          </p>
+          <Alert tone="error">{t('common.error')}</Alert>
         ) : (
           <>
             <Switch
@@ -35,19 +33,23 @@ export default function NotificationsPage() {
               label={t('notifications.marketing')}
               onCheckedChange={(checked) => update.mutate(checked)}
             />
-            <p className="mt-2 text-sm text-text-secondary">{t('notifications.marketing_hint')}</p>
+            <p className="mt-2 text-small text-text-secondary">
+              {t('notifications.marketing_hint')}
+            </p>
             {/* Подсказка обязательна: без неё отписка читается как отказ от
-                всех уведомлений, включая оплату и окончание подписки. */}
-            <p className="mt-4 text-sm text-text-muted">{t('notifications.service_hint')}</p>
+                всех уведомлений, включая оплату и окончание подписки. Отдельный
+                абзац с отступом отделяет её от переключателей — это подпись,
+                а не текст наравне с остальным. */}
+            <p className="mt-4 text-caption text-text-muted">{t('notifications.service_hint')}</p>
           </>
         )}
 
         {update.error === null ? null : (
-          <p role="alert" className="mt-4 text-sm text-danger">
+          <Alert tone="error" className="mt-4">
             {errorText(update.error, language)}
-          </p>
+          </Alert>
         )}
       </Card>
-    </div>
+    </main>
   )
 }

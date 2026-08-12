@@ -10,7 +10,7 @@ import {
   useTicket,
   useTickets,
 } from '@repibot/core'
-import { Button, Card, Dialog, EmptyState } from '@repibot/ui'
+import { Alert, Button, Card, cn, Dialog, EmptyState, Spinner, Textarea } from '@repibot/ui'
 import { type FormEvent, useState } from 'react'
 
 import { errorText, type Translate, useProfileLanguage, useTranslate } from '@/lib/i18n'
@@ -80,56 +80,50 @@ export default function SupportPage() {
   return (
     <main className="flex max-w-3xl flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-text">{t('support.title')}</h1>
-        <p className="mt-1 text-sm text-text-secondary">{t('support.hint')}</p>
+        <h1 className="text-h1 font-semibold text-text">{t('support.title')}</h1>
+        <p className="mt-1 text-small text-text-secondary">{t('support.hint')}</p>
       </div>
 
       {unavailable ? (
         <Card>
-          <p role="status" className="text-sm text-text">
-            {t('support.unavailable')}
-          </p>
+          <Alert tone="info">{t('support.unavailable')}</Alert>
         </Card>
       ) : (
         <Card>
           <form aria-label={t('support.new')} onSubmit={open}>
-            <h2 className="text-lg font-semibold text-text">{t('support.new')}</h2>
+            <h2 className="text-h3 font-medium text-text">{t('support.new')}</h2>
             <label htmlFor="support-subject" className="sr-only">
               {t('support.placeholder')}
             </label>
-            <textarea
+            <Textarea
               id="support-subject"
               rows={3}
               placeholder={t('support.placeholder')}
               value={subject}
               onChange={(event) => setSubject(event.target.value)}
-              className="mt-3 w-full rounded-md border border-border-subtle bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:ring-3 focus:ring-jade-mist focus:outline-none"
+              className="mt-3"
             />
             <Button type="submit" className="mt-3" disabled={openTicket.isPending}>
               {t('support.send')}
             </Button>
           </form>
           {openTicket.error !== null ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
+            <Alert tone="error" className="mt-2">
               {errorText(openTicket.error, language)}
-            </p>
+            </Alert>
           ) : null}
         </Card>
       )}
 
       <section aria-labelledby="support-tickets">
-        <h2 id="support-tickets" className="text-lg font-semibold text-text">
+        <h2 id="support-tickets" className="text-h3 font-medium text-text">
           {t('support.title')}
         </h2>
         {tickets.isPending ? (
-          <p role="status" className="mt-3 text-text-secondary">
-            {t('common.loading')}
-          </p>
+          <Spinner label={t('common.loading')} className="mt-3" />
         ) : tickets.error !== null ? (
           <Card className="mt-3">
-            <p role="alert" className="text-danger">
-              {errorText(tickets.error, language)}
-            </p>
+            <Alert tone="error">{errorText(tickets.error, language)}</Alert>
             <Button className="mt-3" onClick={() => void tickets.refetch()}>
               {t('common.retry')}
             </Button>
@@ -149,10 +143,10 @@ export default function SupportPage() {
                   >
                     {/* Текст писал человек: показываем как есть, без разметки. */}
                     <span className="font-medium text-text">{ticket.subject}</span>
-                    <span className="text-sm text-text-secondary">
+                    <span className="text-small text-text-secondary">
                       {label(STATUS, ticket.status, t)}
                     </span>
-                    <time className="text-sm text-text-secondary" dateTime={ticket.created_at}>
+                    <time className="text-small text-text-secondary" dateTime={ticket.created_at}>
                       {formatDate(ticket.created_at, language)}
                     </time>
                   </button>
@@ -166,7 +160,7 @@ export default function SupportPage() {
       {selected === null ? null : (
         <section aria-labelledby="support-thread">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 id="support-thread" className="text-lg font-semibold text-text">
+            <h2 id="support-thread" className="text-h3 font-medium text-text">
               {current?.subject ?? t('support.title')}
             </h2>
             {current === null || closed ? null : (
@@ -182,52 +176,65 @@ export default function SupportPage() {
             )}
           </div>
           {thread.isPending ? (
-            <p role="status" className="mt-3 text-text-secondary">
-              {t('common.loading')}
-            </p>
+            <Spinner label={t('common.loading')} className="mt-3" />
           ) : thread.error !== null ? (
             <Card className="mt-3">
-              <p role="alert" className="text-danger">
-                {errorText(thread.error, language)}
-              </p>
+              <Alert tone="error">{errorText(thread.error, language)}</Alert>
               <Button className="mt-3" onClick={() => void thread.refetch()}>
                 {t('common.retry')}
               </Button>
             </Card>
           ) : (
-            <ul aria-label={current?.subject ?? t('support.title')} className="mt-3 space-y-2">
-              {thread.data?.messages.map((message) => (
-                <li key={message.id}>
-                  <Card>
-                    <div className="flex justify-between gap-3">
-                      <span className="text-sm font-medium text-text">
-                        {label(AUTHOR, message.author, t)}
-                      </span>
-                      <time className="text-sm text-text-secondary" dateTime={message.created_at}>
-                        {formatDate(message.created_at, language)}
-                      </time>
+            <ul aria-label={current?.subject ?? t('support.title')} className="mt-3 space-y-3">
+              {thread.data?.messages.map((message) => {
+                const mine = message.author === 'user'
+                return (
+                  <li key={message.id} className={mine ? 'flex justify-end' : 'flex justify-start'}>
+                    {/* Своё прижато вправо и залито акцентной подложкой, чужое
+                        лежит слева на поверхности. Подпись остаётся, но теперь
+                        она подтверждает то, что и так видно, а не сообщает. */}
+                    <div
+                      className={cn(
+                        'max-w-[85%] rounded-md border px-4 py-3',
+                        mine
+                          ? 'border-transparent bg-jade-mist'
+                          : 'border-border-subtle bg-surface',
+                      )}
+                    >
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-small font-medium text-text">
+                          {label(AUTHOR, message.author, t)}
+                        </span>
+                        <time
+                          className="text-caption text-text-secondary"
+                          dateTime={message.created_at}
+                        >
+                          {formatDate(message.created_at, language)}
+                        </time>
+                      </div>
+                      {/* Сообщение остаётся текстом: разметку в нём не разбираем. */}
+                      <p className="mt-1 whitespace-pre-wrap text-text">{message.body}</p>
                     </div>
-                    {/* Сообщение остаётся текстом: разметку в нём не разбираем. */}
-                    <p className="mt-1 whitespace-pre-wrap text-text">{message.body}</p>
-                  </Card>
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           )}
           {closed ? (
-            <p className="mt-3 text-sm text-text-secondary">{t('support.status.closed')}</p>
+            <Alert tone="info" className="mt-3">
+              {t('support.status.closed')}
+            </Alert>
           ) : (
             <form aria-label={t('support.reply_placeholder')} className="mt-3" onSubmit={reply}>
               <label htmlFor="support-answer" className="sr-only">
                 {t('support.reply_placeholder')}
               </label>
-              <textarea
+              <Textarea
                 id="support-answer"
                 rows={3}
                 placeholder={t('support.reply_placeholder')}
                 value={answer}
                 onChange={(event) => setAnswer(event.target.value)}
-                className="w-full rounded-md border border-border-subtle bg-surface px-3 py-2 text-text placeholder:text-text-muted focus:border-accent focus:ring-3 focus:ring-jade-mist focus:outline-none"
               />
               <Button type="submit" className="mt-3" disabled={replyToTicket.isPending}>
                 {t('support.send')}
@@ -235,14 +242,14 @@ export default function SupportPage() {
             </form>
           )}
           {replyToTicket.error !== null && !unavailable ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
+            <Alert tone="error" className="mt-2">
               {errorText(replyToTicket.error, language)}
-            </p>
+            </Alert>
           ) : null}
           {closeTicket.error !== null ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
+            <Alert tone="error" className="mt-2">
               {errorText(closeTicket.error, language)}
-            </p>
+            </Alert>
           ) : null}
         </section>
       )}
