@@ -23,6 +23,7 @@ from repibot_core.db.models.commerce import (
     ReferralReward,
     SavedPaymentMethod,
 )
+from repibot_core.db.models.legal import LegalDocument
 from repibot_core.db.models.one_time_token import OneTimeToken, TokenType
 from repibot_core.db.models.outbox import OutboxMessage
 from repibot_core.db.models.passkey import PasskeyCredential
@@ -51,6 +52,7 @@ __all__ = [
     "CardBindingStatus",
     "FindingAction",
     "GiftVoucher",
+    "LegalDocument",
     "NotificationDelivery",
     "OneTimeToken",
     "Order",

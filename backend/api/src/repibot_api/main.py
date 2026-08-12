@@ -15,6 +15,7 @@ from repibot_api.middleware import register_request_id_middleware
 from repibot_api.origins import allowed_origins
 from repibot_api.routers.admin import router as admin_router
 from repibot_api.routers.auth import router as auth_router
+from repibot_api.routers.legal import router as legal_router
 from repibot_api.routers.me import router as me_router
 from repibot_api.routers.subscription import router as subscription_router
 from repibot_api.routers.support import router as support_router
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(me_router)
     app.include_router(unsubscribe_router)
     app.include_router(subscription_router)
+    app.include_router(legal_router)
     app.include_router(winback_router)
     app.include_router(support_router)
     app.include_router(admin_router)

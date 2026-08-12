@@ -479,3 +479,20 @@ class NotificationSettingsResponse(BaseModel):
 
 class UpdateNotificationSettingsRequest(BaseModel):
     marketing_enabled: bool
+
+
+class LegalListItemResponse(BaseModel):
+    """Строка для подвала: имя, подпись и дата, когда текст стал действовать."""
+
+    slug: str
+    title: str
+    published_at: datetime
+
+
+class LegalDocumentResponse(BaseModel):
+    slug: str
+    title: str
+    html: str
+    locale: str
+    version: int
+    published_at: datetime

@@ -1423,6 +1423,101 @@
         }
       }
     },
+    "/api/legal": {
+      "get": {
+        "summary": "List Legal Documents",
+        "operationId": "list_legal_documents_api_legal_get",
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en)$",
+              "default": "ru",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LegalListItemResponse"
+                  },
+                  "title": "Response List Legal Documents Api Legal Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/legal/{slug}": {
+      "get": {
+        "summary": "Read Legal Document",
+        "operationId": "read_legal_document_api_legal__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en)$",
+              "default": "ru",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/winback/claim": {
       "post": {
         "tags": [
@@ -4099,6 +4194,70 @@
           "valkey"
         ],
         "title": "HealthResponse"
+      },
+      "LegalDocumentResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "html": {
+            "type": "string",
+            "title": "Html"
+          },
+          "locale": {
+            "type": "string",
+            "title": "Locale"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "title",
+          "html",
+          "locale",
+          "version",
+          "published_at"
+        ],
+        "title": "LegalDocumentResponse"
+      },
+      "LegalListItemResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "title",
+          "published_at"
+        ],
+        "title": "LegalListItemResponse",
+        "description": "Строка для подвала: имя, подпись и дата, когда текст стал действовать."
       },
       "LinkCodeResponse": {
         "properties": {
