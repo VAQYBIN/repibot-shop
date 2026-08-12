@@ -16,7 +16,7 @@ import { signInitData } from './telegram'
  */
 
 /** Экраны, доступные без входа. */
-const PUBLIC = ['/plans', '/legal/terms', '/login', '/register', '/forgot-password']
+const PUBLIC = ['/', '/plans', '/legal/terms', '/login', '/register', '/forgot-password']
 
 /** Экраны, требующие сессии. */
 const PRIVATE = [

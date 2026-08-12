@@ -244,3 +244,35 @@ describe('шкала кеглей заперта', () => {
     expect(guilty).toEqual([])
   })
 })
+
+describe('границы называют существующую ступень', () => {
+  /* Ступеней у границы две — subtle и strong, — и токена `--color-border`
+     без ступени нет. Класс `border-border` из-за этого не выпускается вовсе:
+     цвет молча наследуется от currentColor, то есть граница красится текстом.
+     На светлой теме это выглядит просто как линия потемнее, поэтому глазом
+     ловится плохо, а имя напрашивается само — отсюда сторож.
+
+     Именно так въехали шапка и подвал публичных страниц. */
+  it('в theme.css нет токена границы без ступени', () => {
+    expect(css).not.toMatch(/--color-border:\s/)
+  })
+
+  it('во всех исходниках граница названа со ступенью', () => {
+    /* Имя собирается из частей, иначе сторож находит сам себя: буквальное
+       написание искомого класса в этом же файле — тоже совпадение. */
+    const border = 'border'
+    const pattern = new RegExp(`\\b${border}-${border}(?![-\\w])`)
+    const guilty: string[] = []
+
+    for (const root of ROOTS) {
+      for (const file of sources(root)) {
+        const line = withoutComments(readFileSync(file, 'utf8'))
+          .split('\n')
+          .findIndex((text) => pattern.test(text))
+        if (line >= 0) guilty.push(`${file}:${line + 1}`)
+      }
+    }
+
+    expect(guilty).toEqual([])
+  })
+})

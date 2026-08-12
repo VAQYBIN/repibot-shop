@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '@/test/providers'
-import HomePage from '../page'
 import Page from './page'
 
 const paidPlan = {
@@ -32,17 +31,29 @@ const trialPlan = {
   is_trial: true,
 } as const
 
+/**
+ * Соседний экран для проверки ухода с витрины.
+ *
+ * Настоящей главной здесь больше нет: она стала серверным компонентом с
+ * запросом тарифов, а такой не отрисовать клиентским рендером. Роль у неё в
+ * этом тесте была ровно одна — «любой другой экран», и заглушка исполняет её
+ * без сети.
+ */
+function OtherScreen() {
+  return <h1>Другой экран</h1>
+}
+
 function RouteSequence() {
-  const [route, setRoute] = useState<'plans' | 'home'>('plans')
+  const [route, setRoute] = useState<'plans' | 'other'>('plans')
   return route === 'plans' ? (
     <>
       <Page />
-      <button type="button" onClick={() => setRoute('home')}>
+      <button type="button" onClick={() => setRoute('other')}>
         На главную
       </button>
     </>
   ) : (
-    <HomePage />
+    <OtherScreen />
   )
 }
 
@@ -155,7 +166,7 @@ describe('витрина тарифов', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'На главную' }))
 
-    expect(await screen.findByText('Магазин ещё готовится')).toBeVisible()
+    expect(await screen.findByText('Другой экран')).toBeVisible()
     expect(document.documentElement.lang).toBe('ru')
   })
 })

@@ -19,7 +19,7 @@ export function PublicHeader() {
   const t = useTranslate(language)
 
   return (
-    <header className="border-border border-b">
+    <header className="border-border-subtle border-b">
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-6 py-4">
         {/* Знак сам по себе ничего не говорит скринридеру: LogoMark скрыт от
             дерева доступности, а вордмарк читается как название, а не как

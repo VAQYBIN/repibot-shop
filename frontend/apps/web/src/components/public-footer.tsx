@@ -30,7 +30,7 @@ export function PublicFooter() {
   const documents = legal.data ?? []
 
   return (
-    <footer className="border-border border-t">
+    <footer className="border-border-subtle border-t">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-10">
         <div className="flex flex-col gap-8 sm:flex-row sm:justify-between">
           <div className="flex flex-col gap-3">
