@@ -247,7 +247,6 @@ export const en: Record<TranslationKey, string> = {
   'error.subscription_exists': 'A subscription is already active',
   'nav.home': 'Home',
   'nav.plans': 'Plans',
-  'nav.support': 'Support',
   'nav.login': 'Sign in',
   'nav.register': 'Sign up',
   'footer.about': 'Subscription access on top of your own panel',

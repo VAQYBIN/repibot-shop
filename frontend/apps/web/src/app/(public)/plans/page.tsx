@@ -11,8 +11,10 @@ export default function PlansPage() {
   const t = useTranslate(language)
   const plans = usePlans()
 
+  // Высоту экрана держит оболочка публичных страниц: своя min-h-dvh здесь
+  // уводила бы подвал за первый экран даже на пустой витрине.
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-5xl px-6 py-12 sm:py-16">
+    <main className="mx-auto w-full max-w-5xl px-6 py-12 sm:py-16">
       <h1 className="text-h1 font-semibold text-text">{t('plans.title')}</h1>
 
       {plans.isPending ? (

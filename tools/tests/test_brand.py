@@ -168,7 +168,7 @@ def test_open_graph_image_is_twelve_hundred_by_six_thirty() -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["favicon-16.png", "favicon-32.png", "icon-192.png", "icon-512.png"]
+    "name", ["favicon-16.png", "favicon-32.png", "icon-192.png", "icon-512.png", "og-image.png"]
 )
 def test_public_raster_matches_the_brand_kit(name: str) -> None:
     """Копии в public — именно копии. Разошедшиеся иконки заметит только пользователь."""

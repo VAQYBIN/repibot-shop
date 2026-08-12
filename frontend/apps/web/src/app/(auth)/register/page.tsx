@@ -6,6 +6,7 @@ import { useMutation } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 
+import { LegalConsent } from '@/components/legal-consent'
 import { errorText, useBrowserLanguage, useTranslate } from '@/lib/i18n'
 
 export default function RegisterPage() {
@@ -108,6 +109,10 @@ export default function RegisterPage() {
       <Button type="submit" disabled={register.isPending}>
         {register.isPending ? t('auth.register.pending') : t('auth.register.submit')}
       </Button>
+
+      {/* Под кнопкой, а не над ней: согласие выражается нажатием, и человек
+          должен видеть, с чем соглашается, ровно там, где соглашается. */}
+      <LegalConsent />
 
       <a href="/login" className="text-small text-text-accent hover:underline">
         {t('auth.register.login_link')}

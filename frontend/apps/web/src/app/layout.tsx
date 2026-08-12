@@ -11,6 +11,16 @@ export const metadata: Metadata = {
   title: 'Re:Pibot',
   description: 'Магазин VPN-подписок',
   manifest: '/manifest.webmanifest',
+  // Относительные адреса картинок разрешаются от него: мессенджеру нужен
+  // абсолютный URL, а домен известен только тому, кто развернул.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost'),
+  openGraph: {
+    title: 'Re:Pibot',
+    description: 'Подписка на доступ. Одна ссылка — все устройства.',
+    type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+  },
+  twitter: { card: 'summary_large_image', images: ['/og-image.png'] },
   // SVG первым: браузеры, которые его понимают, растр даже не запросят.
   icons: {
     icon: [

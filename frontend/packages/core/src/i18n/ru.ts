@@ -247,7 +247,6 @@ export const ru = {
   'error.subscription_exists': 'Подписка уже активна',
   'nav.home': 'На главную',
   'nav.plans': 'Тарифы',
-  'nav.support': 'Поддержка',
   'nav.login': 'Войти',
   'nav.register': 'Регистрация',
   'footer.about': 'Подписка на доступ поверх собственной панели',
