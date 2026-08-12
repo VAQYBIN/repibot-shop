@@ -5,12 +5,14 @@ import {
   useDevices,
   useUnlinkDevice,
 } from '@repibot/core'
-import { Button, Card, Dialog, EmptyState } from '@repibot/ui'
+import { Alert, Button, Card, Dialog, EmptyState } from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
 import { useLanguage } from '../api'
 import { Loading, Retry } from '../auth-fallback'
+import { useMainButton } from '../main-button'
+import { haptic } from '../telegram'
 import { rootRoute } from './root'
 
 interface Device {
@@ -43,6 +45,24 @@ export function Devices() {
   const unlink = useUnlinkDevice(language)
   const [pending, setPending] = useState<Device | null>(null)
 
+  function confirmUnlink() {
+    if (pending === null) return
+    unlink.mutate(pending.hwid, {
+      onSuccess: () => haptic('success'),
+      onError: () => haptic('error'),
+    })
+    setPending(null)
+  }
+
+  // Главное действие экрана появляется только вместе с диалогом подтверждения:
+  // без открытого диалога отвязывать нечего.
+  const { supported } = useMainButton({
+    text: translate(language, 'devices.unlink'),
+    onClick: confirmUnlink,
+    visible: pending !== null,
+    loading: unlink.isPending,
+  })
+
   if (devices.isPending) return <Loading language={language} />
   if (devices.error !== null) {
     return (
@@ -54,18 +74,12 @@ export function Devices() {
     )
   }
 
-  function confirmUnlink() {
-    if (pending === null) return
-    unlink.mutate(pending.hwid)
-    setPending(null)
-  }
-
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{translate(language, 'devices.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{translate(language, 'devices.title')}</h1>
 
       <Card>
-        <p className="text-sm tabular-nums text-text-secondary">
+        <p className="text-small tabular-nums text-text-secondary">
           {devices.data === undefined
             ? null
             : translate(language, 'devices.limit')
@@ -74,9 +88,9 @@ export function Devices() {
         </p>
 
         {unlink.error === null ? null : (
-          <p role="alert" className="mt-3 text-sm text-danger">
+          <Alert tone="error" className="mt-3">
             {mutationErrorText(unlink.error, language)}
-          </p>
+          </Alert>
         )}
 
         {devices.data === undefined || devices.data.devices.length === 0 ? (
@@ -92,7 +106,7 @@ export function Devices() {
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium text-text">{name}</p>
-                    <p className="mt-1 truncate text-sm text-text-secondary">
+                    <p className="mt-1 truncate text-small text-text-secondary">
                       {[device.platform, device.os_version].filter(Boolean).join(' · ') ||
                         translate(language, 'devices.unknown_platform')}
                     </p>
@@ -128,9 +142,13 @@ export function Devices() {
         <Button type="button" variant="secondary" onClick={() => setPending(null)}>
           {translate(language, 'common.cancel')}
         </Button>
-        <Button type="button" onClick={confirmUnlink}>
-          {translate(language, 'devices.unlink')}
-        </Button>
+        {supported ? null : (
+          // Клиенты без главной кнопки Телеграма обязаны остаться рабочими:
+          // без этой ветки отвязать устройство в них становится невозможно.
+          <Button type="button" onClick={confirmUnlink}>
+            {translate(language, 'devices.unlink')}
+          </Button>
+        )}
       </Dialog>
     </main>
   )

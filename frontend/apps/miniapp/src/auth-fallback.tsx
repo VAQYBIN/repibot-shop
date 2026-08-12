@@ -1,5 +1,5 @@
 import { detectLanguage, type Language, translate } from '@repibot/core'
-import { Button, Card } from '@repibot/ui'
+import { Alert, Button, Card, Spinner } from '@repibot/ui'
 
 import { type AuthState, telegramAuthOptions, useAuthState } from './auth'
 import { preferredLanguages } from './telegram'
@@ -8,11 +8,7 @@ import { preferredLanguages } from './telegram'
 export function Loading({ language }: { language: Language }) {
   return (
     <Card className="mx-auto max-w-md" aria-busy="true">
-      <p role="status" className="text-text-secondary">
-        {translate(language, 'common.loading')}
-      </p>
-      <div className="mt-4 h-4 animate-pulse rounded-sm bg-surface-sunken" />
-      <div className="mt-2 h-4 w-2/3 animate-pulse rounded-sm bg-surface-sunken" />
+      <Spinner label={translate(language, 'common.loading')} />
     </Card>
   )
 }
@@ -29,7 +25,7 @@ export function Retry({
 }) {
   return (
     <Card className="mx-auto max-w-md">
-      <p className="text-text">{message}</p>
+      <Alert tone="error">{message}</Alert>
       <Button className="mt-4" onClick={onRetry}>
         {translate(language, 'common.retry')}
       </Button>
@@ -60,7 +56,7 @@ export function AuthFallback({ state }: { state: Exclude<AuthState, 'ready'> }) 
 
   return (
     <Card className="mx-auto max-w-md">
-      <h1 className="text-2xl font-semibold">{translate(language, 'home.title')}</h1>
+      <h1 className="text-h1 font-semibold">{translate(language, 'home.title')}</h1>
       <p className="mt-2 text-text-secondary">{translate(language, 'miniapp.signin.outside')}</p>
     </Card>
   )

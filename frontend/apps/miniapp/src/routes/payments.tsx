@@ -13,7 +13,18 @@ import {
   useSubscription,
   useUnlinkCard,
 } from '@repibot/core'
-import { Button, Card, Dialog, EmptyState, Input, Switch } from '@repibot/ui'
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  Input,
+  Spinner,
+  Switch,
+} from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
@@ -46,6 +57,21 @@ function state(order: OrderResponse, language: 'ru' | 'en') {
       return translate(language, 'payment.status.refunded')
     default:
       return order.status
+  }
+}
+/* Тот же тон, что в кабинете: оплачен — успех, ждёт — предупреждение,
+   отменён или отклонён — отказ, всё остальное — нейтральный. */
+function statusTone(status: OrderResponse['status']): BadgeTone {
+  switch (status) {
+    case 'succeeded':
+    case 'fulfilled':
+      return 'success'
+    case 'pending':
+      return 'warning'
+    case 'canceled':
+      return 'danger'
+    default:
+      return 'neutral'
   }
 }
 
@@ -135,9 +161,9 @@ export function Payments() {
     )
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{translate(language, 'payment.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{translate(language, 'payment.title')}</h1>
       <Card>
-        <label htmlFor="mini-promo" className="text-sm font-medium text-text">
+        <label htmlFor="mini-promo" className="text-small font-medium text-text">
           {translate(language, 'payment.promo')}
         </label>
         <Input
@@ -147,13 +173,13 @@ export function Payments() {
           className="mt-2"
         />
         {accepted ? (
-          <p role="status" className="mt-2 text-sm text-text-accent">
+          <p role="status" className="mt-2 text-small text-text-accent">
             {translate(language, 'payment.promo_applied')}
           </p>
         ) : null}
       </Card>
       <section aria-labelledby="mini-payment-plans">
-        <h2 id="mini-payment-plans" className="text-lg font-semibold text-text">
+        <h2 id="mini-payment-plans" className="text-h3 font-semibold text-text">
           {translate(language, 'payment.choose_plan')}
         </h2>
         {plans.data?.length === 0 ? (
@@ -168,7 +194,7 @@ export function Payments() {
                     <h3 className="font-semibold text-text">
                       {name(plan.name, language, plan.code)}
                     </h3>
-                    <p className="mt-1 text-sm text-text-secondary">
+                    <p className="mt-1 text-small text-text-secondary">
                       {translate(language, 'plans.per_days').replace(
                         '{days}',
                         String(plan.duration_days),
@@ -203,22 +229,20 @@ export function Payments() {
         )}
       </section>
       {createOrder.error !== null ? (
-        <p role="alert" className="text-sm text-danger">
-          {errorText(createOrder.error, language)}
-        </p>
+        <Alert tone="error">{errorText(createOrder.error, language)}</Alert>
       ) : null}
       {stars ? (
         <Card>
-          <p role="status" className="text-sm text-text">
+          <p role="status" className="text-small text-text">
             {translate(language, 'payment.stars_instruction')}
           </p>
-          <p className="mt-1 text-sm text-text-secondary">
+          <p className="mt-1 text-small text-text-secondary">
             {translate(language, 'payment.stars_handoff')}
           </p>
         </Card>
       ) : null}
       <Card>
-        <h2 className="text-lg font-semibold text-text">
+        <h2 className="text-h3 font-semibold text-text">
           {translate(language, 'payment.voucher')}
         </h2>
         <div className="mt-3 flex gap-2">
@@ -235,20 +259,18 @@ export function Payments() {
           </Button>
         </div>
         {redeem.error !== null ? (
-          <p role="alert" className="mt-2 text-sm text-danger">
+          <Alert tone="error" className="mt-2">
             {errorText(redeem.error, language)}
-          </p>
+          </Alert>
         ) : null}
         {gifts.isPending ? (
-          <p role="status" className="mt-3 text-sm text-text-secondary">
-            {translate(language, 'common.loading')}
-          </p>
+          <Spinner label={translate(language, 'common.loading')} className="mt-3" />
         ) : gifts.error !== null ? (
-          <p role="alert" className="mt-3 text-sm text-danger">
+          <Alert tone="error" className="mt-3">
             {errorText(gifts.error, language)}
-          </p>
+          </Alert>
         ) : gifts.data?.length === 0 ? null : (
-          <ul className="mt-3 space-y-1 text-sm text-text-secondary">
+          <ul className="mt-3 space-y-1 text-small text-text-secondary">
             {gifts.data?.map((gift) => (
               <li key={gift.code}>
                 {gift.code} —{' '}
@@ -261,22 +283,20 @@ export function Payments() {
         )}
       </Card>
       <Card>
-        <h2 className="text-lg font-semibold text-text">{translate(language, 'payment.card')}</h2>
+        <h2 className="text-h3 font-semibold text-text">{translate(language, 'payment.card')}</h2>
         {card.isPending ? (
-          <p role="status" className="mt-2 text-sm text-text-secondary">
-            {translate(language, 'common.loading')}
-          </p>
+          <Spinner label={translate(language, 'common.loading')} className="mt-2" />
         ) : cardTitle === null ? (
           <>
-            <p className="mt-2 text-sm text-text">{translate(language, 'payment.card_none')}</p>
+            <p className="mt-2 text-small text-text">{translate(language, 'payment.card_none')}</p>
             {/* Ответ провайдера идёт своим ходом; молчащий экран человек
                 принимает за неудавшуюся привязку и начинает её заново. */}
             {waitingForCard ? (
-              <p role="status" className="mt-1 text-sm text-text-secondary">
+              <p role="status" className="mt-1 text-small text-text-secondary">
                 {translate(language, 'payment.card_waiting')}
               </p>
             ) : (
-              <p className="mt-1 text-sm text-text-secondary">
+              <p className="mt-1 text-small text-text-secondary">
                 {translate(language, 'payment.card_hint')}
               </p>
             )}
@@ -286,7 +306,7 @@ export function Payments() {
             <div className="min-w-0">
               <p className="truncate font-medium text-text">{cardTitle}</p>
               {card.data?.linked_at ? (
-                <time className="text-sm text-text-secondary" dateTime={card.data.linked_at}>
+                <time className="text-small text-text-secondary" dateTime={card.data.linked_at}>
                   {formatDate(card.data.linked_at, language)}
                 </time>
               ) : null}
@@ -315,24 +335,24 @@ export function Payments() {
             >
               {translate(language, 'payment.card_bind')}
             </Button>
-            <p className="mt-1 text-sm text-text-secondary">
+            <p className="mt-1 text-small text-text-secondary">
               {translate(language, 'payment.card_bind_hint')}
             </p>
           </div>
         ) : null}
         {unlinkCard.error !== null ? (
-          <p role="alert" className="mt-2 text-sm text-danger">
+          <Alert tone="error" className="mt-2">
             {errorText(unlinkCard.error, language)}
-          </p>
+          </Alert>
         ) : null}
         {startBinding.error !== null ? (
-          <p role="alert" className="mt-2 text-sm text-danger">
+          <Alert tone="error" className="mt-2">
             {errorText(startBinding.error, language)}
-          </p>
+          </Alert>
         ) : null}
         <div className="mt-4 border-t border-border-subtle pt-4">
           {current === null || current === undefined ? (
-            <p className="text-sm text-text-secondary">
+            <p className="text-small text-text-secondary">
               {translate(language, 'payment.auto_renew.unavailable')}
             </p>
           ) : (
@@ -346,14 +366,14 @@ export function Payments() {
             />
           )}
           {autoRenew.error !== null ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
+            <Alert tone="error" className="mt-2">
               {errorText(autoRenew.error, language)}
-            </p>
+            </Alert>
           ) : null}
         </div>
       </Card>
       <section aria-labelledby="mini-orders">
-        <h2 id="mini-orders" className="text-lg font-semibold text-text">
+        <h2 id="mini-orders" className="text-h3 font-semibold text-text">
           {translate(language, 'payment.orders')}
         </h2>
         {orders.error !== null ? (
@@ -372,10 +392,12 @@ export function Payments() {
                   <p className="font-medium text-text">
                     {name(item.plan_name, language, item.plan_code)}
                   </p>
-                  <p className="text-sm text-text-secondary">{state(item, language)}</p>
-                  <time className="text-sm text-text-secondary" dateTime={item.expires_at}>
-                    {formatDate(item.expires_at, language)}
-                  </time>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Badge tone={statusTone(item.status)}>{state(item, language)}</Badge>
+                    <time className="text-small text-text-secondary" dateTime={item.expires_at}>
+                      {formatDate(item.expires_at, language)}
+                    </time>
+                  </div>
                 </Card>
               </li>
             ))}

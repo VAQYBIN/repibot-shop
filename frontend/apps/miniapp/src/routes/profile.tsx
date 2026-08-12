@@ -1,3 +1,4 @@
+import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import {
   type Language,
   translate,
@@ -6,8 +7,8 @@ import {
   useUpdateNotificationSettings,
   useUpdateProfile,
 } from '@repibot/core'
-import { Button, Card, Switch } from '@repibot/ui'
-import { createRoute } from '@tanstack/react-router'
+import { Alert, Button, Card, Icon, Spinner, Switch } from '@repibot/ui'
+import { createRoute, Link } from '@tanstack/react-router'
 
 import { useLanguage } from '../api'
 import { Loading, Retry } from '../auth-fallback'
@@ -39,9 +40,9 @@ export function Profile() {
 
   return (
     <Card className="mx-auto max-w-md">
-      <h1 className="text-2xl font-semibold">{translate(language, 'account.title')}</h1>
+      <h1 className="text-h1 font-semibold">{translate(language, 'account.title')}</h1>
 
-      <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+      <dl className="mt-4 grid grid-cols-2 gap-2 text-small">
         <dt className="text-text-secondary">{translate(language, 'account.name')}</dt>
         <dd className="text-text">{me.name ?? me.telegram_username ?? '—'}</dd>
         <dt className="text-text-secondary">{translate(language, 'account.referral_code')}</dt>
@@ -49,7 +50,9 @@ export function Profile() {
       </dl>
 
       <section className="mt-6">
-        <h2 className="text-sm text-text-secondary">{translate(language, 'account.language')}</h2>
+        <h2 className="text-small text-text-secondary">
+          {translate(language, 'account.language')}
+        </h2>
         <div className="mt-2 flex gap-2">
           {LANGUAGES.map((option) => (
             <Button
@@ -69,18 +72,19 @@ export function Profile() {
       </section>
 
       <section className="mt-6">
-        <h2 className="text-sm text-text-secondary">
+        <h2 className="text-small text-text-secondary">
           {translate(language, 'notifications.title')}
         </h2>
         {/* Пока согласие не приехало, переключателя нет: значение по умолчанию
             соврало бы отписавшемуся, что новости ему всё ещё приходят. */}
         {notifications.data === undefined ? (
-          <p
-            className="mt-2 text-sm text-text-secondary"
-            role={notifications.isPending ? undefined : 'alert'}
-          >
-            {translate(language, notifications.isPending ? 'common.loading' : 'common.error')}
-          </p>
+          notifications.isPending ? (
+            <Spinner label={translate(language, 'common.loading')} className="mt-2" />
+          ) : (
+            <Alert tone="error" className="mt-2">
+              {translate(language, 'common.error')}
+            </Alert>
+          )
         ) : (
           <>
             <Switch
@@ -91,28 +95,35 @@ export function Profile() {
               label={translate(language, 'notifications.marketing')}
               onCheckedChange={(checked) => updateNotifications.mutate(checked)}
             />
-            <p className="mt-2 text-sm text-text-secondary">
+            <p className="mt-2 text-small text-text-secondary">
               {translate(language, 'notifications.marketing_hint')}
             </p>
             {/* Подсказка обязательна: без неё отписка читается как отказ от
                 сообщений об оплате и окончании подписки. */}
-            <p className="mt-3 text-sm text-text-muted">
+            <p className="mt-3 text-caption text-text-muted">
               {translate(language, 'notifications.service_hint')}
             </p>
           </>
         )}
       </section>
 
+      <section className="mt-6 border-t border-border-subtle pt-2">
+        <Link to="/support" className="flex items-center justify-between gap-3 py-3">
+          <span className="text-body text-text">{translate(language, 'support.title')}</span>
+          <Icon icon={ArrowRight01Icon} size={20} />
+        </Link>
+      </section>
+
       {updateNotifications.isError && (
-        <p className="mt-4 text-sm text-text" role="alert">
+        <Alert tone="error" className="mt-4">
           {translate(language, 'common.error')}
-        </p>
+        </Alert>
       )}
 
       {save.isError && (
-        <p className="mt-4 text-sm text-text" role="alert">
+        <Alert tone="error" className="mt-4">
           {translate(language, 'common.error')}
-        </p>
+        </Alert>
       )}
     </Card>
   )

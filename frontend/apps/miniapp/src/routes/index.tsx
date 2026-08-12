@@ -27,7 +27,7 @@ function Welcome() {
 
   return (
     <Card className="mx-auto max-w-md">
-      <h1 className="text-2xl font-semibold">{name ? `${welcome}, ${name}` : welcome}</h1>
+      <h1 className="text-h1 font-semibold">{name ? `${welcome}, ${name}` : welcome}</h1>
       <p className="mt-2 text-text-secondary">{translate(language, 'home.subtitle')}</p>
     </Card>
   )

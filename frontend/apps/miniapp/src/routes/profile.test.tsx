@@ -1,8 +1,23 @@
+import { RouterContextProvider } from '@tanstack/react-router'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { router } from '../router'
 import { PROFILE, renderWithProviders, stubFetch, withRussianLocale } from '../test-utils'
 import { Profile } from './profile'
+
+/*
+ * Экран теперь ссылается на /support: ссылке контекст роутера нужен, а без
+ * него useLinkProps падает ещё до рендера — тот же приём, что в
+ * routes/winback.test.tsx.
+ */
+function show() {
+  return renderWithProviders(
+    <RouterContextProvider router={router}>
+      <Profile />
+    </RouterContextProvider>,
+  )
+}
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -12,7 +27,7 @@ describe('профиль MiniApp', () => {
   it('показывает имя, реферальный код и текущий язык', async () => {
     stubFetch(() => Response.json(PROFILE))
 
-    renderWithProviders(<Profile />)
+    show()
 
     expect(await screen.findByText('Аня')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Профиль' })).toBeInTheDocument()
@@ -27,7 +42,7 @@ describe('профиль MiniApp', () => {
         : Response.json(PROFILE),
     )
 
-    renderWithProviders(<Profile />)
+    show()
     await screen.findByText('Аня')
     fireEvent.click(screen.getByRole('button', { name: 'English' }))
 
@@ -46,7 +61,7 @@ describe('профиль MiniApp', () => {
         : Response.json(PROFILE),
     )
 
-    renderWithProviders(<Profile />)
+    show()
 
     const toggle = await screen.findByRole('switch', { name: 'Новости и предложения' })
     expect(toggle).toBeChecked()
@@ -64,7 +79,7 @@ describe('профиль MiniApp', () => {
       return Response.json({ marketing_enabled: request.method !== 'PATCH' })
     })
 
-    renderWithProviders(<Profile />)
+    show()
     fireEvent.click(await screen.findByRole('switch', { name: 'Новости и предложения' }))
 
     await waitFor(() =>
@@ -83,7 +98,7 @@ describe('профиль MiniApp', () => {
       Response.json({ error: { code: 'unauthorized' } }, { status: 500 }),
     )
 
-    renderWithProviders(<Profile />)
+    show()
     fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }))
 
     expect(screen.getByText('Что-то пошло не так')).toBeInTheDocument()

@@ -6,6 +6,23 @@
  * действительно открывается внутри Telegram.
  */
 
+interface TelegramMainButton {
+  setText: (text: string) => void
+  show: () => void
+  hide: () => void
+  enable: () => void
+  disable: () => void
+  showProgress: (leaveActive?: boolean) => void
+  hideProgress: () => void
+  onClick: (handler: () => void) => void
+  offClick: (handler: () => void) => void
+}
+
+interface TelegramHaptics {
+  notificationOccurred: (type: 'error' | 'success' | 'warning') => void
+  impactOccurred: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void
+}
+
 interface TelegramWebApp {
   initData?: string
   initDataUnsafe?: { user?: { language_code?: string } }
@@ -16,6 +33,8 @@ interface TelegramWebApp {
   openTelegramLink?: (url: string) => void
   onEvent?: (event: string, handler: () => void) => void
   offEvent?: (event: string, handler: () => void) => void
+  MainButton?: TelegramMainButton
+  HapticFeedback?: TelegramHaptics
 }
 
 declare global {
@@ -90,4 +109,60 @@ export function openTelegramUrl(url: string, botLink = false): void {
   const app = webApp()
   if (botLink) app?.openTelegramLink?.(url)
   else app?.openLink?.(url)
+}
+
+export interface MainButtonState {
+  text: string
+  visible: boolean
+  loading: boolean
+  disabled: boolean
+}
+
+/** Есть ли в клиенте главная кнопка. В старых клиентах её нет. */
+export function hasMainButton(): boolean {
+  return webApp()?.MainButton !== undefined
+}
+
+/**
+ * Применяет состояние к кнопке. Обработчик ставится отдельно через
+ * `onMainButtonClick`: иначе каждое применение состояния переставляло бы
+ * его заново.
+ *
+ * Молча ничего не делает, если Телеграма нет: MiniApp открывается и в
+ * обычном браузере при разработке, и падение там означало бы белый экран
+ * вместо приложения.
+ */
+export function applyMainButton(state: MainButtonState): void {
+  const button = webApp()?.MainButton
+  if (button === undefined) return
+  button.setText(state.text)
+  if (state.loading) button.showProgress(true)
+  else button.hideProgress()
+  if (state.disabled || state.loading) button.disable()
+  else button.enable()
+  if (state.visible) button.show()
+  else button.hide()
+}
+
+/** Ставит обработчик и возвращает снятие. Вне Телеграма снятие — пустая функция. */
+export function onMainButtonClick(handler: () => void): () => void {
+  const button = webApp()?.MainButton
+  if (button === undefined) return () => undefined
+  button.onClick(handler)
+  return () => button.offClick(handler)
+}
+
+export function hideMainButton(): void {
+  webApp()?.MainButton?.hide()
+}
+
+/**
+ * Переводит наши три случая отклика в понятия Телеграма: `success` и `error` —
+ * уведомления о результате действия, `tap` — лёгкий удар при простом нажатии.
+ */
+export function haptic(kind: 'success' | 'error' | 'tap'): void {
+  const feedback = webApp()?.HapticFeedback
+  if (feedback === undefined) return
+  if (kind === 'tap') feedback.impactOccurred('light')
+  else feedback.notificationOccurred(kind)
 }

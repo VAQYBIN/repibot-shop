@@ -1,5 +1,5 @@
 import { translate, useAuthClient } from '@repibot/core'
-import { Card } from '@repibot/ui'
+import { Alert, Card } from '@repibot/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { createRoute, Link } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
@@ -47,7 +47,7 @@ export function Winback({ token }: { token: string | null }) {
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{translate(language, 'winback.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{translate(language, 'winback.title')}</h1>
       <Card>
         {claim.state === 'claiming' ? (
           <p role="status" className="text-text-secondary">
@@ -62,15 +62,15 @@ export function Winback({ token }: { token: string | null }) {
         ) : null}
 
         {claim.state === 'invalid' || claim.state === 'no_token' ? (
-          <p role="alert" className="text-sm text-danger">
+          <Alert tone="error">
             {translate(
               language,
               claim.state === 'no_token' ? 'winback.no_token' : 'winback.invalid',
             )}
-          </p>
+          </Alert>
         ) : null}
 
-        <Link to="/subscription" className="mt-4 inline-block text-sm text-text-accent">
+        <Link to="/subscription" className="mt-4 inline-block text-small text-text-accent">
           {translate(language, 'winback.to_subscription')}
         </Link>
       </Card>

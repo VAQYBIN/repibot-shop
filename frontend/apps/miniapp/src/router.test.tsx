@@ -93,15 +93,14 @@ describe('защищённые маршруты MiniApp', () => {
         (request) => request.headers.get('Authorization') === 'Bearer miniapp-token',
       ),
     ).toBe(true)
+    // Подписи панели вкладок — из miniapp.tab.*, а не из заголовков экранов:
+    // «Оплата», а не «Оплата и подарки» — короче ради плотной панели снизу.
     expect(screen.getByRole('link', { name: 'Подписка' })).toHaveAttribute(
       'href',
       '/app/subscription',
     )
     expect(screen.getByRole('link', { name: 'Устройства' })).toHaveAttribute('href', '/app/devices')
-    expect(screen.getByRole('link', { name: 'Оплата и подарки' })).toHaveAttribute(
-      'href',
-      '/app/payments',
-    )
+    expect(screen.getByRole('link', { name: 'Оплата' })).toHaveAttribute('href', '/app/payments')
     view.unmount()
   })
 })

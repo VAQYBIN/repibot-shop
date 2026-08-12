@@ -9,12 +9,14 @@ import {
   useTicket,
   useTickets,
 } from '@repibot/core'
-import { Button, Card, Dialog, EmptyState } from '@repibot/ui'
+import { Alert, Button, Card, Dialog, EmptyState, Spinner } from '@repibot/ui'
 import { createRoute } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 
 import { useLanguage } from '../api'
 import { Loading, Retry } from '../auth-fallback'
+import { useMainButton } from '../main-button'
+import { haptic } from '../telegram'
 import { rootRoute } from './root'
 
 const STATUS: Record<string, TranslationKey> = {
@@ -62,12 +64,20 @@ export function Support() {
   const current = thread.data?.ticket ?? null
   const closed = current?.status === 'closed'
 
-  async function open(event: FormEvent) {
-    event.preventDefault()
+  // Одна и та же главная кнопка ведёт себя как форма под ней: пока переписка
+  // не выбрана, отправляет новое обращение, иначе — ответ в открытую.
+  const composingNew = selected === null
+  const draft = composingNew ? subject : answer
+  const sending = composingNew ? openTicket.isPending : replyToTicket.isPending
+
+  async function submitNewTicket() {
     if (subject.trim() === '') return
     let ticket: { id: number }
     try {
-      ticket = await openTicket.mutateAsync({ body: subject })
+      ticket = await openTicket.mutateAsync(
+        { body: subject },
+        { onSuccess: () => haptic('success'), onError: () => haptic('error') },
+      )
     } catch {
       return
     }
@@ -76,15 +86,35 @@ export function Support() {
     setSelected(ticket.id)
   }
 
-  async function reply(event: FormEvent) {
-    event.preventDefault()
+  async function submitReply() {
     if (selected === null || answer.trim() === '') return
     try {
-      await replyToTicket.mutateAsync({ ticketId: selected, body: answer })
+      await replyToTicket.mutateAsync(
+        { ticketId: selected, body: answer },
+        { onSuccess: () => haptic('success'), onError: () => haptic('error') },
+      )
     } catch {
       return
     }
     setAnswer('')
+  }
+
+  const { supported } = useMainButton({
+    text: translate(language, 'support.send'),
+    onClick: () => void (composingNew ? submitNewTicket() : submitReply()),
+    visible: composingNew ? !unavailable : current !== null && !closed,
+    loading: sending,
+    disabled: draft.trim() === '',
+  })
+
+  async function open(event: FormEvent) {
+    event.preventDefault()
+    await submitNewTicket()
+  }
+
+  async function reply(event: FormEvent) {
+    event.preventDefault()
+    await submitReply()
   }
 
   if (tickets.isPending) return <Loading language={language} />
@@ -99,19 +129,19 @@ export function Support() {
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{translate(language, 'support.title')}</h1>
-      <p className="text-sm text-text-secondary">{translate(language, 'support.hint')}</p>
+      <h1 className="text-h1 font-semibold text-text">{translate(language, 'support.title')}</h1>
+      <p className="text-small text-text-secondary">{translate(language, 'support.hint')}</p>
 
       {unavailable ? (
         <Card>
-          <p role="status" className="text-sm text-text">
+          <p role="status" className="text-small text-text">
             {translate(language, 'support.unavailable')}
           </p>
         </Card>
       ) : (
         <Card>
           <form aria-label={translate(language, 'support.new')} onSubmit={open}>
-            <h2 className="text-lg font-semibold text-text">
+            <h2 className="text-h3 font-semibold text-text">
               {translate(language, 'support.new')}
             </h2>
             <label htmlFor="mini-support-subject" className="sr-only">
@@ -125,20 +155,24 @@ export function Support() {
               value={subject}
               onChange={(event) => setSubject(event.target.value)}
             />
-            <Button type="submit" className="mt-3" disabled={openTicket.isPending}>
-              {translate(language, 'support.send')}
-            </Button>
+            {supported ? null : (
+              // Клиенты без главной кнопки Телеграма обязаны остаться
+              // рабочими: без этой ветки написать в поддержку в них нельзя.
+              <Button type="submit" className="mt-3" disabled={openTicket.isPending}>
+                {translate(language, 'support.send')}
+              </Button>
+            )}
           </form>
           {openTicket.error !== null ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
+            <Alert tone="error" className="mt-2">
               {errorText(openTicket.error, language)}
-            </p>
+            </Alert>
           ) : null}
         </Card>
       )}
 
       <section aria-labelledby="mini-support-tickets">
-        <h2 id="mini-support-tickets" className="text-lg font-semibold text-text">
+        <h2 id="mini-support-tickets" className="text-h3 font-semibold text-text">
           {translate(language, 'support.title')}
         </h2>
         {tickets.data?.length === 0 ? (
@@ -156,10 +190,10 @@ export function Support() {
                   >
                     {/* Текст писал человек: показываем как есть, без разметки. */}
                     <span className="font-medium text-text">{ticket.subject}</span>
-                    <span className="text-sm text-text-secondary">
+                    <span className="text-small text-text-secondary">
                       {label(STATUS, ticket.status, language)}
                     </span>
-                    <time className="text-sm text-text-secondary" dateTime={ticket.created_at}>
+                    <time className="text-small text-text-secondary" dateTime={ticket.created_at}>
                       {formatDate(ticket.created_at, language)}
                     </time>
                   </button>
@@ -173,7 +207,7 @@ export function Support() {
       {selected === null ? null : (
         <section aria-labelledby="mini-support-thread">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="mini-support-thread" className="text-lg font-semibold text-text">
+            <h2 id="mini-support-thread" className="text-h3 font-semibold text-text">
               {current?.subject ?? translate(language, 'support.title')}
             </h2>
             {current === null || closed ? null : (
@@ -189,9 +223,9 @@ export function Support() {
             )}
           </div>
           {thread.isPending ? (
-            <p role="status" className="mt-3 text-sm text-text-secondary">
-              {translate(language, 'common.loading')}
-            </p>
+            <div className="mt-3">
+              <Spinner label={translate(language, 'common.loading')} />
+            </div>
           ) : thread.error !== null ? (
             <Retry
               language={language}
@@ -207,10 +241,13 @@ export function Support() {
                 <li key={message.id}>
                   <Card>
                     <div className="flex justify-between gap-3">
-                      <span className="text-sm font-medium text-text">
+                      <span className="text-small font-medium text-text">
                         {label(AUTHOR, message.author, language)}
                       </span>
-                      <time className="text-sm text-text-secondary" dateTime={message.created_at}>
+                      <time
+                        className="text-small text-text-secondary"
+                        dateTime={message.created_at}
+                      >
                         {formatDate(message.created_at, language)}
                       </time>
                     </div>
@@ -222,7 +259,7 @@ export function Support() {
             </ul>
           )}
           {closed ? (
-            <p className="mt-3 text-sm text-text-secondary">
+            <p className="mt-3 text-small text-text-secondary">
               {translate(language, 'support.status.closed')}
             </p>
           ) : (
@@ -242,20 +279,24 @@ export function Support() {
                 value={answer}
                 onChange={(event) => setAnswer(event.target.value)}
               />
-              <Button type="submit" className="mt-3" disabled={replyToTicket.isPending}>
-                {translate(language, 'support.send')}
-              </Button>
+              {supported ? null : (
+                // Та же причина: без обычной кнопки ответить в переписку
+                // в старом клиенте будет нечем.
+                <Button type="submit" className="mt-3" disabled={replyToTicket.isPending}>
+                  {translate(language, 'support.send')}
+                </Button>
+              )}
             </form>
           )}
           {replyToTicket.error !== null && !unavailable ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
+            <Alert tone="error" className="mt-2">
               {errorText(replyToTicket.error, language)}
-            </p>
+            </Alert>
           ) : null}
           {closeTicket.error !== null ? (
-            <p role="alert" className="mt-2 text-sm text-danger">
+            <Alert tone="error" className="mt-2">
               {errorText(closeTicket.error, language)}
-            </p>
+            </Alert>
           ) : null}
         </section>
       )}
@@ -273,7 +314,12 @@ export function Support() {
           type="button"
           onClick={() => {
             setCloseAsked(false)
-            if (selected !== null) closeTicket.mutate(selected)
+            if (selected !== null) {
+              closeTicket.mutate(selected, {
+                onSuccess: () => haptic('success'),
+                onError: () => haptic('error'),
+              })
+            }
           }}
         >
           {translate(language, 'support.close')}

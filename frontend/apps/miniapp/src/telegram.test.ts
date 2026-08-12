@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  applyMainButton,
   applyTelegramTheme,
+  haptic,
+  hasMainButton,
   isInsideTelegram,
+  onMainButtonClick,
   readInitData,
   watchTelegramActivity,
 } from './telegram'
@@ -98,5 +102,80 @@ describe('возврат в Mini App', () => {
     document.dispatchEvent(new Event('visibilitychange'))
 
     expect(seen).toEqual([true])
+  })
+})
+
+/** Главная кнопка и вибрация есть не в каждом клиенте: старые версии Telegram
+    их не поддерживают, и признак поддержки экран обязан проверять сам. */
+function stubMainButton(withMainButton: boolean) {
+  const main = {
+    setText: vi.fn(),
+    show: vi.fn(),
+    hide: vi.fn(),
+    enable: vi.fn(),
+    disable: vi.fn(),
+    showProgress: vi.fn(),
+    hideProgress: vi.fn(),
+    onClick: vi.fn(),
+    offClick: vi.fn(),
+  }
+  const notificationOccurred = vi.fn()
+  const impactOccurred = vi.fn()
+  stubTelegram({
+    ...(withMainButton ? { MainButton: main } : {}),
+    HapticFeedback: { notificationOccurred, impactOccurred },
+  })
+  return { main, notificationOccurred, impactOccurred }
+}
+
+describe('главная кнопка Telegram', () => {
+  it('в клиенте без кнопки признак отрицательный', () => {
+    /* Ради этого признака всё и написано: экран обязан уметь показать
+       обычную кнопку, иначе покупка в старом клиенте невозможна. */
+    stubMainButton(false)
+
+    expect(hasMainButton()).toBe(false)
+  })
+
+  it('применяет состояние целиком', () => {
+    const { main } = stubMainButton(true)
+
+    applyMainButton({ text: 'Купить', visible: true, loading: false, disabled: false })
+
+    expect(main.setText).toHaveBeenCalledWith('Купить')
+    expect(main.show).toHaveBeenCalled()
+    expect(main.enable).toHaveBeenCalled()
+  })
+
+  it('снятие обработчика возвращается вызывающему', () => {
+    const { main } = stubMainButton(true)
+    const handler = vi.fn()
+
+    const off = onMainButtonClick(handler)
+    off()
+
+    expect(main.onClick).toHaveBeenCalledWith(handler)
+    expect(main.offClick).toHaveBeenCalledWith(handler)
+  })
+
+  it('вне Telegram ничего не падает', () => {
+    expect(() =>
+      applyMainButton({ text: 'Купить', visible: true, loading: false, disabled: false }),
+    ).not.toThrow()
+    expect(() => haptic('success')).not.toThrow()
+  })
+})
+
+describe('вибрация Telegram', () => {
+  it('успех и отказ переводятся в уведомления, обычное нажатие — в лёгкий удар', () => {
+    const { notificationOccurred, impactOccurred } = stubMainButton(true)
+
+    haptic('success')
+    haptic('error')
+    haptic('tap')
+
+    expect(notificationOccurred).toHaveBeenCalledWith('success')
+    expect(notificationOccurred).toHaveBeenCalledWith('error')
+    expect(impactOccurred).toHaveBeenCalledWith('light')
   })
 })

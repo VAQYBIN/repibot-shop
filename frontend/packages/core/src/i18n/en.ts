@@ -11,7 +11,6 @@ export const en: Record<TranslationKey, string> = {
   'common.close': 'Close',
   'home.title': 'Re:Pibot',
   'home.subtitle': 'The shop is still being built',
-  'miniapp.nav.home': 'Home',
   'miniapp.nav.label': 'Sections',
   'miniapp.tab.home': 'Home',
   'miniapp.tab.subscription': 'Subscription',
