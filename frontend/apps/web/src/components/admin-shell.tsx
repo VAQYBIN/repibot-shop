@@ -4,6 +4,7 @@ import {
   BubbleChatIcon,
   ChartLineData01Icon,
   CreditCardIcon,
+  DocumentValidationIcon,
   Mail01Icon,
   ServerStack01Icon,
   UserGroupIcon,
@@ -38,6 +39,7 @@ const LINKS: readonly AdminLink[] = [
   { href: '/admin/payments', label: 'Платежи', roles: ['admin'], icon: CreditCardIcon },
   { href: '/admin/broadcasts', label: 'Рассылки', roles: ['admin'], icon: Mail01Icon },
   { href: '/admin/nodes', label: 'Ноды', roles: ['admin'], icon: ServerStack01Icon },
+  { href: '/admin/legal', label: 'Документы', roles: ['admin'], icon: DocumentValidationIcon },
 ]
 
 /** Оболочка пускает обе роли; разграничение внутри делают сами страницы. */

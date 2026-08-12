@@ -496,3 +496,52 @@ class LegalDocumentResponse(BaseModel):
     locale: str
     version: int
     published_at: datetime
+
+
+class AdminLegalListItemResponse(BaseModel):
+    """Документ в списке админки: что опубликовано и есть ли несохранённая правка."""
+
+    slug: str
+    locale: str
+    title: str
+    published_version: int | None
+    published_at: datetime | None
+    withdrawn: bool
+    has_draft: bool
+
+
+class AdminLegalDocumentResponse(BaseModel):
+    """Черновик или версия целиком: и Markdown для правки, и готовый HTML.
+
+    HTML собирается здесь, а не на клиенте: правила разбора и очистки живут в
+    одном месте, иначе предпросмотр в админке и публичная страница разошлись бы.
+    """
+
+    slug: str
+    locale: str
+    title: str
+    content: str
+    html: str
+    version: int
+    published_at: datetime | None
+
+
+class LegalVersionResponse(BaseModel):
+    version: int
+    published_at: datetime | None
+    withdrawn_at: datetime | None
+    created_at: datetime
+
+
+class LegalDraftRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1)
+
+
+class LegalImportRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=500)
+
+
+class LegalImportResponse(BaseModel):
+    title: str
+    content: str

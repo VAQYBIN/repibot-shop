@@ -3222,6 +3222,403 @@
         }
       }
     },
+    "/api/admin/legal": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Legal",
+        "operationId": "list_legal_api_admin_legal_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminLegalListItemResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Legal Api Admin Legal Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/legal/{slug}/{locale}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read Legal",
+        "operationId": "read_legal_api_admin_legal__slug___locale__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,64}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en)$",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Save Draft",
+        "operationId": "save_draft_api_admin_legal__slug___locale__put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,64}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en)$",
+              "title": "Locale"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalDraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Withdraw",
+        "operationId": "withdraw_api_admin_legal__slug___locale__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,64}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en)$",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/legal/{slug}/{locale}/versions": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Versions",
+        "operationId": "list_versions_api_admin_legal__slug___locale__versions_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,64}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en)$",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LegalVersionResponse"
+                  },
+                  "title": "Response List Versions Api Admin Legal  Slug   Locale  Versions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/legal/{slug}/{locale}/versions/{version}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read Version",
+        "operationId": "read_version_api_admin_legal__slug___locale__versions__version__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,64}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en)$",
+              "title": "Locale"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/legal/{slug}/{locale}/publish": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Publish",
+        "operationId": "publish_api_admin_legal__slug___locale__publish_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,64}$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(ru|en)$",
+              "title": "Locale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/legal/import": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Import From Telegraph",
+        "description": "Забирает текст к себе. Ничего не сохраняет — это делает админ, посмотрев результат.",
+        "operationId": "import_from_telegraph_api_admin_legal_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhook/yookassa": {
       "post": {
         "tags": [
@@ -3314,6 +3711,117 @@
           "actor"
         ],
         "title": "AdminJournalEntryResponse"
+      },
+      "AdminLegalDocumentResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "locale": {
+            "type": "string",
+            "title": "Locale"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "html": {
+            "type": "string",
+            "title": "Html"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "locale",
+          "title",
+          "content",
+          "html",
+          "version",
+          "published_at"
+        ],
+        "title": "AdminLegalDocumentResponse",
+        "description": "Черновик или версия целиком: и Markdown для правки, и готовый HTML.\n\nHTML собирается здесь, а не на клиенте: правила разбора и очистки живут в\nодном месте, иначе предпросмотр в админке и публичная страница разошлись бы."
+      },
+      "AdminLegalListItemResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "locale": {
+            "type": "string",
+            "title": "Locale"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "published_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Version"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "withdrawn": {
+            "type": "boolean",
+            "title": "Withdrawn"
+          },
+          "has_draft": {
+            "type": "boolean",
+            "title": "Has Draft"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "locale",
+          "title",
+          "published_version",
+          "published_at",
+          "withdrawn",
+          "has_draft"
+        ],
+        "title": "AdminLegalListItemResponse",
+        "description": "Документ в списке админки: что опубликовано и есть ли несохранённая правка."
       },
       "AdminMetricsResponse": {
         "properties": {
@@ -4234,6 +4742,60 @@
         ],
         "title": "LegalDocumentResponse"
       },
+      "LegalDraftRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "content"
+        ],
+        "title": "LegalDraftRequest"
+      },
+      "LegalImportRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "LegalImportRequest"
+      },
+      "LegalImportResponse": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "content"
+        ],
+        "title": "LegalImportResponse"
+      },
       "LegalListItemResponse": {
         "properties": {
           "slug": {
@@ -4258,6 +4820,51 @@
         ],
         "title": "LegalListItemResponse",
         "description": "Строка для подвала: имя, подпись и дата, когда текст стал действовать."
+      },
+      "LegalVersionResponse": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "withdrawn_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdrawn At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "published_at",
+          "withdrawn_at",
+          "created_at"
+        ],
+        "title": "LegalVersionResponse"
       },
       "LinkCodeResponse": {
         "properties": {

@@ -22,7 +22,16 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from repibot_api.deps import AuthContext, require_role
-from repibot_api.routers.admin import broadcasts, catalog, metrics, nodes, orders, tickets, users
+from repibot_api.routers.admin import (
+    broadcasts,
+    catalog,
+    legal,
+    metrics,
+    nodes,
+    orders,
+    tickets,
+    users,
+)
 from repibot_core.db.models import UserRole
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -53,3 +62,4 @@ router.include_router(tickets.router)
 router.include_router(users.router)
 router.include_router(metrics.router)
 router.include_router(nodes.router)
+router.include_router(legal.router)

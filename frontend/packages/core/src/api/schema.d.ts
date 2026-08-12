@@ -1490,6 +1490,113 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/legal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Legal */
+        get: operations["list_legal_api_admin_legal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/legal/{slug}/{locale}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Legal */
+        get: operations["read_legal_api_admin_legal__slug___locale__get"];
+        /** Save Draft */
+        put: operations["save_draft_api_admin_legal__slug___locale__put"];
+        post?: never;
+        /** Withdraw */
+        delete: operations["withdraw_api_admin_legal__slug___locale__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/legal/{slug}/{locale}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Versions */
+        get: operations["list_versions_api_admin_legal__slug___locale__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/legal/{slug}/{locale}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Version */
+        get: operations["read_version_api_admin_legal__slug___locale__versions__version__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/legal/{slug}/{locale}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish */
+        post: operations["publish_api_admin_legal__slug___locale__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/legal/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import From Telegraph
+         * @description Забирает текст к себе. Ничего не сохраняет — это делает админ, посмотрев результат.
+         */
+        post: operations["import_from_telegraph_api_admin_legal_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhook/yookassa": {
         parameters: {
             query?: never;
@@ -1551,6 +1658,49 @@ export interface components {
             detail: string | null;
             /** Actor */
             actor: string | null;
+        };
+        /**
+         * AdminLegalDocumentResponse
+         * @description Черновик или версия целиком: и Markdown для правки, и готовый HTML.
+         *
+         *     HTML собирается здесь, а не на клиенте: правила разбора и очистки живут в
+         *     одном месте, иначе предпросмотр в админке и публичная страница разошлись бы.
+         */
+        AdminLegalDocumentResponse: {
+            /** Slug */
+            slug: string;
+            /** Locale */
+            locale: string;
+            /** Title */
+            title: string;
+            /** Content */
+            content: string;
+            /** Html */
+            html: string;
+            /** Version */
+            version: number;
+            /** Published At */
+            published_at: string | null;
+        };
+        /**
+         * AdminLegalListItemResponse
+         * @description Документ в списке админки: что опубликовано и есть ли несохранённая правка.
+         */
+        AdminLegalListItemResponse: {
+            /** Slug */
+            slug: string;
+            /** Locale */
+            locale: string;
+            /** Title */
+            title: string;
+            /** Published Version */
+            published_version: number | null;
+            /** Published At */
+            published_at: string | null;
+            /** Withdrawn */
+            withdrawn: boolean;
+            /** Has Draft */
+            has_draft: boolean;
         };
         /** AdminMetricsResponse */
         AdminMetricsResponse: {
@@ -1904,6 +2054,25 @@ export interface components {
              */
             published_at: string;
         };
+        /** LegalDraftRequest */
+        LegalDraftRequest: {
+            /** Title */
+            title: string;
+            /** Content */
+            content: string;
+        };
+        /** LegalImportRequest */
+        LegalImportRequest: {
+            /** Url */
+            url: string;
+        };
+        /** LegalImportResponse */
+        LegalImportResponse: {
+            /** Title */
+            title: string;
+            /** Content */
+            content: string;
+        };
         /**
          * LegalListItemResponse
          * @description Строка для подвала: имя, подпись и дата, когда текст стал действовать.
@@ -1918,6 +2087,20 @@ export interface components {
              * Format: date-time
              */
             published_at: string;
+        };
+        /** LegalVersionResponse */
+        LegalVersionResponse: {
+            /** Version */
+            version: number;
+            /** Published At */
+            published_at: string | null;
+            /** Withdrawn At */
+            withdrawn_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /**
          * LinkCodeResponse
@@ -5097,6 +5280,254 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NodeResponse"][];
+                };
+            };
+        };
+    };
+    list_legal_api_admin_legal_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLegalListItemResponse"][];
+                };
+            };
+        };
+    };
+    read_legal_api_admin_legal__slug___locale__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLegalDocumentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_draft_api_admin_legal__slug___locale__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegalDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLegalDocumentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_api_admin_legal__slug___locale__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_versions_api_admin_legal__slug___locale__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalVersionResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_version_api_admin_legal__slug___locale__versions__version__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                locale: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLegalDocumentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_api_admin_legal__slug___locale__publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                locale: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLegalDocumentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_from_telegraph_api_admin_legal_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegalImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -58,6 +58,7 @@ describe('оболочка админки', () => {
       'Платежи',
       'Рассылки',
       'Ноды',
+      'Документы',
     ])
     expect(await screen.findByText('содержимое раздела')).toBeInTheDocument()
   })
