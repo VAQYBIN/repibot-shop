@@ -11,6 +11,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@hugeicons/core-free-icons": "^4.2.3",
     "@repibot/core": "workspace:*",
     "@repibot/ui": "workspace:*",
     "@simplewebauthn/browser": "^13.3.0",
