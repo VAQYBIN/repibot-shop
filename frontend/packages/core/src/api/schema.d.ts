@@ -1206,6 +1206,256 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Users
+         * @description Поиск по любому опознавателю: почта, @имя, номер Telegram, аккаунта или панели.
+         *
+         *     Разбирает строку сервер: сотрудник не знает, что ему прислали, и выбирать
+         *     поле поиска руками не должен. Пустая строка отдаёт свежих сверху.
+         */
+        get: operations["list_users_api_admin_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read User Card
+         * @description Карточка без устройств: их отдаёт панель, и отдельным маршрутом.
+         */
+        get: operations["read_user_card_api_admin_users__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/journal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read User Journal
+         * @description Начисления, деньги и решения персонала одной лентой, свежее сверху.
+         *
+         *     Склейка на сервере: три ленты, собранные в браузере, дали бы три запроса и
+         *     разъезжающуюся разбивку по страницам.
+         */
+        get: operations["read_user_journal_api_admin_users__user_id__journal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read User Devices
+         * @description Устройства из панели. Её молчание гасит только этот блок, а не карточку.
+         */
+        get: operations["read_user_devices_api_admin_users__user_id__devices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/devices/{hwid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unlink User Device
+         * @description Отвязка устройства за человека: он сменил телефон и не разобрался сам.
+         *
+         *     hwid стоит в адресе, а не в теле, как в кабинете: сотрудник не набирает его
+         *     руками, а нажимает на строку только что показанного списка.
+         */
+        delete: operations["unlink_user_device_api_admin_users__user_id__devices__hwid__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block User
+         * @description Закрывает аккаунт целиком: и покупки, и разговор.
+         */
+        post: operations["block_user_api_admin_users__user_id__block_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unblock User
+         * @description Возвращает аккаунт в работу.
+         */
+        post: operations["unblock_user_api_admin_users__user_id__unblock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/mute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mute User
+         * @description Закрывает разговор, оставляя подписку, кабинет и оплату нетронутыми.
+         */
+        post: operations["mute_user_api_admin_users__user_id__mute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/unmute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unmute User
+         * @description Снова открывает разговор.
+         */
+        post: operations["unmute_user_api_admin_users__user_id__unmute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/subscription/revoke-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Subscription Link
+         * @description Выпускает новую ссылку подписки взамен утёкшей.
+         *
+         *     Панель меняет shortUuid, и наш адрес перезаписывается её ответом: иначе
+         *     кабинет продолжит показывать мёртвую ссылку. До ответа панели в базу не
+         *     пишется ничего, поэтому её молчание нечего откатывать.
+         */
+        post: operations["revoke_subscription_link_api_admin_users__user_id__subscription_revoke_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Metrics */
+        get: operations["read_metrics_api_admin_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Nodes
+         * @description Узлы читаются из панели: своей копии их состояния у нас нет и быть не должно.
+         */
+        get: operations["list_nodes_api_admin_nodes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhook/yookassa": {
         parameters: {
             query?: never;
@@ -1251,6 +1501,49 @@ export interface components {
         AcceptedResponse: {
             /** Status */
             status: string;
+        };
+        /** AdminJournalEntryResponse */
+        AdminJournalEntryResponse: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string | null;
+            /** Actor */
+            actor: string | null;
+        };
+        /** AdminMetricsResponse */
+        AdminMetricsResponse: {
+            /** Revenue Rub */
+            revenue_rub: string;
+            /** Payments */
+            payments: number;
+            /** New Subscriptions */
+            new_subscriptions: number;
+            /** Renewals */
+            renewals: number;
+            /** Active Subscriptions */
+            active_subscriptions: number;
+            /** Tickets Waiting */
+            tickets_waiting: number;
+        };
+        /** AdminModerationResponse */
+        AdminModerationResponse: {
+            /** Changed */
+            changed: boolean;
+        };
+        /** AdminSubscriptionLinkResponse */
+        AdminSubscriptionLinkResponse: {
+            /** Subscription Url */
+            subscription_url: string;
+            /** Short Uuid */
+            short_uuid: string;
         };
         /**
          * AdminSubscriptionRequest
@@ -1302,6 +1595,54 @@ export interface components {
             ticket: components["schemas"]["AdminTicketResponse"];
             /** Messages */
             messages: components["schemas"]["TicketMessageResponse"][];
+        };
+        /** AdminUserCardResponse */
+        AdminUserCardResponse: {
+            row: components["schemas"]["AdminUserRowResponse"];
+            /** Language */
+            language: string;
+            /** Role */
+            role: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email Verified */
+            email_verified: boolean;
+            /** Referred By Id */
+            referred_by_id: number | null;
+            /** Subscription Source */
+            subscription_source: string | null;
+            /** Auto Renew */
+            auto_renew: boolean;
+            /** Subscription Url */
+            subscription_url: string | null;
+            /** Remnawave Id */
+            remnawave_id: number | null;
+        };
+        /** AdminUserRowResponse */
+        AdminUserRowResponse: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string | null;
+            /** Email */
+            email: string | null;
+            /** Telegram Id */
+            telegram_id: number | null;
+            /** Telegram Username */
+            telegram_username: string | null;
+            /** Plan Name */
+            plan_name: string | null;
+            /** Subscription Status */
+            subscription_status: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /** Banned */
+            banned: boolean;
+            /** Support Muted */
+            support_muted: boolean;
         };
         /**
          * AuthMethodsResponse
@@ -1561,10 +1902,52 @@ export interface components {
             /** Passkey Count */
             passkey_count: number;
         };
+        /**
+         * MetricsPeriod
+         * @description Период сводки. Перечисление, а не пара дат.
+         *
+         *     Произвольный период — это календарь, валидация порядка дат и разговор о
+         *     часовых поясах; сводка из шести чисел его не стоит.
+         * @enum {string}
+         */
+        MetricsPeriod: "today" | "week" | "month";
         /** MiniAppLoginRequest */
         MiniAppLoginRequest: {
             /** Init Data */
             init_data: string;
+        };
+        /**
+         * NodeResponse
+         * @description Ровно то, что показывает экран узлов.
+         *
+         *     Ответ панели несёт ссылку на прокси с паролем, ключи Reality внутри
+         *     инбаундов и внутренние идентификаторы узла и профиля конфигурации.
+         *     Пробросить его целиком — значит отдать всё это браузеру администратора,
+         *     поэтому поля перечислены поимённо, а не скопированы.
+         */
+        NodeResponse: {
+            /** Name */
+            name: string;
+            /** Country Code */
+            country_code: string;
+            /** Address */
+            address: string;
+            /** Port */
+            port: number | null;
+            /** Is Connected */
+            is_connected: boolean;
+            /** Is Disabled */
+            is_disabled: boolean;
+            /** Users Online */
+            users_online: number;
+            /** Traffic Used Bytes */
+            traffic_used_bytes: number;
+            /** Traffic Limit Bytes */
+            traffic_limit_bytes: number;
+            /** Xray Uptime Seconds */
+            xray_uptime_seconds: number;
+            /** Last Status Message */
+            last_status_message: string | null;
         };
         /** NotificationSettingsResponse */
         NotificationSettingsResponse: {
@@ -4219,6 +4602,370 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_api_admin_users_get: {
+        parameters: {
+            query?: {
+                query?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserRowResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_user_card_api_admin_users__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserCardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_user_journal_api_admin_users__user_id__journal_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminJournalEntryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_user_devices_api_admin_users__user_id__devices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevicesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unlink_user_device_api_admin_users__user_id__devices__hwid__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+                hwid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    block_user_api_admin_users__user_id__block_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminModerationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unblock_user_api_admin_users__user_id__unblock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminModerationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mute_user_api_admin_users__user_id__mute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminModerationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unmute_user_api_admin_users__user_id__unmute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminModerationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_subscription_link_api_admin_users__user_id__subscription_revoke_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSubscriptionLinkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_metrics_api_admin_metrics_get: {
+        parameters: {
+            query?: {
+                period?: components["schemas"]["MetricsPeriod"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMetricsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_nodes_api_admin_nodes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeResponse"][];
                 };
             };
         };

@@ -2582,6 +2582,551 @@
         }
       }
     },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Users",
+        "description": "Поиск по любому опознавателю: почта, @имя, номер Telegram, аккаунта или панели.\n\nРазбирает строку сервер: сотрудник не знает, что ему прислали, и выбирать\nполе поиска руками не должен. Пустая строка отдаёт свежих сверху.",
+        "operationId": "list_users_api_admin_users_get",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 320,
+              "default": "",
+              "title": "Query"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUserRowResponse"
+                  },
+                  "title": "Response List Users Api Admin Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read User Card",
+        "description": "Карточка без устройств: их отдаёт панель, и отдельным маршрутом.",
+        "operationId": "read_user_card_api_admin_users__user_id__get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserCardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/journal": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read User Journal",
+        "description": "Начисления, деньги и решения персонала одной лентой, свежее сверху.\n\nСклейка на сервере: три ленты, собранные в браузере, дали бы три запроса и\nразъезжающуюся разбивку по страницам.",
+        "operationId": "read_user_journal_api_admin_users__user_id__journal_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminJournalEntryResponse"
+                  },
+                  "title": "Response Read User Journal Api Admin Users  User Id  Journal Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/devices": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read User Devices",
+        "description": "Устройства из панели. Её молчание гасит только этот блок, а не карточку.",
+        "operationId": "read_user_devices_api_admin_users__user_id__devices_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/devices/{hwid}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Unlink User Device",
+        "description": "Отвязка устройства за человека: он сменил телефон и не разобрался сам.\n\nhwid стоит в адресе, а не в теле, как в кабинете: сотрудник не набирает его\nруками, а нажимает на строку только что показанного списка.",
+        "operationId": "unlink_user_device_api_admin_users__user_id__devices__hwid__delete",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "hwid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Hwid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/block": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Block User",
+        "description": "Закрывает аккаунт целиком: и покупки, и разговор.",
+        "operationId": "block_user_api_admin_users__user_id__block_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/unblock": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Unblock User",
+        "description": "Возвращает аккаунт в работу.",
+        "operationId": "unblock_user_api_admin_users__user_id__unblock_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/mute": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Mute User",
+        "description": "Закрывает разговор, оставляя подписку, кабинет и оплату нетронутыми.",
+        "operationId": "mute_user_api_admin_users__user_id__mute_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/unmute": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Unmute User",
+        "description": "Снова открывает разговор.",
+        "operationId": "unmute_user_api_admin_users__user_id__unmute_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminModerationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/subscription/revoke-link": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Revoke Subscription Link",
+        "description": "Выпускает новую ссылку подписки взамен утёкшей.\n\nПанель меняет shortUuid, и наш адрес перезаписывается её ответом: иначе\nкабинет продолжит показывать мёртвую ссылку. До ответа панели в базу не\nпишется ничего, поэтому её молчание нечего откатывать.",
+        "operationId": "revoke_subscription_link_api_admin_users__user_id__subscription_revoke_link_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSubscriptionLinkResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/metrics": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Read Metrics",
+        "operationId": "read_metrics_api_admin_metrics_get",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/MetricsPeriod",
+              "default": "today"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMetricsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/nodes": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Nodes",
+        "description": "Узлы читаются из панели: своей копии их состояния у нас нет и быть не должно.",
+        "operationId": "list_nodes_api_admin_nodes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NodeResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Nodes Api Admin Nodes Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhook/yookassa": {
       "post": {
         "tags": [
@@ -2626,6 +3171,123 @@
           "status"
         ],
         "title": "AcceptedResponse"
+      },
+      "AdminJournalEntryResponse": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "kind",
+          "title",
+          "detail",
+          "actor"
+        ],
+        "title": "AdminJournalEntryResponse"
+      },
+      "AdminMetricsResponse": {
+        "properties": {
+          "revenue_rub": {
+            "type": "string",
+            "title": "Revenue Rub"
+          },
+          "payments": {
+            "type": "integer",
+            "title": "Payments"
+          },
+          "new_subscriptions": {
+            "type": "integer",
+            "title": "New Subscriptions"
+          },
+          "renewals": {
+            "type": "integer",
+            "title": "Renewals"
+          },
+          "active_subscriptions": {
+            "type": "integer",
+            "title": "Active Subscriptions"
+          },
+          "tickets_waiting": {
+            "type": "integer",
+            "title": "Tickets Waiting"
+          }
+        },
+        "type": "object",
+        "required": [
+          "revenue_rub",
+          "payments",
+          "new_subscriptions",
+          "renewals",
+          "active_subscriptions",
+          "tickets_waiting"
+        ],
+        "title": "AdminMetricsResponse"
+      },
+      "AdminModerationResponse": {
+        "properties": {
+          "changed": {
+            "type": "boolean",
+            "title": "Changed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "changed"
+        ],
+        "title": "AdminModerationResponse"
+      },
+      "AdminSubscriptionLinkResponse": {
+        "properties": {
+          "subscription_url": {
+            "type": "string",
+            "title": "Subscription Url"
+          },
+          "short_uuid": {
+            "type": "string",
+            "title": "Short Uuid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscription_url",
+          "short_uuid"
+        ],
+        "title": "AdminSubscriptionLinkResponse"
       },
       "AdminSubscriptionRequest": {
         "properties": {
@@ -2758,6 +3420,200 @@
         ],
         "title": "AdminTicketThreadResponse",
         "description": "Переписка называет адресата сама.\n\nОтдельная схема, а не общая с клиентской: pydantic молча выбрасывает поля\nнаследника, и `user_id` в общем `TicketThreadResponse` до персонала не\nдоехал бы. Без него подпись разговора пропадает, стоит применить отбор, из\nкоторого открытое обращение выпало."
+      },
+      "AdminUserCardResponse": {
+        "properties": {
+          "row": {
+            "$ref": "#/components/schemas/AdminUserRowResponse"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "email_verified": {
+            "type": "boolean",
+            "title": "Email Verified"
+          },
+          "referred_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referred By Id"
+          },
+          "subscription_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Source"
+          },
+          "auto_renew": {
+            "type": "boolean",
+            "title": "Auto Renew"
+          },
+          "subscription_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Url"
+          },
+          "remnawave_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remnawave Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "row",
+          "language",
+          "role",
+          "created_at",
+          "email_verified",
+          "referred_by_id",
+          "subscription_source",
+          "auto_renew",
+          "subscription_url",
+          "remnawave_id"
+        ],
+        "title": "AdminUserCardResponse"
+      },
+      "AdminUserRowResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "telegram_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Id"
+          },
+          "telegram_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Username"
+          },
+          "plan_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Name"
+          },
+          "subscription_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subscription Status"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "banned": {
+            "type": "boolean",
+            "title": "Banned"
+          },
+          "support_muted": {
+            "type": "boolean",
+            "title": "Support Muted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "telegram_id",
+          "telegram_username",
+          "plan_name",
+          "subscription_status",
+          "expires_at",
+          "banned",
+          "support_muted"
+        ],
+        "title": "AdminUserRowResponse"
       },
       "AuthMethodsResponse": {
         "properties": {
@@ -3376,6 +4232,16 @@
         ],
         "title": "MeResponse"
       },
+      "MetricsPeriod": {
+        "type": "string",
+        "enum": [
+          "today",
+          "week",
+          "month"
+        ],
+        "title": "MetricsPeriod",
+        "description": "Период сводки. Перечисление, а не пара дат.\n\nПроизвольный период — это календарь, валидация порядка дат и разговор о\nчасовых поясах; сводка из шести чисел его не стоит."
+      },
       "MiniAppLoginRequest": {
         "properties": {
           "init_data": {
@@ -3389,6 +4255,84 @@
           "init_data"
         ],
         "title": "MiniAppLoginRequest"
+      },
+      "NodeResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "country_code": {
+            "type": "string",
+            "title": "Country Code"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
+          "is_connected": {
+            "type": "boolean",
+            "title": "Is Connected"
+          },
+          "is_disabled": {
+            "type": "boolean",
+            "title": "Is Disabled"
+          },
+          "users_online": {
+            "type": "integer",
+            "title": "Users Online"
+          },
+          "traffic_used_bytes": {
+            "type": "integer",
+            "title": "Traffic Used Bytes"
+          },
+          "traffic_limit_bytes": {
+            "type": "integer",
+            "title": "Traffic Limit Bytes"
+          },
+          "xray_uptime_seconds": {
+            "type": "integer",
+            "title": "Xray Uptime Seconds"
+          },
+          "last_status_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Status Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "country_code",
+          "address",
+          "port",
+          "is_connected",
+          "is_disabled",
+          "users_online",
+          "traffic_used_bytes",
+          "traffic_limit_bytes",
+          "xray_uptime_seconds",
+          "last_status_message"
+        ],
+        "title": "NodeResponse",
+        "description": "Ровно то, что показывает экран узлов.\n\nОтвет панели несёт ссылку на прокси с паролем, ключи Reality внутри\nинбаундов и внутренние идентификаторы узла и профиля конфигурации.\nПробросить его целиком — значит отдать всё это браузеру администратора,\nпоэтому поля перечислены поимённо, а не скопированы."
       },
       "NotificationSettingsResponse": {
         "properties": {

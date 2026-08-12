@@ -65,6 +65,20 @@ class PanelUsers:
         )
         return self._one(response)
 
+    async def revoke(self, panel_id: int) -> PanelUser:
+        """Выпускает новую ссылку подписки взамен прежней.
+
+        Панель меняет shortUuid, то есть старый адрес перестаёт работать на
+        всех устройствах человека. Ответ — тот же пользователь целиком, и
+        адрес подписки в нём уже новый: собирать его у себя нельзя, публичный
+        домен подписки настраивается в панели отдельно.
+
+        Тела у запроса нет: панель определяет, кому выпускать ссылку, по
+        номеру в адресе.
+        """
+        response = await self._client.request("POST", f"/api/users/{panel_id}/actions/revoke")
+        return self._one(response)
+
     @staticmethod
     def _one(response: httpx.Response) -> PanelUser:
         if response.status_code >= httpx.codes.BAD_REQUEST:
