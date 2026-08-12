@@ -5,17 +5,22 @@ import { type ReactNode, useEffect } from 'react'
 
 import { AuthGuard, type AuthGuardRouter } from './auth-guard'
 
-/** Роли, которым открыт раздел администрирования. */
-const ALLOWED: readonly string[] = ['admin', 'support']
-
 export interface RoleGuardProps {
   children: ReactNode
   router: AuthGuardRouter
+  /**
+   * Роли, которым открыт раздел.
+   *
+   * Свойство обязательно: раздел без явного списка ролей — это раздел, о
+   * правах которого забыли, а молчаливое «любой сотрудник» пускало бы
+   * поддержку к деньгам.
+   */
+  allow: readonly string[]
 }
 
-function RoleCheck({ children, router }: RoleGuardProps) {
+function RoleCheck({ children, router, allow }: RoleGuardProps) {
   const me = useMe()
-  const allowed = me.data !== undefined && ALLOWED.includes(me.data.role)
+  const allowed = me.data !== undefined && allow.includes(me.data.role)
 
   useEffect(() => {
     if (me.data !== undefined && !allowed) router.replace('/account')
@@ -34,10 +39,12 @@ function RoleCheck({ children, router }: RoleGuardProps) {
  * Роль берётся из профиля, а не из access-токена: в claims её нет намеренно,
  * иначе понижение прав действовало бы только после истечения токена.
  */
-export function RoleGuard({ children, router }: RoleGuardProps) {
+export function RoleGuard({ children, router, allow }: RoleGuardProps) {
   return (
     <AuthGuard router={router}>
-      <RoleCheck router={router}>{children}</RoleCheck>
+      <RoleCheck router={router} allow={allow}>
+        {children}
+      </RoleCheck>
     </AuthGuard>
   )
 }

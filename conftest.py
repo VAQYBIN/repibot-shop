@@ -217,17 +217,20 @@ def fake_panel(monkeypatch: pytest.MonkeyPatch) -> FakePanel:
     и разбор ответов при этом проверяются настоящие. Сквадов у панели нет —
     их добавляет тот тест, которому они нужны.
 
-    Фабрика живёт в subscription_view, но админский роутер импортировал её к
+    Фабрика живёт в subscription_view, но каталог админки импортировал её к
     себе — и получил собственное имя, которое подмена в чужом модуле не
     затрагивает. Поэтому подменяются оба: панель одна и та же, и заглушка у
     неё обязана быть общая, иначе тариф, заведённый админским маршрутом, уходил
     бы в одну панель, а выдача доступа — в другую.
+
+    Подменяется именно `admin.catalog`, а не пакет `admin`: сквады запрашивает
+    маршрут каталога, и после расселения маршрутов имя живёт там.
     """
     from repibot_api import subscription_view
-    from repibot_api.routers import admin
+    from repibot_api.routers.admin import catalog
 
     panel = FakePanel()
-    for module in (admin, subscription_view):
+    for module in (catalog, subscription_view):
         monkeypatch.setattr(module, "panel_client", panel.client)
     return panel
 

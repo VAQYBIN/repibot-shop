@@ -26,7 +26,7 @@ describe('RoleGuard', () => {
     stubApi('user')
 
     renderWithAuth(
-      <RoleGuard router={{ replace }}>
+      <RoleGuard router={{ replace }} allow={['admin', 'support']}>
         <p>админка</p>
       </RoleGuard>,
     )
@@ -35,12 +35,28 @@ describe('RoleGuard', () => {
     expect(screen.queryByText('админка')).not.toBeInTheDocument()
   })
 
-  it('пускает поддержку в раздел', async () => {
+  it('уводит поддержку из раздела, открытого только администратору', async () => {
+    // Скрытая ссылка защитой не считается, но и показывать чужой раздел на миг
+    // нельзя: редирект асинхронный.
     const replace = vi.fn()
     stubApi('support')
 
     renderWithAuth(
-      <RoleGuard router={{ replace }}>
+      <RoleGuard router={{ replace }} allow={['admin']}>
+        <p>деньги</p>
+      </RoleGuard>,
+    )
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/account'))
+    expect(screen.queryByText('деньги')).not.toBeInTheDocument()
+  })
+
+  it('пускает поддержку в раздел, открытый обеим ролям', async () => {
+    const replace = vi.fn()
+    stubApi('support')
+
+    renderWithAuth(
+      <RoleGuard router={{ replace }} allow={['admin', 'support']}>
         <p>админка</p>
       </RoleGuard>,
     )
