@@ -11,7 +11,7 @@
 ## Общие ограничения
 
 - **Ветка `dev`.** Никаких git-команд: коммиты делает ведущий после проверки задачи.
-- **Никакого прогона проверок по всему репозиторию.** Только тесты своего пакета: `pnpm vitest run <файл>` из `frontend/packages/ui`.
+- **Никакого прогона проверок по всему репозиторию.** Только тесты своего пакета: `pnpm test <файл>` из `frontend/packages/ui`.
 - **Зависимости уже установлены** — `@radix-ui/react-tabs`, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-tooltip`. `package.json` не трогать.
 - **Кегли — только по шкале бренда:** `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body`, `text-small`, `text-caption`. Имена `text-sm`, `text-base`, `text-lg` и прочие встроенные погашены и молча не работают.
 - **Цвета — только токенами:** `bg-surface`, `bg-surface-sunken`, `text-text`, `text-text-secondary`, `text-text-muted`, `border-border-subtle`, `border-border-strong`, `text-danger`, `text-success`, `text-warning`, `text-info`, `bg-jade-mist`, `text-text-accent`. Никаких `bg-gray-100` и `text-red-500`.
@@ -95,7 +95,7 @@ describe('Alert', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/alert.test.tsx`
+Запустить: `pnpm test src/components/alert.test.tsx`
 Ожидается: падение на разрешении `./alert`.
 
 - [ ] **Шаг 3: Написать компонент**
@@ -140,7 +140,7 @@ export function Alert({ tone, title, children, className }: AlertProps) {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/alert.test.tsx`
+Запустить: `pnpm test src/components/alert.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -217,7 +217,7 @@ describe('Select', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/select.test.tsx`
+Запустить: `pnpm test src/components/select.test.tsx`
 Ожидается: падение на разрешении `./select`.
 
 - [ ] **Шаг 3: Написать компонент**
@@ -257,7 +257,7 @@ export function Select({ className, invalid, ...props }: SelectProps) {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/select.test.tsx`
+Запустить: `pnpm test src/components/select.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -314,7 +314,7 @@ describe('Textarea', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/textarea.test.tsx`
+Запустить: `pnpm test src/components/textarea.test.tsx`
 Ожидается: падение на разрешении `./textarea`.
 
 - [ ] **Шаг 3: Написать компонент**
@@ -348,7 +348,7 @@ export function Textarea({ className, invalid, ...props }: TextareaProps) {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/textarea.test.tsx`
+Запустить: `pnpm test src/components/textarea.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -409,7 +409,7 @@ describe('Badge', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/badge.test.tsx`
+Запустить: `pnpm test src/components/badge.test.tsx`
 Ожидается: падение на разрешении `./badge`.
 
 - [ ] **Шаг 3: Написать компонент**
@@ -459,7 +459,7 @@ export function Badge({ tone, children, className }: BadgeProps) {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/badge.test.tsx`
+Запустить: `pnpm test src/components/badge.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -540,7 +540,7 @@ describe('Table', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/table.test.tsx`
+Запустить: `pnpm test src/components/table.test.tsx`
 Ожидается: падение на разрешении `./table`.
 
 - [ ] **Шаг 3: Написать компонент**
@@ -606,7 +606,7 @@ export function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCel
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/table.test.tsx`
+Запустить: `pnpm test src/components/table.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -690,7 +690,7 @@ describe('Tabs', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/tabs.test.tsx`
+Запустить: `pnpm test src/components/tabs.test.tsx`
 Ожидается: падение на разрешении `./tabs`.
 
 - [ ] **Шаг 3: Написать компонент**
@@ -743,7 +743,7 @@ export function TabsContent({
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/tabs.test.tsx`
+Запустить: `pnpm test src/components/tabs.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -825,7 +825,7 @@ describe('DropdownMenu', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/dropdown-menu.test.tsx`
+Запустить: `pnpm test src/components/dropdown-menu.test.tsx`
 Ожидается: падение на разрешении `./dropdown-menu`.
 
 - [ ] **Шаг 3: Написать компонент**
@@ -892,7 +892,7 @@ export function DropdownMenuSeparator({
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/dropdown-menu.test.tsx`
+Запустить: `pnpm test src/components/dropdown-menu.test.tsx`
 Ожидается: PASS. Radix в jsdom иногда требует `PointerEvent`; если тест падает на отсутствии этого класса, добавить полифил в `vitest.setup.ts`, а не менять способ нажатия в тесте.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -953,7 +953,7 @@ describe('Tooltip', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/tooltip.test.tsx`
+Запустить: `pnpm test src/components/tooltip.test.tsx`
 Ожидается: падение на разрешении `./tooltip`.
 
 - [ ] **Шаг 3: Написать компонент**
@@ -1004,7 +1004,7 @@ export function Tooltip({ label, children, className }: TooltipProps) {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/tooltip.test.tsx`
+Запустить: `pnpm test src/components/tooltip.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -1017,5 +1017,5 @@ export { Tooltip, type TooltipProps, TooltipProvider } from './components/toolti
 
 - [ ] **Шаг 6: Прогнать пакет целиком**
 
-Запустить: `pnpm vitest run && pnpm typecheck`
+Запустить: `pnpm test && pnpm typecheck`
 Ожидается: PASS обеих команд. Это последняя задача плана — пакет должен быть целым.

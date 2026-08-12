@@ -12,7 +12,7 @@
 
 - **Ветка `dev`.** Никаких git-команд: коммиты делает ведущий после проверки задачи.
 - **Только свои файлы.** Соседние планы в это же время правят `app/(auth)`, `app/admin`, `app/account/{page,notifications,payments,security,support}` и весь `apps/miniapp`. Туда не заходить даже ради однострочной правки.
-- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web vitest run <файл>`.
+- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web test <файл>`.
 - **Существующие тесты — договор.** `apps/web/src/app/account/subscription/page.test.tsx` обязан остаться зелёным. Если он упал — сначала доказать, что поведение изменилось намеренно, и только потом трогать тест.
 - **Кегли — только по шкале бренда:** `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body`, `text-small`, `text-caption`. `text-sm`, `text-lg`, `text-xl`, `text-2xl` и прочие встроенные погашены — написанные по привычке, они молча не сработают.
 - **Начертание ставится классом:** `font-semibold` к `text-h1`/`text-h2`, `font-medium` к `text-h3`. В токенах шкалы его нет намеренно.
@@ -121,7 +121,7 @@ describe('AccountShell', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/components/account-shell.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/components/account-shell.test.tsx`
 Ожидается: падение на проверке темы — переключателя в оболочке нет.
 
 - [ ] **Шаг 3: Переписать оболочку**
@@ -196,7 +196,7 @@ const LINKS = [
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/components/account-shell.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/components/account-shell.test.tsx`
 Ожидается: PASS всех четырёх проверок.
 
 ---
@@ -213,7 +213,7 @@ const LINKS = [
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/subscription/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/subscription/page.test.tsx`
 Ожидается: PASS. Это исходное состояние; после правки оно обязано повториться.
 
 - [ ] **Шаг 2: Переписать состояния и заголовок**
@@ -252,7 +252,7 @@ const LINKS = [
 
 - [ ] **Шаг 3: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/subscription/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/subscription/page.test.tsx`
 Ожидается: PASS. Если тест ищет текст «Загрузка…» напрямую — он законно упал: `Spinner` объявляет то же самое через `aria-label`, и проверку надо перевести на `getByRole('status', { name: ... })`. Любое другое падение означает, что правка задела поведение, и чинить нужно правку.
 
 ---
@@ -321,7 +321,7 @@ describe('SubscriptionCard', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/components/subscription-card.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/components/subscription-card.test.tsx`
 Ожидается: падение на втором случае — бейджа нет, оба класса пустые и потому равны.
 
 - [ ] **Шаг 3: Заменить статус бейджем**
@@ -383,7 +383,7 @@ function statusTone(status: string): BadgeTone {
 
 - [ ] **Шаг 5: Убедиться, что тесты проходят**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/components/subscription-card.test.tsx src/app/account/subscription/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/components/subscription-card.test.tsx src/app/account/subscription/page.test.tsx`
 Ожидается: PASS обоих файлов.
 
 ---
@@ -439,7 +439,7 @@ function statusTone(status: string): BadgeTone {
 
 - [ ] **Шаг 3: Убедиться, что якорный экран цел**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/subscription/ src/components/`
+Запустить: `pnpm --filter @repibot/web test src/app/account/subscription/ src/components/`
 Ожидается: PASS. Это последняя задача плана — весь якорный экран со всеми частями должен быть зелёным.
 
 - [ ] **Шаг 4: Проверить типы**

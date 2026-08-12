@@ -13,7 +13,7 @@
 - **Ветка `dev`.** Никаких git-команд: коммиты делает ведущий после проверки задачи.
 - **Только свои файлы** — те, что в карте ниже. Соседний план в это же время правит `components/admin-shell.tsx`, `app/admin/page.tsx` и `app/admin/nodes/`; другие планы правят `app/account/`, `app/(auth)/`, `apps/miniapp`. Туда не заходить.
 - **`components/admin-page.tsx` уже написан.** Его не менять: на него опирается соседний план.
-- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web vitest run <файл>`.
+- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web test <файл>`.
 - **Существующие тесты — договор.** Покрыты все пять экранов. Обязаны остаться зелёными; упавший тест — повод сначала доказать, что поведение изменилось намеренно.
 - **Кегли — только по шкале бренда:** `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body`, `text-small`, `text-caption`. Встроенные погашены и молча не работают.
 - **Начертание ставится классом:** `font-semibold` к `text-h1` и `text-h2`, `font-medium` к `text-h3`.
@@ -75,7 +75,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/users/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/users/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Перевести на образец страницы**
@@ -97,7 +97,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 5: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/users/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/users/page.test.tsx`
 Ожидается: PASS. Если тест искал таблицу по `aria-label` — падение законно: `getByRole('table', { name: 'Пользователи' })` продолжит работать, потому что `caption` даёт то же имя.
 
 ---
@@ -117,7 +117,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run "src/app/admin/users/[id]/page.test.tsx"`
+Запустить: `pnpm --filter @repibot/web test "src/app/admin/users/[id]/page.test.tsx"`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Перевести на образец страницы**
@@ -193,7 +193,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 6: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run "src/app/admin/users/[id]/page.test.tsx"`
+Запустить: `pnpm --filter @repibot/web test "src/app/admin/users/[id]/page.test.tsx"`
 Ожидается: PASS. Тест почти наверняка нажимал кнопки действий напрямую — теперь до них надо сначала открыть меню. Это законное падение: дописать открытие меню перед нажатием, `getByRole('menuitem', …)` вместо `getByRole('button', …)`. Проверка того, что действие вызвано, обязана остаться прежней.
 
 ---
@@ -209,7 +209,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/tickets/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/tickets/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Перевести на образец и заменить фильтр**
@@ -257,7 +257,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 6: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/tickets/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/tickets/page.test.tsx`
 Ожидается: PASS.
 
 ---
@@ -275,7 +275,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/payments/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/payments/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Перевести на образец**
@@ -296,7 +296,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 5: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/payments/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/payments/page.test.tsx`
 Ожидается: PASS. Подписи полей остаются теми же строками, поэтому поиск по `getByLabelText` продолжит работать.
 
 ---
@@ -314,7 +314,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/broadcasts/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/broadcasts/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Перевести на образец**
@@ -352,10 +352,10 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 6: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/broadcasts/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/broadcasts/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 7: Проверить всё своё разом**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/users/ src/app/admin/tickets/ src/app/admin/payments/ src/app/admin/broadcasts/ && pnpm --filter @repibot/web typecheck`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/users/ src/app/admin/tickets/ src/app/admin/payments/ src/app/admin/broadcasts/ && pnpm --filter @repibot/web typecheck`
 Ожидается: PASS обеих команд. Это последняя задача плана.

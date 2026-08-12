@@ -16,7 +16,7 @@
 - **Комментарии по-русски и о том, почему**, а не о том, что делает строка. Очевидное не комментировать.
 - **Никаких `// biome-ignore` без сработавшего правила.** Неиспользуемое подавление само роняет проверку.
 - Значения кеглей, интерлиньяжа и трекинга — из `docs/design/repibot-brandbook.md`, раздел 5. Сверять по документу, не по памяти.
-- Тесты запускаются из `frontend/packages/ui`: `pnpm vitest run <файл>`.
+- Тесты запускаются из `frontend/packages/ui`: `pnpm test <файл>`.
 
 ## Карта файлов
 
@@ -84,7 +84,7 @@ describe('шкала кеглей', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/theme.test.ts`
+Запустить: `pnpm test src/theme.test.ts`
 Ожидается: падение на `--text-display: 48px;` — такой строки в файле нет.
 
 - [ ] **Шаг 3: Объявить шкалу**
@@ -132,7 +132,7 @@ describe('шкала кеглей', () => {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/theme.test.ts`
+Запустить: `pnpm test src/theme.test.ts`
 Ожидается: все проверки шкалы зелёные, старые проверки токенов цвета — тоже.
 
 ---
@@ -176,7 +176,7 @@ describe('движение', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/theme.test.ts`
+Запустить: `pnpm test src/theme.test.ts`
 Ожидается: падение на `--rp-motion-fast: 150ms`.
 
 - [ ] **Шаг 3: Объявить движение**
@@ -213,7 +213,7 @@ describe('движение', () => {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/theme.test.ts`
+Запустить: `pnpm test src/theme.test.ts`
 Ожидается: PASS.
 
 ---
@@ -264,7 +264,7 @@ describe('Card', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/card.test.tsx`
+Запустить: `pnpm test src/components/card.test.tsx`
 Ожидается: падение на проверке тени — сейчас в классах `shadow-[var(--rp-shadow-sm)]`.
 
 - [ ] **Шаг 3: Убрать тень и уплотнить**
@@ -277,7 +277,7 @@ describe('Card', () => {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/card.test.tsx`
+Запустить: `pnpm test src/components/card.test.tsx`
 Ожидается: PASS.
 
 ---
@@ -305,7 +305,7 @@ describe('Card', () => {
 
 - [ ] **Шаг 1: Убедиться, что тесты сейчас зелёные**
 
-Запустить: `pnpm vitest run`
+Запустить: `pnpm test`
 Ожидается: PASS. Это исходное состояние — правка не должна его изменить.
 
 - [ ] **Шаг 2: Заменить кегли**
@@ -335,7 +335,7 @@ describe('Card', () => {
 
 - [ ] **Шаг 4: Убедиться, что тесты по-прежнему зелёные**
 
-Запустить: `pnpm vitest run`
+Запустить: `pnpm test`
 Ожидается: PASS. Тест кнопки проверяет цвета и вариант `sm`, размеров не касается, поэтому падений быть не должно. Если что-то упало — правка задела не то.
 
 ---
@@ -410,7 +410,7 @@ describe('Icon', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/icon.test.tsx`
+Запустить: `pnpm test src/components/icon.test.tsx`
 Ожидается: падение на разрешении `./icon` — файла нет.
 
 - [ ] **Шаг 3: Написать обёртку**
@@ -458,7 +458,7 @@ export function Icon({ icon, size = 20, className, title }: IconProps) {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/icon.test.tsx`
+Запустить: `pnpm test src/components/icon.test.tsx`
 Ожидается: PASS. Если `width` на svg не оказалось — посмотреть, как `HugeiconsIcon` раскладывает `size`, и поправить проверку под действительность, а не действительность под проверку.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -530,7 +530,7 @@ describe('Spinner', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/spinner.test.tsx`
+Запустить: `pnpm test src/components/spinner.test.tsx`
 Ожидается: падение на разрешении `./spinner`.
 
 - [ ] **Шаг 3: Научить знак вращаться**
@@ -644,7 +644,7 @@ export function Spinner({ size = 24, label = 'Загрузка', className }: Sp
 
 - [ ] **Шаг 6: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/spinner.test.tsx src/components/logo-mark.test.tsx`
+Запустить: `pnpm test src/components/spinner.test.tsx src/components/logo-mark.test.tsx`
 Ожидается: PASS обоих файлов. Тест знака трогать нельзя — новый режим по умолчанию выключен, и старое поведение обязано остаться прежним.
 
 - [ ] **Шаг 7: Выставить наружу**
@@ -698,7 +698,7 @@ describe('Skeleton', () => {
 
 - [ ] **Шаг 2: Убедиться, что тест падает**
 
-Запустить: `pnpm vitest run src/components/skeleton.test.tsx`
+Запустить: `pnpm test src/components/skeleton.test.tsx`
 Ожидается: падение на разрешении `./skeleton`.
 
 - [ ] **Шаг 3: Написать скелетон**
@@ -731,7 +731,7 @@ export function Skeleton({ className }: SkeletonProps) {
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm vitest run src/components/skeleton.test.tsx`
+Запустить: `pnpm test src/components/skeleton.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Выставить наружу**
@@ -744,5 +744,5 @@ export { Skeleton, type SkeletonProps } from './components/skeleton'
 
 - [ ] **Шаг 6: Прогнать пакет целиком**
 
-Запустить: `pnpm vitest run && pnpm typecheck`
+Запустить: `pnpm test && pnpm typecheck`
 Ожидается: PASS обеих команд. Это последняя задача плана — пакет должен быть целым.

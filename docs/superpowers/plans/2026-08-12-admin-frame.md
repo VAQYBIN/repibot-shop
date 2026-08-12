@@ -13,7 +13,7 @@
 - **Ветка `dev`.** Никаких git-команд: коммиты делает ведущий после проверки задачи.
 - **Только свои файлы** — те, что в карте ниже. Соседний план в это же время правит `app/admin/{users,tickets,payments,broadcasts}`; другие планы правят `app/account/`, `app/(auth)/`, `apps/miniapp`. Туда не заходить.
 - **`components/admin-page.tsx` уже написан.** Его не менять: на него опирается соседний план, и правка разошлась бы с его ожиданиями.
-- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web vitest run <файл>`.
+- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web test <файл>`.
 - **Существующие тесты — договор.** Покрыты `components/admin-shell`, `app/admin/page`, `app/admin/nodes/page`. Обязаны остаться зелёными.
 - **Кегли — только по шкале бренда:** `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body`, `text-small`, `text-caption`. Встроенные погашены и молча не работают.
 - **Начертание ставится классом:** `font-semibold` к `text-h1` и `text-h2`, `font-medium` к `text-h3`.
@@ -85,7 +85,7 @@ export interface AdminPageProps {
 
 - [ ] **Шаг 2: Убедиться, что проверки падают**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/components/admin-shell.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/components/admin-shell.test.tsx`
 Ожидается: падение двух новых проверок, остальные — зелёные.
 
 - [ ] **Шаг 3: Добавить шапку и иконки**
@@ -143,7 +143,7 @@ const LINKS: readonly AdminLink[] = [
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/components/admin-shell.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/components/admin-shell.test.tsx`
 Ожидается: PASS всех проверок, включая прежние — фильтр ролей и подсветка текущего раздела обязаны работать как раньше.
 
 ---
@@ -161,7 +161,7 @@ const LINKS: readonly AdminLink[] = [
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Перевести страницу на образец**
@@ -213,7 +213,7 @@ const LINKS: readonly AdminLink[] = [
 
 - [ ] **Шаг 6: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/page.test.tsx`
 Ожидается: PASS. Если тест нажимал на кнопку периода, а теперь это вкладка — падение законно: перевести на `getByRole('tab', { name: … })`.
 
 ---
@@ -231,7 +231,7 @@ const LINKS: readonly AdminLink[] = [
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/nodes/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/nodes/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Перевести страницу на образец**
@@ -264,10 +264,10 @@ const LINKS: readonly AdminLink[] = [
 
 - [ ] **Шаг 5: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/admin/nodes/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/admin/nodes/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 6: Проверить всё своё разом**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/components/admin-shell.test.tsx src/app/admin/page.test.tsx src/app/admin/nodes/ && pnpm --filter @repibot/web typecheck`
+Запустить: `pnpm --filter @repibot/web test src/components/admin-shell.test.tsx src/app/admin/page.test.tsx src/app/admin/nodes/ && pnpm --filter @repibot/web typecheck`
 Ожидается: PASS обеих команд. Это последняя задача плана.

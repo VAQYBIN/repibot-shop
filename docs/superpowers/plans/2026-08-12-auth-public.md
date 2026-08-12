@@ -12,7 +12,7 @@
 
 - **Ветка `dev`.** Никаких git-команд: коммиты делает ведущий после проверки задачи.
 - **Только свои файлы** — те, что перечислены в карте ниже. Соседние планы в это же время правят `app/account/`, `app/admin/`, `components/account-shell.tsx`, `components/subscription-card.tsx`, `components/traffic-bar.tsx`, `components/device-list.tsx` и весь `apps/miniapp`. Туда не заходить.
-- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web vitest run <файл>`.
+- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web test <файл>`.
 - **Существующие тесты — договор.** Покрыты `(auth)/login`, `(auth)/confirm-email`, `plans`, `winback`, `components/plan-card`. Обязаны остаться зелёными.
 - **Кегли — только по шкале бренда:** `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body`, `text-small`, `text-caption`. Встроенные погашены и молча не работают.
 - **Начертание ставится классом:** `font-semibold` к `text-h1` и `text-h2`, `font-medium` к `text-h3`.
@@ -108,7 +108,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
 - [ ] **Шаг 2: Убедиться, что вход по-прежнему работает**
 
-Запустить: `pnpm --filter @repibot/web vitest run "src/app/(auth)/"`
+Запустить: `pnpm --filter @repibot/web test "src/app/(auth)/"`
 Ожидается: PASS. Тесты страниц не знают об оболочке и упасть не должны.
 
 ---
@@ -126,7 +126,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run "src/app/(auth)/login/page.test.tsx"`
+Запустить: `pnpm --filter @repibot/web test "src/app/(auth)/login/page.test.tsx"`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Развести способы входа**
@@ -161,7 +161,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
 - [ ] **Шаг 3: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run "src/app/(auth)/login/page.test.tsx"`
+Запустить: `pnpm --filter @repibot/web test "src/app/(auth)/login/page.test.tsx"`
 Ожидается: PASS.
 
 ---
@@ -193,7 +193,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
 - [ ] **Шаг 2: Убедиться, что тесты проходят**
 
-Запустить: `pnpm --filter @repibot/web vitest run "src/app/(auth)/"`
+Запустить: `pnpm --filter @repibot/web test "src/app/(auth)/"`
 Ожидается: PASS. Если тест искал текст ожидания абзацем, а теперь его объявляет `Spinner` через `aria-label` — падение законно, перевести проверку на `getByRole('status', { name: … })`.
 
 ---
@@ -212,7 +212,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
 - [ ] **Шаг 1: Убедиться, что тесты сейчас зелёные**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/plans/page.test.tsx src/components/plan-card.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/plans/page.test.tsx src/components/plan-card.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Привести страницу тарифов**
@@ -244,7 +244,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
 - [ ] **Шаг 5: Убедиться, что тесты проходят**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/plans/page.test.tsx src/components/plan-card.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/plans/page.test.tsx src/components/plan-card.test.tsx`
 Ожидается: PASS.
 
 ---
@@ -290,10 +290,10 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
 - [ ] **Шаг 4: Убедиться, что тесты проходят**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/winback/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/winback/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Проверить всё своё разом**
 
-Запустить: `pnpm --filter @repibot/web vitest run "src/app/(auth)/" src/app/plans/ src/app/winback/ src/components/plan-card.test.tsx && pnpm --filter @repibot/web typecheck`
+Запустить: `pnpm --filter @repibot/web test "src/app/(auth)/" src/app/plans/ src/app/winback/ src/components/plan-card.test.tsx && pnpm --filter @repibot/web typecheck`
 Ожидается: PASS обеих команд. Это последняя задача плана.

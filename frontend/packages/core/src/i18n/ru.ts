@@ -10,6 +10,14 @@ export const ru = {
   'home.title': 'Re:Pibot',
   'home.subtitle': 'Магазин ещё готовится',
   'miniapp.nav.home': 'Главная',
+  // Подписи вкладок отдельны от названий разделов: под иконкой помещается одно
+  // короткое слово, а «Оплата и подарки» не помещается никак.
+  'miniapp.nav.label': 'Разделы',
+  'miniapp.tab.home': 'Главная',
+  'miniapp.tab.subscription': 'Подписка',
+  'miniapp.tab.devices': 'Устройства',
+  'miniapp.tab.payments': 'Оплата',
+  'miniapp.tab.profile': 'Профиль',
   'miniapp.welcome': 'Добро пожаловать',
   'miniapp.signin.failed': 'Не удалось войти',
   'miniapp.signin.outside': 'Откройте приложение через бота Re:Pibot',

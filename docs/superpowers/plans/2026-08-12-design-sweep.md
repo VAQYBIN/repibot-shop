@@ -78,7 +78,7 @@ describe('шкала кеглей заперта', () => {
 
 - [ ] **Шаг 2: Запустить и получить список недоделок**
 
-Запустить: `pnpm --filter @repibot/ui vitest run src/theme.test.ts`
+Запустить: `pnpm --filter @repibot/ui test src/theme.test.ts`
 Ожидается: либо PASS — тогда шкала действительно заперта, — либо падение со списком мест. Список и есть работа следующего шага.
 
 - [ ] **Шаг 3: Подчистить найденное**
@@ -89,12 +89,12 @@ describe('шкала кеглей заперта', () => {
 
 - [ ] **Шаг 4: Убедиться, что сторож зелёный**
 
-Запустить: `pnpm --filter @repibot/ui vitest run src/theme.test.ts`
+Запустить: `pnpm --filter @repibot/ui test src/theme.test.ts`
 Ожидается: PASS.
 
 - [ ] **Шаг 5: Убедиться, что подчистка ничего не сломала**
 
-Запустить: `pnpm --filter @repibot/web vitest run && pnpm --filter @repibot/miniapp vitest run`
+Запустить: `pnpm --filter @repibot/web test && pnpm --filter @repibot/miniapp test`
 Ожидается: PASS обоих приложений.
 
 ---

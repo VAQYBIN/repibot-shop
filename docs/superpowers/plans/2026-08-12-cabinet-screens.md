@@ -12,7 +12,7 @@
 
 - **Ветка `dev`.** Никаких git-команд: коммиты делает ведущий после проверки задачи.
 - **Только свои пять файлов** — те, что перечислены в карте ниже. Весь `apps/web/src/components/` в этом плане чужой: `account-shell`, `subscription-card`, `traffic-bar`, `device-list` правит план якорного экрана, `plan-card` — план входа и публичных страниц. Туда не заходить даже ради однострочной правки. Чужие также `app/(auth)`, `app/admin`, `app/account/subscription/` и весь `apps/miniapp`.
-- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web vitest run <файл>`.
+- **Никакого прогона проверок по всему репозиторию.** Только свои тесты: `pnpm --filter @repibot/web test <файл>`.
 - **Существующие тесты — договор.** Четыре из пяти экранов покрыты: `notifications`, `payments`, `security`, `support`. Они обязаны остаться зелёными. Упавший тест — повод сначала доказать, что поведение изменилось намеренно.
 - **Кегли — только по шкале бренда:** `text-display`, `text-h1`, `text-h2`, `text-h3`, `text-body`, `text-small`, `text-caption`. Встроенные `text-sm`, `text-lg`, `text-xl`, `text-2xl`, `text-xs`, `text-base` погашены и молча не работают.
 - **Начертание ставится классом:** `font-semibold` к `text-h1`, `font-medium` к `text-h3`.
@@ -90,7 +90,7 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 4: Убедиться, что тест проходит**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/page.test.tsx`
 Ожидается: PASS.
 
 ---
@@ -108,7 +108,7 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/notifications/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/notifications/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Применить замены**
@@ -122,7 +122,7 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 3: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/notifications/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/notifications/page.test.tsx`
 Ожидается: PASS.
 
 ---
@@ -142,7 +142,7 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/payments/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/payments/page.test.tsx`
 Ожидается: PASS. Запомнить число проверок — после правки оно обязано совпасть.
 
 - [ ] **Шаг 2: Применить общие замены**
@@ -223,7 +223,7 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 4: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/payments/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/payments/page.test.tsx`
 Ожидается: PASS. Число проверок то же, что до правки.
 
 ---
@@ -248,7 +248,7 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/security/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/security/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Применить общие замены**
@@ -282,7 +282,7 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 4: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/security/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/security/page.test.tsx`
 Ожидается: PASS. Если тест искал заголовок «Сессии» и теперь находит его дважды — падение законно, перевести проверку на `getAllByRole('heading', …)`. Если упало что-то другое — виновата правка.
 
 ---
@@ -302,7 +302,7 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 1: Убедиться, что тест сейчас зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/support/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/support/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 2: Заменить поля ввода**
@@ -358,10 +358,10 @@ it('язык выбирается нативным списком', async () => 
 
 - [ ] **Шаг 5: Убедиться, что тест по-прежнему зелёный**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/support/page.test.tsx`
+Запустить: `pnpm --filter @repibot/web test src/app/account/support/page.test.tsx`
 Ожидается: PASS.
 
 - [ ] **Шаг 6: Прогнать весь кабинет и типы**
 
-Запустить: `pnpm --filter @repibot/web vitest run src/app/account/ && pnpm --filter @repibot/web typecheck`
+Запустить: `pnpm --filter @repibot/web test src/app/account/ && pnpm --filter @repibot/web typecheck`
 Ожидается: PASS обеих команд. Это последняя задача плана.
