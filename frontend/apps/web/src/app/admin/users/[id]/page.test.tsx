@@ -76,6 +76,14 @@ async function show(role: string, handlers: Handlers): Promise<void> {
   })
 }
 
+/**
+ * Действия карточки собраны в выпадающее меню рядом с именем: пункт нельзя
+ * нажать, пока меню не открыто.
+ */
+async function openActions(): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: 'Действия' }))
+}
+
 function baseHandlers(card: unknown = makeCard()): Handlers {
   return {
     '/api/admin/users/42': card,
@@ -99,7 +107,8 @@ describe('карточка пользователя в админке', () => {
     })
 
     expect(await screen.findByText('vasya@example.com')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Заблокировать' })).toBeInTheDocument()
+    await openActions()
+    expect(screen.getByRole('menuitem', { name: 'Заблокировать' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Выдать дни' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Сменить тариф' })).not.toBeInTheDocument()
     // Тарифы поддержке даже не запрашиваются: они нужны только форме, которой у
@@ -129,7 +138,9 @@ describe('карточка пользователя в админке', () => {
       },
     })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Заблокировать' }))
+    await screen.findByText('vasya@example.com')
+    await openActions()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Заблокировать' }))
 
     // Окно открылось, но запроса ещё нет: подтверждение только тогда и имеет
     // смысл, когда до него ничего не случилось.
@@ -138,8 +149,11 @@ describe('карточка пользователя в админке', () => {
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Да, заблокировать' }))
 
-    expect(await screen.findByRole('button', { name: 'Разблокировать' })).toBeInTheDocument()
     expect(blocks).toHaveLength(1)
+    // Пункт меню сменился на противоположный: состояние действительно
+    // обновилось, а не просто закрылось окно подтверждения.
+    await openActions()
+    expect(screen.getByRole('menuitem', { name: 'Разблокировать' })).toBeInTheDocument()
     expect(blocks[0]?.method).toBe('POST')
     // Решение персонала — событие ленты: не показать его сразу значит заставить
     // сотрудника обновлять страницу.
@@ -157,7 +171,8 @@ describe('карточка пользователя в админке', () => {
       },
     })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Заблокировать' }))
+    await openActions()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Заблокировать' }))
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
 
@@ -177,7 +192,8 @@ describe('карточка пользователя в админке', () => {
       },
     })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Выпустить новую ссылку' }))
+    await openActions()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Выпустить новую ссылку' }))
     const dialog = await screen.findByRole('dialog')
     expect(revokes).toHaveLength(0)
 
@@ -193,7 +209,8 @@ describe('карточка пользователя в админке', () => {
       '/api/admin/users/42/mute': { changed: false },
     })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Закрыть поддержку' }))
+    await openActions()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Закрыть поддержку' }))
 
     expect(await screen.findByText(/коллега успел раньше/)).toBeInTheDocument()
   })

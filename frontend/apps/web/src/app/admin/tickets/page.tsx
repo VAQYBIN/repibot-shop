@@ -1,10 +1,22 @@
 'use client'
 
 import { useAuthClient } from '@repibot/core'
-import { Button, Card, EmptyState } from '@repibot/ui'
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  Card,
+  cn,
+  EmptyState,
+  Select,
+  Spinner,
+} from '@repibot/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
+
+import { AdminPage } from '@/components/admin-page'
 
 type TicketStatus = 'waiting_staff' | 'waiting_user' | 'closed'
 type StatusFilter = TicketStatus | 'all'
@@ -15,6 +27,20 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'waiting_user', label: 'Ждут ответа пользователя' },
   { value: 'closed', label: 'Закрытые' },
 ]
+
+/**
+ * Соответствие тонов повторяет эмодзи в названиях тем супергруппы: красное —
+ * то, что ждёт нас, жёлтое — то, что ждёт человека, зелёное — решённое.
+ */
+const STATUS_TONES: Record<TicketStatus, BadgeTone> = {
+  waiting_staff: 'danger',
+  waiting_user: 'warning',
+  closed: 'success',
+}
+
+function statusTone(status: string): BadgeTone {
+  return STATUS_TONES[status as TicketStatus] ?? 'neutral'
+}
 
 /**
  * Переписку перечитываем сама собой, пока обращение живое: человек дописывает
@@ -134,42 +160,40 @@ export default function AdminTicketsPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6 text-text">
-      <header>
-        <h1 className="text-2xl font-semibold">Обращения</h1>
-        <p className="mt-1 max-w-prose text-sm text-text-secondary">
-          Ответ отсюда уходит человеку тем же путём, что и ответ из топика поддержки.
-        </p>
-      </header>
-
+    <AdminPage
+      title="Обращения"
+      description="Ответ отсюда уходит человеку тем же путём, что и ответ из топика поддержки."
+    >
       <div className="grid gap-6 lg:grid-cols-[20rem_1fr]">
         <section aria-labelledby="tickets-heading" className="flex flex-col gap-3">
           <Card>
-            <h2 id="tickets-heading" className="text-lg font-semibold text-text">
+            <h2 id="tickets-heading" className="font-medium text-h3 text-text">
               Список
             </h2>
-            <label htmlFor="ticket-status" className="mt-4 block text-sm font-medium text-text">
+            <label htmlFor="ticket-status" className="mt-4 block font-medium text-small text-text">
               Статус
             </label>
-            <select
+            <Select
               id="ticket-status"
+              className="mt-2"
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-              className="mt-2 h-10 w-full rounded-md border border-border-subtle bg-surface px-3 text-text focus:border-accent focus:ring-3 focus:ring-jade-mist focus:outline-none"
             >
               {STATUS_FILTERS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </Select>
 
             {tickets.isPending ? (
-              <p className="mt-4 text-sm text-text-secondary">Загрузка…</p>
+              <div className="mt-4">
+                <Spinner label="Загрузка" />
+              </div>
             ) : tickets.error !== null ? (
-              <p role="alert" className="mt-4 text-sm text-danger">
+              <Alert tone="error" className="mt-4">
                 {errorMessage(tickets.error, 'Не удалось загрузить обращения.')}
-              </p>
+              </Alert>
             ) : tickets.data.length === 0 ? (
               <EmptyState className="mt-4" title="Обращений с таким статусом нет" />
             ) : (
@@ -187,11 +211,12 @@ export default function AdminTicketsPage() {
                       }}
                       className="w-full rounded-md border border-border-subtle px-3 py-2 text-left aria-pressed:border-accent aria-pressed:bg-surface-sunken"
                     >
-                      <span className="block truncate text-sm font-medium text-text">
+                      <span className="block truncate font-medium text-small text-text">
                         {ticket.subject}
                       </span>
-                      <span className="mt-1 block text-xs text-text-muted">
-                        {`#${ticket.id} · ${statusLabel(ticket.status)} · пользователь ${ticket.user_id}`}
+                      <span className="mt-1 flex flex-wrap items-center gap-2 text-caption text-text-muted">
+                        <Badge tone={statusTone(ticket.status)}>{statusLabel(ticket.status)}</Badge>
+                        {`#${ticket.id} · пользователь ${ticket.user_id}`}
                       </span>
                     </button>
                   </li>
@@ -203,51 +228,73 @@ export default function AdminTicketsPage() {
 
         <section aria-labelledby="thread-heading">
           <Card>
-            <h2 id="thread-heading" className="text-lg font-semibold text-text">
+            <h2 id="thread-heading" className="font-medium text-h3 text-text">
               Переписка
             </h2>
 
             {selectedId === null ? (
               <EmptyState className="mt-4" title="Выберите обращение слева" />
             ) : thread.isPending ? (
-              <p className="mt-4 text-sm text-text-secondary">Загрузка…</p>
+              <div className="mt-4">
+                <Spinner label="Загрузка" />
+              </div>
             ) : thread.error !== null ? (
-              <p role="alert" className="mt-4 text-sm text-danger">
+              <Alert tone="error" className="mt-4">
                 {errorMessage(thread.error, 'Не удалось загрузить переписку.')}
-              </p>
+              </Alert>
             ) : (
               <>
-                <p className="mt-1 text-sm text-text-secondary">
-                  {`${thread.data.ticket.subject} · ${statusLabel(thread.data.ticket.status)}`}
-                  {selected === undefined ? '' : ` · пользователь ${selected.user_id}`}
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-small text-text-secondary">
+                  {thread.data.ticket.subject}
+                  <Badge tone={statusTone(thread.data.ticket.status)}>
+                    {statusLabel(thread.data.ticket.status)}
+                  </Badge>
+                  {selected === undefined ? '' : `· пользователь ${selected.user_id}`}
                 </p>
 
                 {thread.data.messages.length === 0 ? (
                   <EmptyState className="mt-4" title="Сообщений пока нет" />
                 ) : (
                   <ol className="mt-4 flex flex-col gap-3">
-                    {thread.data.messages.map((message) => (
-                      <li key={message.id} className="rounded-md bg-surface-sunken p-3">
-                        <p className="text-xs text-text-muted">
-                          {`${authorLabel(message.author)} · ${formatMoment(message.created_at)}`}
-                        </p>
-                        {/* Текст писал человек: выводим как есть, переносы
-                            сохраняем, разметку не разбираем. */}
-                        <p className="mt-1 text-sm whitespace-pre-wrap break-words text-text">
-                          {message.body}
-                        </p>
-                      </li>
-                    ))}
+                    {thread.data.messages.map((message) => {
+                      // Прижимаем к разным краям: ответ персонала — вправо, на
+                      // подложке бренда; сообщение человека — влево, нейтральным.
+                      const staff = message.author === 'staff'
+                      return (
+                        <li
+                          key={message.id}
+                          className={staff ? 'flex justify-end' : 'flex justify-start'}
+                        >
+                          <div
+                            className={cn(
+                              'max-w-[85%] rounded-md border px-4 py-3',
+                              staff
+                                ? 'border-transparent bg-jade-mist'
+                                : 'border-border-subtle bg-surface',
+                            )}
+                          >
+                            <p className="text-caption text-text-muted">
+                              {`${authorLabel(message.author)} · ${formatMoment(message.created_at)}`}
+                            </p>
+                            {/* Текст писал человек: выводим как есть, переносы
+                                сохраняем, разметку не разбираем. */}
+                            <p className="mt-1 whitespace-pre-wrap break-words text-small text-text">
+                              {message.body}
+                            </p>
+                          </div>
+                        </li>
+                      )
+                    })}
                   </ol>
                 )}
 
                 {closed ? (
-                  <p className="mt-4 text-sm text-text-secondary">
+                  <p className="mt-4 text-small text-text-secondary">
                     Обращение закрыто. Ответить нельзя — человек откроет новое.
                   </p>
                 ) : (
                   <form onSubmit={submitReply} className="mt-4 flex flex-col gap-3">
-                    <label htmlFor="reply-body" className="text-sm font-medium text-text">
+                    <label htmlFor="reply-body" className="font-medium text-small text-text">
                       Ответ поддержки
                     </label>
                     <textarea
@@ -259,14 +306,14 @@ export default function AdminTicketsPage() {
                     />
 
                     {sendReply.error === null ? null : (
-                      <p role="alert" className="text-sm text-danger">
+                      <Alert tone="error">
                         {errorMessage(sendReply.error, 'Не удалось отправить ответ.')}
-                      </p>
+                      </Alert>
                     )}
                     {closeTicket.error === null ? null : (
-                      <p role="alert" className="text-sm text-danger">
+                      <Alert tone="error">
                         {errorMessage(closeTicket.error, 'Не удалось закрыть обращение.')}
-                      </p>
+                      </Alert>
                     )}
 
                     <div className="flex flex-wrap items-center gap-3">
@@ -289,6 +336,6 @@ export default function AdminTicketsPage() {
           </Card>
         </section>
       </div>
-    </main>
+    </AdminPage>
   )
 }

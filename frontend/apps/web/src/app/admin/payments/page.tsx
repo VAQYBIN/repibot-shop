@@ -1,9 +1,11 @@
 'use client'
 
 import { useAuthClient } from '@repibot/core'
-import { Button, Card, Dialog, Input } from '@repibot/ui'
+import { Alert, Button, Card, Dialog, FormField, Input, Select } from '@repibot/ui'
 import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
+
+import { AdminPage } from '@/components/admin-page'
 
 type CompensationAction = 'revoke_days' | 'reverse_referral_reward'
 
@@ -62,66 +64,52 @@ export default function AdminPaymentsPage() {
   const compensationReady = hasOrderId && compensationComment.trim() !== ''
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6 text-text">
-      <header>
-        <h1 className="text-2xl font-semibold">Платежи и корректировки</h1>
-        <p className="mt-1 max-w-prose text-sm text-text-secondary">
-          Сначала завершите возврат у провайдера. Локальная отметка не меняет срок подписки;
-          компенсация всегда выполняется отдельно.
-        </p>
-      </header>
-
+    <AdminPage
+      title="Платежи и корректировки"
+      description="Сначала завершите возврат у провайдера. Локальная отметка не меняет срок подписки; компенсация всегда выполняется отдельно."
+    >
       <Card>
-        <label htmlFor="order-id" className="text-sm font-medium text-text">
-          Номер заказа
-        </label>
-        <Input
-          id="order-id"
-          type="number"
-          min="1"
-          inputMode="numeric"
-          value={orderId}
-          onChange={(event) => setOrderId(event.target.value)}
-          className="mt-2 max-w-xs"
-        />
+        <FormField label="Номер заказа" htmlFor="order-id">
+          <Input
+            id="order-id"
+            type="number"
+            min="1"
+            inputMode="numeric"
+            value={orderId}
+            onChange={(event) => setOrderId(event.target.value)}
+            className="max-w-xs"
+          />
+        </FormField>
       </Card>
 
       <section aria-labelledby="refund-heading">
         <Card>
-          <h2 id="refund-heading" className="text-lg font-semibold text-text">
+          <h2 id="refund-heading" className="font-medium text-h3 text-text">
             Отметить выполненный возврат
           </h2>
-          <p className="mt-1 text-sm text-text-secondary">
+          <p className="mt-1 text-small text-text-secondary">
             Только после возврата в YooKassa или другом платёжном провайдере.
           </p>
           <div className="mt-4 grid gap-3">
-            <div>
-              <label htmlFor="refund-reference" className="text-sm font-medium text-text">
-                Номер возврата провайдера
-              </label>
+            <FormField label="Номер возврата провайдера" htmlFor="refund-reference">
               <Input
                 id="refund-reference"
                 value={reference}
                 onChange={(event) => setReference(event.target.value)}
-                className="mt-2"
               />
-            </div>
-            <div>
-              <label htmlFor="refund-comment" className="text-sm font-medium text-text">
-                Причина отметки возврата
-              </label>
+            </FormField>
+            <FormField label="Причина отметки возврата" htmlFor="refund-comment">
               <Input
                 id="refund-comment"
                 value={refundComment}
                 onChange={(event) => setRefundComment(event.target.value)}
-                className="mt-2"
               />
-            </div>
+            </FormField>
           </div>
           {refund.error === null ? null : (
-            <p role="alert" className="mt-3 text-sm text-danger">
+            <Alert tone="error" className="mt-3">
               {errorMessage(refund.error)}
-            </p>
+            </Alert>
           )}
           <Button
             className="mt-4"
@@ -135,46 +123,38 @@ export default function AdminPaymentsPage() {
 
       <section aria-labelledby="compensation-heading">
         <Card>
-          <h2 id="compensation-heading" className="text-lg font-semibold text-text">
+          <h2 id="compensation-heading" className="font-medium text-h3 text-text">
             Отдельная компенсация
           </h2>
-          <p className="mt-1 text-sm text-text-secondary">
+          <p className="mt-1 text-small text-text-secondary">
             Необратимое действие. Его нельзя выполнить отметкой возврата и оно требует отдельного
             подтверждения.
           </p>
           <div className="mt-4 grid gap-3">
-            <div>
-              <label htmlFor="compensation-action" className="text-sm font-medium text-text">
-                Действие компенсации
-              </label>
-              <select
+            <FormField label="Действие компенсации" htmlFor="compensation-action">
+              <Select
                 id="compensation-action"
                 value={compensationAction}
                 onChange={(event) =>
                   setCompensationAction(event.target.value as CompensationAction)
                 }
-                className="mt-2 h-10 w-full rounded-md border border-border-subtle bg-surface px-3 text-text focus:border-accent focus:ring-3 focus:ring-jade-mist focus:outline-none"
               >
                 <option value="revoke_days">Списать дни подписки</option>
                 <option value="reverse_referral_reward">Сторнировать реферальную награду</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="compensation-comment" className="text-sm font-medium text-text">
-                Причина компенсации
-              </label>
+              </Select>
+            </FormField>
+            <FormField label="Причина компенсации" htmlFor="compensation-comment">
               <Input
                 id="compensation-comment"
                 value={compensationComment}
                 onChange={(event) => setCompensationComment(event.target.value)}
-                className="mt-2"
               />
-            </div>
+            </FormField>
           </div>
           {compensation.error === null ? null : (
-            <p role="alert" className="mt-3 text-sm text-danger">
+            <Alert tone="error" className="mt-3">
               {errorMessage(compensation.error)}
-            </p>
+            </Alert>
           )}
           <Button
             variant="secondary"
@@ -187,11 +167,7 @@ export default function AdminPaymentsPage() {
         </Card>
       </section>
 
-      {notice === null ? null : (
-        <p role="status" className="text-sm text-text-accent">
-          {notice}
-        </p>
-      )}
+      {notice === null ? null : <Alert tone="success">{notice}</Alert>}
 
       <Dialog
         open={confirmationOpen}
@@ -206,6 +182,6 @@ export default function AdminPaymentsPage() {
           Подтвердить компенсацию
         </Button>
       </Dialog>
-    </main>
+    </AdminPage>
   )
 }

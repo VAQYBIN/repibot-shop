@@ -1,13 +1,31 @@
 'use client'
 
 import { useAuthClient } from '@repibot/core'
-import { Button, Card, EmptyState, Input } from '@repibot/ui'
+import {
+  Alert,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  Skeleton,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from '@repibot/ui'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
+import { AdminPage } from '@/components/admin-page'
+
 /** Страница выдачи из спецификации: двадцать строк, дальше кнопка «ещё». */
 const PAGE_SIZE = 20
+
+/** Пять заглушек на время загрузки — форма содержимого таблицы известна заранее. */
+const SKELETON_ROWS = ['a', 'b', 'c', 'd', 'e']
 
 /**
  * Задержка ввода.
@@ -95,17 +113,12 @@ export default function AdminUsersPage() {
   const rows = users.data?.pages.flat() ?? []
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6 text-text">
-      <header>
-        <h1 className="font-semibold text-2xl">Пользователи</h1>
-        <p className="mt-1 max-w-prose text-sm text-text-secondary">
-          Одна строка на все опознаватели: почта, @имя, номер Telegram, аккаунта или панели.
-          Разбирает её сервер — выбирать поле руками не нужно.
-        </p>
-      </header>
-
+    <AdminPage
+      title="Пользователи"
+      description="Одна строка на все опознаватели: почта, @имя, номер Telegram, аккаунта или панели. Разбирает её сервер — выбирать поле руками не нужно."
+    >
       <Card>
-        <label htmlFor="user-search" className="font-medium text-sm text-text">
+        <label htmlFor="user-search" className="font-medium text-small text-text">
           Поиск
         </label>
         <Input
@@ -117,11 +130,17 @@ export default function AdminUsersPage() {
         />
 
         {users.isPending ? (
-          <p className="mt-4 text-sm text-text-secondary">Загрузка…</p>
+          <div className="mt-4 flex flex-col gap-2" aria-hidden="true">
+            {/* Форма содержимого таблицы известна заранее — заглушка по ней не
+                заставляет разметку прыгать, когда данные приходят. */}
+            {SKELETON_ROWS.map((rowKey) => (
+              <Skeleton key={rowKey} className="h-10 w-full" />
+            ))}
+          </div>
         ) : users.error !== null ? (
-          <p role="alert" className="mt-4 text-danger text-sm">
+          <Alert tone="error" className="mt-4">
             {errorMessage(users.error, 'Не удалось загрузить список пользователей.')}
-          </p>
+          </Alert>
         ) : rows.length === 0 ? (
           <EmptyState
             className="mt-4"
@@ -134,43 +153,35 @@ export default function AdminUsersPage() {
           />
         ) : (
           <>
-            <div className="mt-4 overflow-x-auto">
-              <table aria-label="Пользователи" className="w-full text-left text-sm">
-                <thead>
-                  <tr className="text-text-muted text-xs">
-                    <th scope="col" className="py-2 pr-3 font-medium">
-                      Кто
-                    </th>
-                    <th scope="col" className="py-2 pr-3 font-medium">
-                      Telegram
-                    </th>
-                    <th scope="col" className="py-2 pr-3 font-medium">
-                      Тариф
-                    </th>
-                    <th scope="col" className="py-2 pr-3 font-medium">
-                      Подписка
-                    </th>
-                    <th scope="col" className="py-2 font-medium">
-                      Ограничения
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="mt-4">
+              <Table caption="Пользователи">
+                <TableHead>
+                  <TableRow>
+                    <TableHeaderCell>Кто</TableHeaderCell>
+                    <TableHeaderCell>Telegram</TableHeaderCell>
+                    <TableHeaderCell>Тариф</TableHeaderCell>
+                    <TableHeaderCell>Подписка</TableHeaderCell>
+                    <TableHeaderCell>Ограничения</TableHeaderCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {rows.map((row) => (
-                    <tr key={row.id} className="border-border-subtle border-t align-top">
-                      <td className="py-2 pr-3">
+                    <TableRow key={row.id} className="align-top">
+                      <TableCell>
                         <Link
                           href={`/admin/users/${row.id}`}
                           className="font-medium text-text underline-offset-2 hover:underline"
                         >
                           {personLabel(row)}
                         </Link>
-                        <span className="block text-text-muted text-xs">{`#${row.id}`}</span>
-                      </td>
-                      <td className="py-2 pr-3 text-text-secondary">{telegramLabel(row)}</td>
-                      <td className="py-2 pr-3 text-text-secondary">{row.plan_name ?? '—'}</td>
-                      <td className="py-2 pr-3 text-text-secondary">{subscriptionLabel(row)}</td>
-                      <td className="py-2">
+                        <span className="block text-caption text-text-muted">{`#${row.id}`}</span>
+                      </TableCell>
+                      <TableCell className="text-text-secondary">{telegramLabel(row)}</TableCell>
+                      <TableCell className="text-text-secondary">{row.plan_name ?? '—'}</TableCell>
+                      <TableCell className="text-text-secondary">
+                        {subscriptionLabel(row)}
+                      </TableCell>
+                      <TableCell>
                         {/* Отметки — единственное, что видно про ограничения из
                             списка: подпись у них словами, значок один не читается
                             ни экранным диктором, ни новым сотрудником. */}
@@ -187,11 +198,11 @@ export default function AdminUsersPage() {
                         {row.banned || row.support_muted ? null : (
                           <span className="text-text-muted">—</span>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {users.hasNextPage ? (
@@ -208,6 +219,6 @@ export default function AdminUsersPage() {
           </>
         )}
       </Card>
-    </main>
+    </AdminPage>
   )
 }
