@@ -174,6 +174,29 @@ export function seedTelegramUser(telegramId: number, username: string): void {
   )
 }
 
+/**
+ * Публикует соглашение, на которое ссылается подвал.
+ *
+ * Без него `/legal/terms` отдаёт 404, и сквозной обход публичных экранов падает
+ * на пустой базе — по настоящей причине, но не там, где её станут искать.
+ */
+export function seedLegalDocuments(): void {
+  runSql(
+    `INSERT INTO legal_documents (slug, locale, title, content, version, published_at)
+     VALUES (
+       'terms', 'ru', 'Пользовательское соглашение',
+       E'## Общие положения\\n\\nТекст соглашения для сквозного обхода.\\n',
+       1, now()
+     )
+     ON CONFLICT (slug, locale, version) DO UPDATE SET
+       title = EXCLUDED.title,
+       content = EXCLUDED.content,
+       published_at = EXCLUDED.published_at,
+       withdrawn_at = NULL,
+       updated_at = now()`,
+  )
+}
+
 /** Кладёт истёкший промокод в ту же схему Postgres, что и оформление. */
 export function seedExpiredPromo(code: string): void {
   assertToken(code, 'promo code')

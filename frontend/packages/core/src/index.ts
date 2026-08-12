@@ -32,6 +32,7 @@ export {
   type TranslationKey,
   translate,
 } from './i18n/index'
+export { useLegalDocuments } from './legal/hooks'
 export {
   useNotificationSettings,
   useUpdateNotificationSettings,

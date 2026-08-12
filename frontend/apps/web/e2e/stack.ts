@@ -10,7 +10,7 @@
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
-import { seed } from './seed'
+import { seed, seedLegalDocuments } from './seed'
 
 const ROOT = resolve(__dirname, '../../../..')
 const PROJECT = 'repibot-e2e'
@@ -75,4 +75,5 @@ export default async function globalSetup(): Promise<void> {
   await waitFor(`${WEB_URL}/login`, 'веб-приложение')
   await waitFor(`${MAILPIT_URL}/api/v1/info`, 'Mailpit')
   seed()
+  seedLegalDocuments()
 }

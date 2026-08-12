@@ -93,6 +93,9 @@ services:
     depends_on: [api]
     environment:
       ADMIN_ASSERTION_SECRET: ${ADMIN_ASSERTION_SECRET}
+      # Серверные страницы ходят в API напрямую: относительный `/api` в
+      # браузере разрешает nginx, а на сервере разрешать его не от чего.
+      INTERNAL_API_URL: http://api:8000
 
   # Только для разработки и сквозных тестов: SMTP-приёмник с веб-интерфейсом.
   # Профиль dev означает, что обычный `docker compose up` его не поднимает.
