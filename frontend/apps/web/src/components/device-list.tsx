@@ -1,7 +1,7 @@
 'use client'
 
 import { type Language, translate, useDevices, useUnlinkDevice } from '@repibot/core'
-import { Button, Card, Dialog, EmptyState } from '@repibot/ui'
+import { Alert, Button, Card, Dialog, EmptyState, Skeleton } from '@repibot/ui'
 import { useState } from 'react'
 
 import { errorText } from '@/lib/i18n'
@@ -37,11 +37,11 @@ export function DeviceList({ language }: DeviceListProps) {
     <>
       <Card role="region" aria-labelledby="devices-title">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="devices-title" className="text-lg font-semibold text-text">
+          <h2 id="devices-title" className="text-h3 font-medium text-text">
             {translate(language, 'devices.title')}
           </h2>
           {devices.data === undefined ? null : (
-            <p className="text-sm tabular-nums text-text-secondary">
+            <p className="text-small tabular-nums text-text-secondary">
               {translate(language, 'devices.limit')
                 .replace('{used}', String(devices.data.used))
                 .replace('{limit}', String(devices.data.limit))}
@@ -50,19 +50,27 @@ export function DeviceList({ language }: DeviceListProps) {
         </div>
 
         {unlink.error === null ? null : (
-          <p role="alert" className="mt-3 text-sm text-danger">
+          <Alert tone="error" className="mt-3">
             {errorText(unlink.error, language)}
-          </p>
+          </Alert>
         )}
 
         {devices.isPending ? (
-          <p role="status" className="mt-4 text-sm text-text-secondary">
-            {translate(language, 'common.loading')}
-          </p>
+          <ul className="mt-4 divide-y divide-border-subtle">
+            {[0, 1, 2].map((row) => (
+              <li key={row} className="flex items-center justify-between gap-3 py-4">
+                <div className="flex-1">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="mt-2 h-3 w-24" />
+                </div>
+                <Skeleton className="h-8 w-24" />
+              </li>
+            ))}
+          </ul>
         ) : devices.error !== null ? (
-          <p role="alert" className="mt-4 text-sm text-danger">
+          <Alert tone="error" className="mt-4">
             {errorText(devices.error, language)}
-          </p>
+          </Alert>
         ) : devices.data === undefined || devices.data.devices.length === 0 ? (
           <EmptyState className="mt-4" title={translate(language, 'devices.empty')} />
         ) : (
@@ -76,7 +84,7 @@ export function DeviceList({ language }: DeviceListProps) {
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium text-text">{name}</p>
-                    <p className="mt-1 text-sm text-text-secondary">
+                    <p className="mt-1 text-small text-text-secondary">
                       {[device.platform, device.os_version].filter(Boolean).join(' · ') ||
                         translate(language, 'devices.unknown_platform')}
                     </p>

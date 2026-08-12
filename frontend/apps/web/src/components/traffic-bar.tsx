@@ -1,7 +1,7 @@
 'use client'
 
 import { formatBytes, type Language, translate, useTraffic } from '@repibot/core'
-import { Card } from '@repibot/ui'
+import { Alert, Card, Spinner } from '@repibot/ui'
 
 import { errorText } from '@/lib/i18n'
 
@@ -14,21 +14,21 @@ export function TrafficBar({ language }: TrafficBarProps) {
 
   return (
     <Card role="region" aria-labelledby="traffic-title">
-      <h2 id="traffic-title" className="text-lg font-semibold text-text">
+      {/* Внутри карточки заголовок второго уровня не должен спорить с
+          заголовком страницы. */}
+      <h2 id="traffic-title" className="text-h3 font-medium text-text">
         {translate(language, 'traffic.title')}
       </h2>
 
       {traffic.isPending ? (
-        <p role="status" className="mt-4 text-sm text-text-secondary">
-          {translate(language, 'common.loading')}
-        </p>
+        <Spinner label={translate(language, 'common.loading')} className="mt-4 block" />
       ) : traffic.error !== null ? (
-        <p role="alert" className="mt-4 text-sm text-danger">
+        <Alert tone="error" className="mt-4">
           {errorText(traffic.error, language)}
-        </p>
+        </Alert>
       ) : traffic.data === undefined ? null : (
         <div className="mt-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 text-small">
             <p className="text-text-secondary">{translate(language, 'traffic.used')}</p>
             <p className="font-medium tabular-nums text-text">
               {formatBytes(traffic.data.used_bytes, language)}
@@ -60,19 +60,19 @@ export function TrafficBar({ language }: TrafficBarProps) {
           )}
 
           {traffic.data.used_bytes === 0 && traffic.data.days.length === 0 ? (
-            <p className="mt-4 text-sm text-text-secondary">
+            <p className="mt-4 text-small text-text-secondary">
               {language === 'ru' ? 'Трафик пока не использован' : 'No traffic used yet'}
             </p>
           ) : null}
 
           {traffic.data.days.length === 0 ? null : (
             <div className="mt-5 border-t border-border-subtle pt-4">
-              <p className="text-xs text-text-secondary">
+              <p className="text-caption text-text-secondary">
                 {translate(language, 'traffic.last_days')}
               </p>
               <dl className="mt-2 grid gap-2 sm:grid-cols-2">
                 {traffic.data.days.map((day) => (
-                  <div key={day.day} className="flex justify-between gap-4 text-sm tabular-nums">
+                  <div key={day.day} className="flex justify-between gap-4 text-small tabular-nums">
                     <dt className="text-text-secondary">
                       {new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(
                         new Date(`${day.day}T12:00:00Z`),

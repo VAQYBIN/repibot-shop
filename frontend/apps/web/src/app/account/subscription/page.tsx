@@ -1,7 +1,7 @@
 'use client'
 
 import { useActivateTrial, useSubscription } from '@repibot/core'
-import { Button, EmptyState } from '@repibot/ui'
+import { Alert, Button, EmptyState, Spinner } from '@repibot/ui'
 import Link from 'next/link'
 
 import { DeviceList } from '@/components/device-list'
@@ -21,17 +21,13 @@ export default function SubscriptionPage() {
     current !== undefined && current !== null && current.status !== 'pending_provision'
 
   return (
-    <main className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('subscription.title')}</h1>
+    <main className="flex flex-col gap-6">
+      <h1 className="text-h1 font-semibold text-text">{t('subscription.title')}</h1>
 
       {subscription.isPending ? (
-        <p role="status" className="text-text-secondary">
-          {t('common.loading')}
-        </p>
+        <Spinner label={t('common.loading')} />
       ) : subscription.error !== null ? (
-        <p role="alert" className="text-sm text-danger">
-          {errorText(subscription.error, language)}
-        </p>
+        <Alert tone="error">{errorText(subscription.error, language)}</Alert>
       ) : subscription.data?.subscription === null ? (
         <EmptyState
           title={t('subscription.none')}
@@ -47,18 +43,13 @@ export default function SubscriptionPage() {
         <SubscriptionCard subscription={subscription.data.subscription} language={language} />
       )}
 
-      {trial.error === null ? null : (
-        <p role="alert" className="text-sm text-danger">
-          {errorText(trial.error, language)}
-        </p>
-      )}
+      {trial.error === null ? null : <Alert tone="error">{errorText(trial.error, language)}</Alert>}
 
-      <Link
-        href="/account/payments"
-        className="text-sm font-medium text-text-accent underline underline-offset-4"
-      >
-        {t('payment.title')}
-      </Link>
+      <div>
+        <Button asChild variant="secondary" size="sm">
+          <Link href="/account/payments">{t('payment.title')}</Link>
+        </Button>
+      </div>
 
       {panelAvailable ? (
         <>

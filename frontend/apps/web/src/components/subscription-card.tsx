@@ -1,7 +1,7 @@
 'use client'
 
 import { formatDate, type Language, translate } from '@repibot/core'
-import { Button, Card } from '@repibot/ui'
+import { Alert, Badge, type BadgeTone, Button, Card, Skeleton } from '@repibot/ui'
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 
@@ -53,6 +53,24 @@ function isUsable(status: string): boolean {
   return status === 'active' || status === 'trial'
 }
 
+/* Тон бейджа по состоянию подписки. `pending_provision` — не отказ: панель
+   ещё выдаёт доступ, и красный здесь напугал бы человека зря. */
+function statusTone(status: string): BadgeTone {
+  switch (status) {
+    case 'active':
+      return 'success'
+    case 'trial':
+      return 'info'
+    case 'pending_provision':
+      return 'warning'
+    case 'expired':
+    case 'disabled':
+      return 'danger'
+    default:
+      return 'neutral'
+  }
+}
+
 export function SubscriptionCard({ subscription, language }: SubscriptionCardProps) {
   const [qr, setQr] = useState<QrState>({ status: 'loading' })
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
@@ -92,25 +110,27 @@ export function SubscriptionCard({ subscription, language }: SubscriptionCardPro
     <Card role="region" aria-labelledby="current-subscription-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="current-subscription-title" className="text-xl font-semibold text-text">
+          <h2 id="current-subscription-title" className="text-h2 font-semibold text-text">
             {planName(subscription, language)}
           </h2>
-          <p className="mt-1 text-sm font-medium text-text-accent">
-            {statusText(subscription.status, language)}
-          </p>
+          <div className="mt-2">
+            <Badge tone={statusTone(subscription.status)}>
+              {statusText(subscription.status, language)}
+            </Badge>
+          </div>
         </div>
         <div className="text-right tabular-nums">
-          <p className="text-xs text-text-secondary">
+          <p className="text-caption text-text-secondary">
             {translate(language, 'subscription.expires_at')}
           </p>
-          <time dateTime={subscription.expires_at} className="mt-1 block text-sm text-text">
+          <time dateTime={subscription.expires_at} className="mt-1 block text-small text-text">
             {formatDate(subscription.expires_at, language)}
           </time>
         </div>
       </div>
 
       {subscription.status === 'pending_provision' ? (
-        <p className="mt-5 text-sm text-text-secondary">
+        <p className="mt-5 text-small text-text-secondary">
           {translate(language, 'subscription.pending_hint')}
         </p>
       ) : null}
@@ -118,12 +138,12 @@ export function SubscriptionCard({ subscription, language }: SubscriptionCardPro
       {url === null ? null : (
         <div className="mt-6 grid gap-5 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-start">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-text">
+            <p className="text-small font-medium text-text">
               {translate(language, 'subscription.link')}
             </p>
             <a
               href={url}
-              className="mt-2 block break-all text-sm text-text-accent underline underline-offset-4"
+              className="mt-2 block break-all text-small text-text-accent underline underline-offset-4"
             >
               {url}
             </a>
@@ -135,7 +155,9 @@ export function SubscriptionCard({ subscription, language }: SubscriptionCardPro
                 <span
                   role={copyState === 'copied' ? 'status' : 'alert'}
                   className={
-                    copyState === 'copied' ? 'text-sm text-text-secondary' : 'text-sm text-danger'
+                    copyState === 'copied'
+                      ? 'text-small text-text-secondary'
+                      : 'text-small text-danger'
                   }
                 >
                   {copyState === 'copied'
@@ -147,17 +169,13 @@ export function SubscriptionCard({ subscription, language }: SubscriptionCardPro
           </div>
 
           {qr.status === 'loading' ? (
-            <div
-              role="status"
-              aria-label={translate(language, 'subscription.qr')}
-              className="aspect-square rounded-md bg-surface-sunken"
-            />
+            <Skeleton className="aspect-square w-full" />
           ) : qr.status === 'error' ? (
-            <p role="alert" className="rounded-md bg-surface-sunken p-3 text-sm text-danger">
+            <Alert tone="error">
               {language === 'ru'
                 ? 'Не удалось создать QR-код. Скопируйте ссылку подключения.'
                 : 'Could not create the QR code. Copy the connection link instead.'}
-            </p>
+            </Alert>
           ) : (
             <div
               role="img"
