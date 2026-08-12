@@ -126,7 +126,7 @@ uv run mypy backend/core/src/repibot_core/services/admin_metrics.py
 **Файлы:**
 - Создать: `backend/api/src/repibot_api/routers/admin/metrics.py`
 - Изменить: `backend/api/src/repibot_api/routers/admin/__init__.py` (включить подроутер)
-- Изменить: `backend/api/src/repibot_api/schemas.py` (схема ответа)
+- Схема ответа объявляется **в самом модуле маршрута**, а не в общем `schemas.py`: соседние планы наполняют пакет админки одновременно, и общий файл стал бы местом столкновения. Прецедент — `WhoAmIResponse` в корне пакета.
 - Тест: `backend/api/tests/test_admin_metrics.py`
 
 **Маршрут:** `GET /api/admin/metrics?period=today|week|month`, роль `admin`.

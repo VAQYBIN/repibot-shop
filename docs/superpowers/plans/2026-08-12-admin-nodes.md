@@ -109,7 +109,7 @@ uv run mypy backend/core/src/repibot_core/integrations
 **Файлы:**
 - Создать: `backend/api/src/repibot_api/routers/admin/nodes.py`
 - Изменить: `backend/api/src/repibot_api/routers/admin/__init__.py` (включить подроутер)
-- Изменить: `backend/api/src/repibot_api/schemas.py` (схема ответа)
+- Схема ответа объявляется **в самом модуле маршрута**, а не в общем `schemas.py`: соседние планы наполняют пакет админки одновременно, и общий файл стал бы местом столкновения. Прецедент — `WhoAmIResponse` в корне пакета.
 - Тест: `backend/api/tests/test_admin_nodes.py`
 
 **Маршрут:** `GET /api/admin/nodes`, роль `admin`.

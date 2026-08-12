@@ -190,7 +190,7 @@ uv run mypy backend/core/src/repibot_core/services/admin_users.py
 **Файлы:**
 - Создать: `backend/api/src/repibot_api/routers/admin/users.py`
 - Изменить: `backend/api/src/repibot_api/routers/admin/__init__.py` (включить подроутер последним)
-- Изменить: `backend/api/src/repibot_api/schemas.py` (схемы ответов)
+- Схемы ответов объявляются **в самом модуле маршрута**, а не в общем `schemas.py`: соседние планы наполняют пакет админки одновременно, и общий файл стал бы местом столкновения. Прецедент — `WhoAmIResponse` в корне пакета.
 - Изменить: `backend/core/src/repibot_core/integrations/remnawave/users.py` (метод выпуска новой ссылки)
 - Тест: `backend/api/tests/test_admin_users.py`
 
