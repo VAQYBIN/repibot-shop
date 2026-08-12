@@ -17,6 +17,9 @@ PanelUser = models.Response3
 PanelDevice = models.Device
 PanelUsage = models.Response1
 PanelSquad = models.InternalSquad
+# Ноды генератор назвал ResponseItem: список нод — единственный ответ панели,
+# который отдаёт массив безымянных объектов, и номера ему не досталось.
+PanelNode = models.ResponseItem
 PanelStatus = models.Status2
 PanelTrafficStrategy = models.TrafficLimitStrategy
 
@@ -29,6 +32,7 @@ __all__ = [
     "CreateUserBody",
     "DeleteDeviceBody",
     "PanelDevice",
+    "PanelNode",
     "PanelSquad",
     "PanelStatus",
     "PanelTrafficStrategy",

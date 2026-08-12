@@ -22,6 +22,7 @@ ROOT_SCHEMAS: tuple[str, ...] = (
     "CreateUserBodyDto",
     "DeleteUserHwidDeviceBodyDto",
     "GetInternalSquadsResponseDto",
+    "GetNodesResponseDto",
     "GetStatsUserUsageResponseDto",
     "GetUserHwidDevicesResponseDto",
     "ResolveUserBodyDto",

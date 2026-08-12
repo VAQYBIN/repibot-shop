@@ -134,6 +134,111 @@ class GetInternalSquadsResponseDto(BaseModel):
     response: Response
 
 
+class ActiveInbound(BaseModel):
+    uuid: UUID
+    profileUuid: UUID
+    tag: str
+    type: str
+    network: str | None = Field(...)
+    security: str | None = Field(...)
+    port: float | None = Field(...)
+    rawInbound: Any | None = Field(...)
+
+
+class ConfigProfile(BaseModel):
+    activeConfigProfileUuid: UUID | None = Field(...)
+    activeInbounds: list[ActiveInbound]
+
+
+class Provider(BaseModel):
+    uuid: UUID
+    name: str
+    faviconLink: str | None = Field(...)
+    loginUrl: str | None = Field(...)
+    createdAt: AwareDatetime
+    updatedAt: AwareDatetime
+
+
+class Info1(BaseModel):
+    arch: str
+    cpus: conint(ge=-9007199254740991, le=9007199254740991)
+    cpuModel: str
+    memoryTotal: float
+    hostname: str
+    platform: str
+    release: str
+    type: str
+    version: str
+    networkInterfaces: list[str]
+
+
+class Interface(BaseModel):
+    interface: str
+    rxBytesPerSec: float
+    txBytesPerSec: float
+    rxTotal: float
+    txTotal: float
+
+
+class Stats(BaseModel):
+    memoryFree: float
+    memoryUsed: float
+    uptime: float
+    loadAvg: list[float]
+    interface: Interface | None = Field(...)
+
+
+class System(BaseModel):
+    info: Info1
+    stats: Stats
+
+
+class Versions(BaseModel):
+    xray: str
+    node: str
+
+
+class ResponseItem(BaseModel):
+    uuid: UUID
+    id: float
+    name: str
+    address: str
+    port: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(...)
+    proxyUrl: str | None = Field(...)
+    isConnected: bool
+    isDisabled: bool
+    isConnecting: bool
+    lastStatusChange: AwareDatetime | None = Field(...)
+    lastStatusMessage: str | None = Field(...)
+    isTrafficTrackingActive: bool
+    trafficResetDay: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(
+        ...
+    )
+    trafficLimitBytes: float | None = Field(...)
+    trafficUsedBytes: float | None = Field(...)
+    notifyPercent: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(...)
+    viewPosition: conint(ge=-9007199254740991, le=9007199254740991)
+    countryCode: str
+    consumptionMultiplier: float
+    nodeConsumptionMultiplier: float
+    tags: list[str]
+    createdAt: AwareDatetime
+    updatedAt: AwareDatetime
+    configProfile: ConfigProfile
+    providerUuid: UUID | None = Field(...)
+    provider: Provider | None = Field(...)
+    activePluginUuid: UUID | None = Field(...)
+    system: System | None = Field(...)
+    versions: Versions | None = Field(...)
+    xrayUptime: float
+    usersOnline: float
+    note: str | None = Field(...)
+
+
+class GetNodesResponseDto(BaseModel):
+    response: list[ResponseItem]
+
+
 class TopNode(BaseModel):
     uuid: UUID
     color: str
