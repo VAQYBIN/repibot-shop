@@ -622,6 +622,219 @@ no-cache`, поэтому клиент каждый раз спрашивает,
 памяти → Очистить кэш) или откройте MiniApp по адресу с новым параметром,
 например `https://ваш-домен/app/?v=2`.
 
+## 12. Своя главная страница
+
+Главную можно заменить своей: nginx сначала ищет `index.html` в смонтированном
+каталоге и лишь потом уходит в приложение. Пересобирать образы и держать Node
+для этого не нужно, вёрстка — любая.
+
+Подменяется ровно один адрес — `/`. Всё остальное продолжает работать как
+работало.
+
+### Куда класть
+
+Каталог `./landing` рядом с `compose.yml`. Внутри обязателен `index.html`,
+остальное — по желанию.
+
+```bash
+mkdir -p landing
+cp -r моя-страница/* landing/
+docker compose restart nginx
+```
+
+Каталог создаётся при первом запуске, если его нет, и в репозиторий не
+попадает: файлы там ваши, а не наши. Путь меняется переменной `LANDING_DIR` в
+`.env` рядом с `compose.yml` — например `LANDING_DIR=/srv/my-landing`, когда
+страницу выкладывает отдельный процесс сборки. Контейнер видит каталог только
+для чтения и записать туда ничего не может.
+
+Переключателя «включить своё» нет: наличие `index.html` и есть переключатель.
+Настройка, которую надо не забыть выставить, однажды не выставляется.
+
+### Как ссылаться на ассеты
+
+Файлы каталога отдаются по префиксу `/landing/`: `landing/style.css`
+открывается как `/landing/style.css`.
+
+```html
+<link rel="stylesheet" href="/landing/style.css" />
+<img src="/landing/logo.svg" alt="" />
+```
+
+Относительные пути вида `./style.css` не работают, и это единственное, что
+придётся поправить в готовой вёрстке. Страница отдаётся с корня, поэтому
+`./style.css` превращается в `/style.css` — а корень отдан вашей странице
+целиком и только ей: всё остальное там разбирает приложение и отвечает
+«не найдено». Префикс `/landing/` обязателен для каждого файла.
+
+### Какие ссылки обязательны
+
+Без них человек не сможет купить:
+
+| Адрес | Зачем |
+|---|---|
+| `/register` | Создать аккаунт |
+| `/login` | Войти |
+| `/plans` | Тарифы и покупка |
+| `/legal/<slug>` | Юридические документы, заведённые в `/admin/legal` |
+| `/app/` | MiniApp, если она нужна на странице |
+
+### Откуда взять данные
+
+Два адреса открыты без входа, поэтому цены и правовые ссылки не обязаны быть
+переписанными руками — иначе они разойдутся с настоящими на первом же
+изменении тарифа:
+
+```js
+const plans = await (await fetch('/api/plans')).json()
+const documents = await (await fetch('/api/legal?locale=ru')).json()
+```
+
+`GET /api/plans` отдаёт массив тарифов. Поля, которые нужны странице:
+
+| Поле | Что это |
+|---|---|
+| `code` | Постоянный код тарифа |
+| `name`, `description` | Словарь по языкам: `{"ru": "…", "en": "…"}`; `description` может быть `null` |
+| `duration_days` | Срок в днях |
+| `price_rub` | Цена рублями **строкой**: денежная сумма не переживает округления `double` |
+| `price_stars` | Цена в звёздах Telegram, целое число |
+| `traffic_limit_bytes`, `hwid_device_limit` | Лимиты; `0` в трафике означает «без ограничения» |
+| `is_trial` | Пробный тариф. В витрине его обычно прячут: нулевая цена рядом с платными сбивает сравнение |
+
+`GET /api/legal?locale=ru` отдаёт массив опубликованных документов с полями
+`slug`, `title` и `published_at`; черновики сюда не попадают. Локаль — `ru`
+или `en`, другое значение отвергается.
+
+### Рабочий пример
+
+Этот `index.html` работает как есть: положите его в `landing/`, перезапустите
+nginx — и на главной появятся настоящие цены и ваши правовые документы.
+
+```html
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Мой VPN</title>
+    <style>
+      body {
+        margin: 0 auto;
+        max-width: 44rem;
+        padding: 3rem 1.5rem;
+        font: 16px/1.6 system-ui, sans-serif;
+      }
+      .cta {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        border-radius: 999px;
+        background: #101014;
+        color: #fff;
+        text-decoration: none;
+      }
+      .plan {
+        margin: 0.75rem 0;
+        padding: 1rem 1.25rem;
+        border: 1px solid #d8d8dd;
+        border-radius: 12px;
+      }
+      footer {
+        margin-top: 3rem;
+        display: flex;
+        gap: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Мой VPN</h1>
+    <p>Подключение за минуту, оплата картой или звёздами Telegram.</p>
+    <p>
+      <a class="cta" href="/register">Создать аккаунт</a>
+      <a href="/login">Войти</a>
+    </p>
+
+    <h2>Тарифы</h2>
+    <!-- Ссылка на витрину стоит в разметке заранее: если скрипт не отработает,
+         страница всё равно доводит человека до покупки. -->
+    <div id="plans"><a href="/plans">Смотреть тарифы</a></div>
+
+    <footer><nav id="legal"></nav></footer>
+
+    <script>
+      async function load() {
+        const plans = await (await fetch('/api/plans')).json()
+        const box = document.getElementById('plans')
+        box.replaceChildren()
+
+        for (const plan of plans.filter((plan) => !plan.is_trial)) {
+          const card = document.createElement('article')
+          card.className = 'plan'
+
+          const title = document.createElement('h3')
+          // name — словарь по языкам, а не строка.
+          title.textContent = plan.name.ru ?? plan.code
+
+          const price = document.createElement('p')
+          // price_rub приходит строкой, поэтому переводится в число явно.
+          price.textContent =
+            Number(plan.price_rub).toLocaleString('ru-RU') +
+            ' ₽ за ' +
+            plan.duration_days +
+            ' дн.'
+
+          const buy = document.createElement('a')
+          buy.href = '/plans'
+          buy.textContent = 'Купить'
+
+          card.append(title, price, buy)
+          box.append(card)
+        }
+
+        const legal = await (await fetch('/api/legal?locale=ru')).json()
+        const nav = document.getElementById('legal')
+
+        for (const doc of legal) {
+          const link = document.createElement('a')
+          link.href = '/legal/' + doc.slug
+          // textContent, а не innerHTML: заголовок пришёл из админки, и
+          // разметке в нём взяться неоткуда, но и права выполниться нет.
+          link.textContent = doc.title
+          nav.append(link)
+        }
+      }
+
+      // Молчаливый отказ лучше пустой страницы: разметка выше уже рабочая.
+      load().catch((error) => console.error(error))
+    </script>
+  </body>
+</html>
+```
+
+### Чего нельзя
+
+Занимать пути приложения. `/api`, `/app/`, `/webhook/*`, `/health`, `/plans`,
+`/login`, `/register`, `/legal/*`, `/account/*` и `/admin/*` разбираются до
+вашего каталога: файл с именем `plans` в нём ничего не изменит и никуда не
+попадёт. Ваши файлы живут по `/landing/…`, ваша страница — по `/`.
+
+### Знак и цвета
+
+Бренд-набор лежит в `docs/design/logo`, правила — в
+[бренд-буке](design/repibot-brandbook.md). Знак не поворачивают, спираль не
+замыкают, зазор между ядром и линией не закрывают.
+
+### Как вернуть штатную главную
+
+Удалить `index.html` из каталога и перезапустить nginx:
+
+```bash
+rm landing/index.html
+docker compose restart nginx
+```
+
+Приложение снова отдаёт свой лендинг с живыми тарифами.
+
 ## Диагностика
 
 | Симптом | Причина |
@@ -642,3 +855,5 @@ no-cache`, поэтому клиент каждый раз спрашивает,
 | Кнопки «Войти через Telegram» нет | Пуст `TELEGRAM_OIDC_CLIENT_ID` |
 | Ключи доступа перестали пускать | Сменился домен: RP ID выводится из `PUBLIC_WEB_URL`, ключи нужно завести заново |
 | MiniApp ведёт себя как до обновления, а сайт обновился | В кэше клиента старая точка входа: очистите кэш Telegram или откройте `/app/?v=<число>` |
+| Своя главная открылась без стилей и картинок | Пути к файлам каталога должны начинаться с `/landing/`: относительные `./style.css` уходят в приложение и отвечают «не найдено» |
+| Своя главная не появилась | Файл должен называться `index.html` и лежать прямо в каталоге, а не во вложенном. Если меняли `LANDING_DIR`, одного `restart` мало: том выбирается при создании контейнера, нужен `docker compose up -d --force-recreate nginx` |

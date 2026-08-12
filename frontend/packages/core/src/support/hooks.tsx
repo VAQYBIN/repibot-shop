@@ -1,3 +1,5 @@
+'use client'
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { components } from '../api/schema'
 import { messageFrom } from '../auth/errors'

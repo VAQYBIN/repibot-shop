@@ -112,6 +112,10 @@ services:
     ports: ["80:80"]
     restart: unless-stopped
     depends_on: [api, web, bot]
+    volumes:
+      # Пустой каталог — штатный лендинг. Только чтение: содержимое приносит
+      # развернувший, менять его контейнер не должен.
+      - ${LANDING_DIR:-./landing}:/srv/landing:ro
 
 volumes:
   postgres-data:
