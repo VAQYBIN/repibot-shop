@@ -26,6 +26,7 @@ from repibot_core.db.models import Ticket, TicketMessage
 from repibot_core.ratelimit import TICKET_MESSAGE_PER_USER, RateLimiter
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.support import SupportService
+from repibot_core.tasks import wake_outbox
 
 router = APIRouter(prefix="/api/support", tags=["support"])
 
@@ -109,6 +110,10 @@ async def open_ticket(
     # попасть в базу одной транзакцией, иначе топик создаётся под обращение,
     # которого нет.
     await session.commit()
+    # После коммита, а не до: раньше воркер не нашёл бы ни обращения, ни
+    # сообщения в очереди. Иначе тема супергруппы ждала бы крона до минуты,
+    # а человек всё это время смотрел бы на молчащую поддержку.
+    await wake_outbox()
     return _ticket(ticket)
 
 
@@ -146,6 +151,7 @@ async def reply(
     except ServiceError as error:
         raise api_error_from_service(error) from error
     await session.commit()
+    await wake_outbox()
     return _message(message)
 
 
@@ -166,4 +172,5 @@ async def close_ticket(
     except ServiceError as error:
         raise api_error_from_service(error) from error
     await session.commit()
+    await wake_outbox()
     return _ticket(ticket)

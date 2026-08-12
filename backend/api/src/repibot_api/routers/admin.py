@@ -74,6 +74,7 @@ from repibot_core.services.provisioning import TOPIC_PROVISION
 from repibot_core.services.segments import count_segment
 from repibot_core.services.subscriptions import SubscriptionService, SubscriptionView
 from repibot_core.services.support import SupportService
+from repibot_core.tasks import wake_outbox
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -689,6 +690,10 @@ async def reply_to_ticket(
         ip=ip,
     )
     await session.commit()
+    # После коммита: до него ответа в очереди ещё нет, и разбуженный воркер
+    # ушёл бы ни с чем. Без пробуждения ответ персонала ждал бы крона до
+    # минуты — ровно в тот момент, когда человек читает переписку.
+    await wake_outbox()
     return _ticket_message_response(message)
 
 
@@ -722,6 +727,7 @@ async def close_ticket(
         ip=ip,
     )
     await session.commit()
+    await wake_outbox()
 
 
 def _admin_ticket_response(ticket: Ticket) -> AdminTicketResponse:

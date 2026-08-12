@@ -215,6 +215,64 @@ async def test_second_message_in_a_row_is_refused(
     assert int(response.headers["retry-after"]) > 0
 
 
+async def test_every_message_wakes_the_queue(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    support_enabled: None,
+    without_pause: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Без пробуждения обращение лежит в очереди до минуты.
+
+    Человек в это время смотрит на экран, где поддержка молчит, и пишет
+    второй раз — а разбор очереди идёт кроном раз в минуту.
+    """
+    from repibot_core.tasks import process_outbox
+
+    kicks = 0
+
+    async def count_kick() -> None:
+        nonlocal kicks
+        kicks += 1
+
+    monkeypatch.setattr(process_outbox, "kiq", count_kick)
+
+    ticket_id = await _open(api_client, user_headers)
+    replied = await api_client.post(
+        f"/api/support/tickets/{ticket_id}/messages",
+        headers=user_headers,
+        json={"body": "чёрный экран"},
+    )
+    closed = await api_client.post(f"/api/support/tickets/{ticket_id}/close", headers=user_headers)
+
+    assert replied.status_code == 201
+    assert closed.status_code == 200
+    # Открытие, ответ и закрытие: каждое кладёт своё сообщение в очередь.
+    assert kicks == 3
+
+
+async def test_dead_broker_does_not_break_the_ticket(
+    api_client: AsyncClient,
+    user_headers: dict[str, str],
+    support_enabled: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Обращение уже записано: молчащий брокер стоит минуты ожидания, не отказа."""
+    from repibot_core.tasks import process_outbox
+
+    async def refuse() -> None:
+        msg = "брокер недоступен"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(process_outbox, "kiq", refuse)
+
+    response = await api_client.post(
+        "/api/support/tickets", headers=user_headers, json={"body": "не открывается"}
+    )
+
+    assert response.status_code == 201
+
+
 async def test_support_requires_signing_in(api_client: AsyncClient) -> None:
     """Переписка привязана к аккаунту: без входа неизвестно, чью показывать."""
     response = await api_client.get("/api/support/tickets")

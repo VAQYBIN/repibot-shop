@@ -165,6 +165,36 @@ async def test_drain_keeps_going_after_a_partly_failed_batch(
     assert delivered == 140
 
 
+async def test_waking_a_dead_broker_is_not_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Сообщение уже в базе: худшее, чего заслуживает молчащий брокер, — ожидание крона."""
+    from repibot_core import tasks
+
+    async def _refuse() -> None:
+        msg = "брокер недоступен"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(tasks.process_outbox, "kiq", _refuse)
+
+    await tasks.wake_outbox()
+
+
+async def test_waking_asks_the_worker_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Пробуждение обязано доходить до брокера: молчаливое `pass` тоже «не падает»."""
+    from repibot_core import tasks
+
+    kicks = 0
+
+    async def _count() -> None:
+        nonlocal kicks
+        kicks += 1
+
+    monkeypatch.setattr(tasks.process_outbox, "kiq", _count)
+
+    await tasks.wake_outbox()
+
+    assert kicks == 1
+
+
 def test_retry_delays_grow() -> None:
     assert RETRY_DELAYS[0] < RETRY_DELAYS[-1]
     assert len(RETRY_DELAYS) == MAX_ATTEMPTS

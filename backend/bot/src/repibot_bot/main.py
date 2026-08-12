@@ -24,6 +24,7 @@ from repibot_bot.handlers.start import build_start_router
 from repibot_bot.handlers.support import build_support_router
 from repibot_bot.middleware import UserMiddleware
 from repibot_core.logging import configure_logging
+from repibot_core.queue import broker
 from repibot_core.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,27 @@ def build_dispatcher(storage: BaseStorage) -> Dispatcher:
     return dispatcher
 
 
+def _connect_broker(dispatcher: Dispatcher) -> None:
+    """Держит клиентское подключение TaskIQ на время жизни процесса бота.
+
+    Бот ставит сообщения в очередь и будит её разбор: без подключения `kiq`
+    не с чем говорить, и обращение ждало бы крона до минуты.
+
+    Подключение вешается на события диспетчера, а не на `build_dispatcher`:
+    оба режима запуска — вебхук и опрос — поднимают и гасят диспетчер сами,
+    а сборка используется ещё и в тестах, которым Valkey не нужен.
+    """
+
+    async def on_startup() -> None:
+        await broker.startup()
+
+    async def on_shutdown() -> None:
+        await broker.shutdown()
+
+    dispatcher.startup.register(on_startup)
+    dispatcher.shutdown.register(on_shutdown)
+
+
 def _build_bot() -> Bot:
     settings = get_settings()
     return Bot(
@@ -86,6 +108,7 @@ def run_webhook() -> None:
     settings = get_settings()
     bot = _build_bot()
     dispatcher = build_dispatcher(RedisStorage.from_url(settings.valkey_url))
+    _connect_broker(dispatcher)
 
     async def on_startup(bot: Bot) -> None:
         url = f"{settings.bot_webhook_base_url}{WEBHOOK_PATH}"
@@ -105,6 +128,7 @@ def run_polling() -> None:
     async def _main() -> None:
         bot = _build_bot()
         dispatcher = build_dispatcher(RedisStorage.from_url(get_settings().valkey_url))
+        _connect_broker(dispatcher)
         await bot.delete_webhook(drop_pending_updates=True)
         await dispatcher.start_polling(bot)
 

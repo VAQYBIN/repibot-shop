@@ -71,6 +71,19 @@ async def process_outbox() -> dict[str, int]:
     return {"delivered": delivered}
 
 
+async def wake_outbox() -> None:
+    """Просит разобрать очередь немедленно, не дожидаясь крона.
+
+    Отказ проглатывается намеренно: то, ради чего звали, уже записано в базу
+    и уйдёт следующим прогоном крона. Уронить здесь запрос человека значило
+    бы поменять минуту ожидания на потерянное действие.
+    """
+    try:
+        await process_outbox.kiq()
+    except Exception:  # природа отказа брокера роли не играет
+        logger.warning("не удалось разбудить разбор очереди", exc_info=True)
+
+
 @broker.task(schedule=[{"cron": "7 * * * *"}])
 async def notify_subscription_events() -> dict[str, int]:
     """Ставит напоминания о конце подписки и о неоплаченном счёте.
