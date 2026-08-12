@@ -299,6 +299,7 @@ const notFound = vi.fn(() => {
 
 vi.mock('@/lib/server-api', () => ({ fetchFromApi: (path: string) => fetchFromApi(path) }))
 vi.mock('next/navigation', () => ({ notFound: () => notFound() }))
+vi.mock('@repibot/core', () => ({ translate: () => 'Действует с {date}' }))
 
 beforeEach(() => {
   fetchFromApi.mockReset()
@@ -345,6 +346,7 @@ Expected: FAIL — страница ещё показывает заглушку
 `frontend/apps/web/src/app/legal/[slug]/page.tsx`:
 
 ```tsx
+import { translate } from '@repibot/core'
 import { notFound } from 'next/navigation'
 
 import { fetchFromApi } from '@/lib/server-api'
@@ -378,7 +380,10 @@ export default async function LegalPage({ params }: { params: Promise<{ slug: st
     <main className="mx-auto w-full max-w-2xl px-6 py-12">
       <h1 className="font-semibold text-h1 text-text">{document.title}</h1>
       <p className="mt-2 text-small text-text-muted">
-        Действует с {new Date(document.published_at).toLocaleDateString('ru-RU')}
+        {translate('ru', 'legal.effective_from').replace(
+          '{date}',
+          new Date(document.published_at).toLocaleDateString('ru-RU'),
+        )}
       </p>
       <div
         className="mt-8 flex flex-col gap-4 text-body text-text-secondary [&_a]:text-text-accent [&_a]:underline [&_h2]:mt-6 [&_h2]:font-semibold [&_h2]:text-h2 [&_h2]:text-text [&_h3]:mt-4 [&_h3]:font-medium [&_h3]:text-h3 [&_h3]:text-text [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal"

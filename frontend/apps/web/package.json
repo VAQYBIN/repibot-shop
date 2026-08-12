@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:landing": "playwright test --config playwright.landing.config.ts"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.2.3",

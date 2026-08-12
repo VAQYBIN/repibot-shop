@@ -245,4 +245,64 @@ export const en: Record<TranslationKey, string> = {
   'error.trial_requires_telegram': 'Link Telegram to use the trial',
   'error.trial_disabled': 'The trial is unavailable right now',
   'error.subscription_exists': 'A subscription is already active',
+  'nav.home': 'Home',
+  'nav.plans': 'Plans',
+  'nav.support': 'Support',
+  'nav.login': 'Sign in',
+  'nav.register': 'Sign up',
+  'footer.about': 'Subscription access on top of your own panel',
+  'footer.sections': 'Sections',
+  'footer.legal': 'Legal',
+  'footer.rights': 'All rights reserved',
+  'consent.before': 'By continuing you accept the',
+  'consent.and': 'and the',
+  'legal.effective_from': 'In effect since {date}',
+  'landing.hero.title': 'Subscription access. One link, every device.',
+  'landing.hero.subtitle':
+    'Pick a plan, pay by card or stars, and open the link in your app. The trial needs no card.',
+  'landing.hero.cta_trial': 'Try it free',
+  'landing.hero.cta_plans': 'Choose a plan',
+  'landing.hero.secondary': 'See the plans',
+  'landing.reason.trial.title': 'A trial without a card',
+  'landing.reason.trial.text':
+    'Link Telegram and get trial access. No payment details required for it.',
+  'landing.reason.link.title': 'One link for every device',
+  'landing.reason.link.text':
+    'The subscription comes as a link, and renewals never change it. How many devices you may connect is written in the plan; spare ones are unlinked from your account.',
+  'landing.reason.payment.title': 'Pay by card or with stars',
+  'landing.reason.payment.text':
+    'YooKassa and Telegram Stars. Your card is remembered only if you tick that box on the payment page yourself.',
+  'landing.reason.support.title': 'Support answers where you asked',
+  'landing.reason.support.text':
+    'Write from your account or to the bot: the reply lands in the same thread and in your notifications.',
+  'landing.steps.title': 'How it works',
+  'landing.step.account.title': 'Create an account',
+  'landing.step.account.text': 'By email, passkey, or through Telegram.',
+  'landing.step.plan.title': 'Choose a plan',
+  'landing.step.plan.text': 'Pay by card or with stars. The trial costs nothing.',
+  'landing.step.connect.title': 'Connect',
+  'landing.step.connect.text':
+    'Copy the subscription link from your account and open it in your app.',
+  'landing.plans.title': 'Plans',
+  'landing.plans.all': 'All plans',
+  'landing.plans.unavailable': 'Plans did not load just now',
+  'landing.faq.title': 'Common questions',
+  'landing.faq.q1': 'What happens to paid days if I switch plans?',
+  'landing.faq.a1':
+    'The remainder is not lost. It is recalculated at the daily rate of your current plan and converted into days of the new one; a partial day is dropped.',
+  'landing.faq.q2': 'How do I turn off auto-renewal?',
+  'landing.faq.a2':
+    'Unlink your card in the account — there is nothing left to charge, and auto-renewal switches off.',
+  'landing.faq.q3': 'Where do I get the connection link?',
+  'landing.faq.a3':
+    'In your account and in the MiniApp, under Subscription. There is one link and it stays the same after a renewal.',
+  'landing.faq.q4': 'How many devices can I connect?',
+  'landing.faq.a4':
+    'As many as the plan states. Connected devices are listed in your account, and any of them can be unlinked.',
+  'landing.faq.q5': 'Why does the trial need Telegram?',
+  'landing.faq.a5':
+    'The trial is granted once per Telegram account. An email address is easier to come by than an account, so we count by the latter.',
+  'landing.faq.q6': 'Do you store card details?',
+  'landing.faq.a6':
+    'No. Payment happens on the YooKassa side; we only get back a payment-method identifier and a masked number so you can tell which card is linked.',
 }
