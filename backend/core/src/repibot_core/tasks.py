@@ -389,10 +389,17 @@ def _dispatcher(
     Фабрика сессий уходит внутрь: выдача доступа в панели работает в своей
     транзакции, а не в той, которой диспетчер закрывает сообщения очереди.
     """
+    from repibot_core.integrations.remnawave.devices import PanelDevices
     from repibot_core.integrations.remnawave.users import PanelUsers
     from repibot_core.services.dispatcher import build_dispatcher
 
-    return build_dispatcher(factory, users=PanelUsers(panel), telegram=telegram, support=support)
+    return build_dispatcher(
+        factory,
+        users=PanelUsers(panel),
+        telegram=telegram,
+        support=support,
+        panel_devices=PanelDevices(panel),
+    )
 
 
 def _subscriptions(session: AsyncSession, panel: RemnawaveClient) -> SubscriptionService:

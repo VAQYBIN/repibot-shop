@@ -124,7 +124,7 @@ async def handle_topic_close(message: Message, language: str, session: AsyncSess
     if ticket is None:
         return
 
-    await SupportService(session).close(ticket.id, by_staff=True)
+    await SupportService(session).close(ticket.id, by_staff=True, notify=True)
     await session.commit()
     await message.answer(translate(language, "bot.support.closed", id=ticket.id))
 

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from repibot_core.db.models import Ticket, TicketAuthor, TicketMessage, TicketStatus
+from repibot_core.db.models import Ticket, TicketAuthor, TicketMessage, TicketStatus, User
 from repibot_core.db.repositories.outbox import OutboxRepository
 from repibot_core.services.errors import ServiceError
 from repibot_core.services.notifications import NotificationService
@@ -83,6 +83,7 @@ class SupportService:
     async def open(self, user_id: int, body: str) -> Ticket:
         """Новое обращение. Транзакцию закрывает вызывающий."""
         self._require_enabled()
+        await self._require_speech(user_id)
         text = self._require_text(body)
         open_count = await self._session.scalar(
             select(func.count())
@@ -111,6 +112,7 @@ class SupportService:
     async def reply_from_user(self, user_id: int, ticket_id: int, body: str) -> TicketMessage:
         """Ответ человека возвращает ход персоналу."""
         self._require_enabled()
+        await self._require_speech(user_id)
         text = self._require_text(body)
         ticket = await self._session.get(Ticket, ticket_id)
         # Чужой номер обращения неотличим от несуществующего намеренно: иначе
@@ -148,9 +150,13 @@ class SupportService:
         if not text:
             return None
 
-        return await self._staff_reply(
+        message = await self._staff_reply(
             ticket, text, author_telegram_id=telegram_id, telegram_message_id=message_id
         )
+        # Ответ уже лежит в теме — отправлять туда нечего. Но состояние
+        # обращения сменилось, и название темы обязано это показать.
+        await self._outbox.add(TOPIC_SUPPORT_OUTBOUND, {"ticket_id": ticket.id, "sync": True})
+        return message
 
     async def reply_from_admin(
         self, ticket_id: int, body: str, *, author_user_id: int
@@ -206,8 +212,13 @@ class SupportService:
         )
         return message
 
-    async def close(self, ticket_id: int, *, by_staff: bool) -> None:
-        """Закрывает обращение и его топик. Повтор безобиден."""
+    async def close(self, ticket_id: int, *, by_staff: bool, notify: bool) -> None:
+        """Закрывает обращение и его топик. Повтор безобиден.
+
+        `notify` обязателен и без значения по умолчанию: молчание при закрытии —
+        решение вызывающего (тихое закрытие, бан, закрытие самим человеком), и
+        забытый аргумент не должен решать его за него.
+        """
         ticket = await self._session.get(Ticket, ticket_id)
         if ticket is None:
             raise ServiceError("обращение не найдено", "not_found")
@@ -221,6 +232,14 @@ class SupportService:
             TicketAuthor.system,
             CLOSED_BY_STAFF if by_staff else CLOSED_BY_USER,
         )
+        if notify:
+            # Иначе человек узнаёт о закрытии, только заглянув в кабинет.
+            await NotificationService(self._session).enqueue(
+                user_id=ticket.user_id,
+                kind="ticket_closed",
+                dedup_key=f"ticket:{ticket.id}:closed",
+                params={"id": ticket.id},
+            )
         # Закрытие ставится в ту же очередь и той же темой: топик мог ещё не
         # существовать, и порядок сообщений очереди создаст его перед закрытием.
         await self._outbox.add(
@@ -276,6 +295,16 @@ class SupportService:
             TOPIC_SUPPORT_OUTBOUND,
             {"ticket_id": ticket.id, "subject": ticket.subject, "body": body},
         )
+
+    async def _require_speech(self, user_id: int) -> None:
+        """Заглушённому закрыт разговор, но не подписка и не оплата.
+
+        Спрашивается один столбец, а не пользователь целиком: проверка стоит
+        на каждом обращении и каждой реплике, а решает её один момент времени.
+        """
+        muted = await self._session.scalar(select(User.support_muted_at).where(User.id == user_id))
+        if muted is not None:
+            raise ServiceError("доступ к поддержке ограничен", "support_muted")
 
     def _require_enabled(self) -> None:
         if not self.enabled():

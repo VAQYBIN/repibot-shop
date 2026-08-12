@@ -1,6 +1,6 @@
 """Супергруппа поддержки: топик на обращение.
 
-Три вызова Bot API и ничего больше. Отдельно от `BotApi` потому, что тот
+Четыре вызова Bot API и ничего больше. Отдельно от `BotApi` потому, что тот
 говорит с личными чатами пользователей, а здесь — рабочее место персонала:
 у них разные адресаты и разная цена ошибки.
 """
@@ -38,6 +38,17 @@ class SupportChat:
             {"chat_id": self._chat_id(), "message_thread_id": topic_id, "text": text},
         )
         return int(result["message_id"])
+
+    async def rename_topic(self, topic_id: int, name: str) -> None:
+        """Меняет имя темы.
+
+        Закрытую тему Bot API переименовывать отказывается, поэтому звать это
+        нужно до `close_topic`, а не после.
+        """
+        await self._call(
+            "editForumTopic",
+            {"chat_id": self._chat_id(), "message_thread_id": topic_id, "name": name},
+        )
 
     async def close_topic(self, topic_id: int) -> None:
         await self._call(

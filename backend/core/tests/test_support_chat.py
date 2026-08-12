@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from repibot_core.db.engine import create_session_factory
-from repibot_core.db.models import User
+from repibot_core.db.models import TicketStatus, User
 from repibot_core.db.repositories.outbox import OutboxRepository
 from repibot_core.integrations.telegram.support_chat import SupportChat
 from repibot_core.services.outbox import OutboxDispatcher
@@ -137,6 +137,11 @@ async def test_topic_id_is_stored_before_the_message_is_sent(
 
     Иначе падение на отправке даёт второй топик при повторе — и переписка
     рвётся надвое.
+
+    Повтор шлёт два сообщения, а не одно: первым в тему уходит карточка
+    собеседника, и упавшая отправка не дала проставить отметку о ней. Вторая
+    карточка в теме безобидна, потерянная — нет, поэтому задвоение выбрано
+    осознанно, а не терпится.
     """
     user = User(email=None, telegram_id=310_001, referral_code="topic001")
     db_session.add(user)
@@ -179,7 +184,7 @@ async def test_topic_id_is_stored_before_the_message_is_sent(
         await retry.aclose()
 
     assert again == 1
-    assert calls[2:] == ["sendMessage"]
+    assert calls[2:] == ["sendMessage", "sendMessage"]
 
 
 @pytest.mark.docker
@@ -203,3 +208,170 @@ async def test_task_for_a_missing_ticket_is_dropped(
 
     assert delivered == 1
     assert calls == []
+
+
+@pytest.mark.docker
+async def test_topic_is_repainted_before_it_is_closed(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Закрытую тему Bot API переименовывать отказывается.
+
+    Обратный порядок оставил бы решённое обращение красным навсегда — а по
+    цвету персонал и разбирает, что ещё ждёт ответа.
+    """
+    user = User(email=None, telegram_id=310_010, referral_code="topic010")
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.commit()
+    service = SupportService(db_session, _settings())
+    ticket = await service.open(user.id, "не открывается")
+    await db_session.commit()
+    factory = create_session_factory(engine)
+    calls: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        method = request.url.path.rsplit("/", maxsplit=1)[-1]
+        calls.append(method)
+        return httpx.Response(
+            200,
+            json={"ok": True, "result": {"message_thread_id": 21, "message_id": 5}},
+        )
+
+    chat = _chat(handler)
+    try:
+        await _dispatcher(factory, chat).process(db_session)
+        # Просьба закрыть кладётся в очередь напрямую, а не через `close`:
+        # подпись того метода в этой же волне меняет соседняя задача, и тест
+        # не должен её ждать.
+        ticket.status = TicketStatus.closed
+        await OutboxRepository(db_session).add(
+            TOPIC_SUPPORT_OUTBOUND, {"ticket_id": ticket.id, "body": "", "close": True}
+        )
+        await db_session.commit()
+        await _dispatcher(factory, chat).process(
+            db_session, now=datetime.now(UTC) + timedelta(minutes=1)
+        )
+    finally:
+        await chat.aclose()
+
+    assert calls.index("editForumTopic") < calls.index("closeForumTopic")
+
+
+@pytest.mark.docker
+async def test_card_opens_the_topic_and_is_not_repeated(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Карточка открывает тему; на второй реплике сотрудник её уже видел."""
+    user = User(
+        email="card@example.com",
+        telegram_id=310_011,
+        telegram_username="cardholder",
+        referral_code="topic011",
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.commit()
+    service = SupportService(db_session, _settings())
+    ticket = await service.open(user.id, "не открывается")
+    await db_session.commit()
+    factory = create_session_factory(engine)
+    texts: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        method = request.url.path.rsplit("/", maxsplit=1)[-1]
+        if method == "sendMessage":
+            texts.append(str(json.loads(request.content)["text"]))
+        return httpx.Response(
+            200,
+            json={"ok": True, "result": {"message_thread_id": 22, "message_id": 5}},
+        )
+
+    chat = _chat(handler)
+    try:
+        await _dispatcher(factory, chat).process(db_session)
+        await service.reply_from_user(user.id, ticket.id, "и ещё вот что")
+        await db_session.commit()
+        await _dispatcher(factory, chat).process(
+            db_session, now=datetime.now(UTC) + timedelta(minutes=1)
+        )
+    finally:
+        await chat.aclose()
+
+    assert len([text for text in texts if "@cardholder" in text]) == 1
+    assert texts[0].startswith("👤")
+
+
+@pytest.mark.docker
+async def test_unchanged_status_costs_no_extra_call(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Вторая реплика человека состояния не меняет: тема уже красная.
+
+    Переименование на каждом сообщении — вызов Bot API на каждое сообщение,
+    а разбор берёт до сотни сообщений за раз.
+    """
+    user = User(email=None, telegram_id=310_012, referral_code="topic012")
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.commit()
+    service = SupportService(db_session, _settings())
+    ticket = await service.open(user.id, "не открывается")
+    await db_session.commit()
+    factory = create_session_factory(engine)
+    calls: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path.rsplit("/", maxsplit=1)[-1])
+        return httpx.Response(
+            200,
+            json={"ok": True, "result": {"message_thread_id": 23, "message_id": 5}},
+        )
+
+    chat = _chat(handler)
+    try:
+        await _dispatcher(factory, chat).process(db_session)
+        await service.reply_from_user(user.id, ticket.id, "и ещё вот что")
+        await db_session.commit()
+        await _dispatcher(factory, chat).process(
+            db_session, now=datetime.now(UTC) + timedelta(minutes=1)
+        )
+    finally:
+        await chat.aclose()
+
+    assert "editForumTopic" not in calls
+
+
+@pytest.mark.docker
+async def test_new_topic_carries_the_state_mark(
+    db_session: AsyncSession, engine: AsyncEngine
+) -> None:
+    """Метка ставится при создании темы, а не отдельным переименованием.
+
+    Иначе каждое первое обращение стоило бы лишнего вызова Bot API, а до него
+    висело бы в списке тем без цвета.
+    """
+    user = User(email=None, telegram_id=310_013, referral_code="topic013")
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.commit()
+    service = SupportService(db_session, _settings())
+    ticket = await service.open(user.id, "не открывается")
+    await db_session.commit()
+    names: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        method = request.url.path.rsplit("/", maxsplit=1)[-1]
+        if method == "createForumTopic":
+            names.append(str(json.loads(request.content)["name"]))
+        return httpx.Response(
+            200,
+            json={"ok": True, "result": {"message_thread_id": 24, "message_id": 5}},
+        )
+
+    chat = _chat(handler)
+    try:
+        await _dispatcher(create_session_factory(engine), chat).process(db_session)
+    finally:
+        await chat.aclose()
+
+    assert names == [f"🔴 #{ticket.id} не открывается"]

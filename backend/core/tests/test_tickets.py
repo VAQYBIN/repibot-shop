@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -89,7 +91,7 @@ async def test_closed_tickets_stop_counting_against_the_limit(db_session: AsyncS
     first = await service.open(user.id, "первый")
     for index in range(2):
         await service.open(user.id, f"вопрос {index}")
-    await service.close(first.id, by_staff=True)
+    await service.close(first.id, by_staff=True, notify=False)
     await db_session.commit()
 
     reopened = await service.open(user.id, "четвёртый после закрытия")
@@ -149,6 +151,46 @@ async def test_support_without_a_supergroup_is_refused(db_session: AsyncSession)
     assert service.enabled() is False
 
 
+async def test_muted_person_cannot_open_a_ticket(db_session: AsyncSession) -> None:
+    """Заглушение закрывает разговор, а не подписку: отказ приходит здесь."""
+    user = await _user(db_session, 300_100, "ticket90")
+    user.support_muted_at = datetime.now(UTC)
+    await db_session.commit()
+
+    with pytest.raises(ServiceError) as refusal:
+        await _service(db_session).open(user.id, "впустите")
+
+    assert refusal.value.code == "support_muted"
+
+
+async def test_muted_person_cannot_reply_in_an_open_ticket(db_session: AsyncSession) -> None:
+    """Заглушение накладывают посреди разговора, и старое обращение осталось бы
+    лазейкой: сотрудник закрывает его сам, а человек в него уже не пишет."""
+    user = await _user(db_session, 300_104, "ticket94")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "вопрос")
+    user.support_muted_at = datetime.now(UTC)
+    await db_session.commit()
+
+    with pytest.raises(ServiceError) as refusal:
+        await service.reply_from_user(user.id, ticket.id, "и ещё вот что")
+
+    assert refusal.value.code == "support_muted"
+
+
+async def test_muted_person_keeps_reading_the_thread(db_session: AsyncSession) -> None:
+    """Закрыт разговор, а не переписка: без этого человек теряет доказательство
+    того, что ему обещала поддержка."""
+    user = await _user(db_session, 300_105, "ticket95")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "вопрос")
+    user.support_muted_at = datetime.now(UTC)
+    await db_session.commit()
+
+    assert [item.id for item in await service.list_for_user(user.id)] == [ticket.id]
+    assert [item.body for item in await service.thread(ticket.id)] == ["вопрос"]
+
+
 async def test_staff_reply_switches_the_turn_and_notifies(db_session: AsyncSession) -> None:
     """Ответ сотрудника обязан дойти до человека, а не остаться в топике."""
     user = await _user(db_session, 300_003, "ticket03")
@@ -187,6 +229,50 @@ async def test_staff_reply_notification_carries_the_text(db_session: AsyncSessio
     )
     assert notify is not None
     assert notify.payload["body"] == "Проверьте профиль"
+
+
+async def test_staff_reply_asks_to_repaint_the_topic(db_session: AsyncSession) -> None:
+    """Ответ из темы меняет состояние, но в Telegram ничего не отправляет:
+    без этой просьбы название осталось бы красным на решённом обращении."""
+    user = await _user(db_session, 300_103, "ticket93")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "вопрос")
+    ticket.telegram_topic_id = 4242
+    await db_session.commit()
+
+    await service.reply_from_staff(4242, "ответ", telegram_id=999, message_id=1)
+    await db_session.commit()
+
+    payloads = list(
+        (
+            await db_session.scalars(
+                select(OutboxMessage.payload).where(OutboxMessage.topic == TOPIC_SUPPORT_OUTBOUND)
+            )
+        ).all()
+    )
+    assert {"ticket_id": ticket.id, "sync": True} in payloads
+
+
+async def test_admin_reply_does_not_ask_to_repaint_twice(db_session: AsyncSession) -> None:
+    """Ответ из админки и так кладёт в очередь копию с текстом: разбор увидит
+    разошедшийся статус на ней, и вторая просьба была бы лишним вызовом Bot API."""
+    user = await _user(db_session, 300_106, "ticket96")
+    staff = await _user(db_session, 300_107, "ticket97")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "вопрос")
+    await db_session.commit()
+
+    await service.reply_from_admin(ticket.id, "ответ", author_user_id=staff.id)
+    await db_session.commit()
+
+    payloads = list(
+        (
+            await db_session.scalars(
+                select(OutboxMessage.payload).where(OutboxMessage.topic == TOPIC_SUPPORT_OUTBOUND)
+            )
+        ).all()
+    )
+    assert [bool(item.get("sync")) for item in payloads] == [False, False]
 
 
 async def test_admin_reply_notifies_the_person_and_shows_up_in_the_topic(
@@ -234,7 +320,7 @@ async def test_admin_reply_to_a_closed_ticket_is_refused(db_session: AsyncSessio
     staff = await _user(db_session, 300_019, "ticket19")
     service = _service(db_session)
     ticket = await service.open(user.id, "не открывается")
-    await service.close(ticket.id, by_staff=True)
+    await service.close(ticket.id, by_staff=True, notify=False)
     await db_session.commit()
 
     with pytest.raises(ServiceError) as refusal:
@@ -292,7 +378,7 @@ async def test_reply_to_a_closed_ticket_is_refused(db_session: AsyncSession) -> 
     user = await _user(db_session, 300_013, "ticket13")
     service = _service(db_session)
     ticket = await service.open(user.id, "не открывается")
-    await service.close(ticket.id, by_staff=False)
+    await service.close(ticket.id, by_staff=False, notify=False)
     await db_session.commit()
 
     with pytest.raises(ServiceError) as refusal:
@@ -308,7 +394,7 @@ async def test_close_marks_the_ticket_and_queues_topic_closing(db_session: Async
     ticket = await service.open(user.id, "не открывается")
     await db_session.commit()
 
-    await service.close(ticket.id, by_staff=True)
+    await service.close(ticket.id, by_staff=True, notify=False)
     await db_session.commit()
 
     assert ticket.status is TicketStatus.closed
@@ -320,6 +406,50 @@ async def test_close_marks_the_ticket_and_queues_topic_closing(db_session: Async
         TicketAuthor.user,
         TicketAuthor.system,
     ]
+
+
+async def test_staff_closing_tells_the_person(db_session: AsyncSession) -> None:
+    """Иначе человек узнаёт о закрытии, только заглянув в кабинет."""
+    user = await _user(db_session, 300_101, "ticket91")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "вопрос")
+    await db_session.commit()
+
+    await service.close(ticket.id, by_staff=True, notify=True)
+    await db_session.commit()
+
+    kinds = list((await db_session.scalars(select(NotificationDelivery.kind))).all())
+    assert "ticket_closed" in kinds
+
+
+async def test_silent_closing_stays_silent(db_session: AsyncSession) -> None:
+    """Тихое закрытие для случая, когда разговор кончился ничем."""
+    user = await _user(db_session, 300_102, "ticket92")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "вопрос")
+    await db_session.commit()
+
+    await service.close(ticket.id, by_staff=True, notify=False)
+    await db_session.commit()
+
+    kinds = list((await db_session.scalars(select(NotificationDelivery.kind))).all())
+    assert "ticket_closed" not in kinds
+
+
+async def test_closing_twice_notifies_once(db_session: AsyncSession) -> None:
+    """Повтор безобиден и обязан таким остаться: второе «обращение закрыто»
+    человеку сказать нечего."""
+    user = await _user(db_session, 300_108, "ticket98")
+    service = _service(db_session)
+    ticket = await service.open(user.id, "вопрос")
+    await db_session.commit()
+
+    await service.close(ticket.id, by_staff=True, notify=True)
+    await service.close(ticket.id, by_staff=True, notify=True)
+    await db_session.commit()
+
+    kinds = list((await db_session.scalars(select(NotificationDelivery.kind))).all())
+    assert kinds.count("ticket_closed") == 1
 
 
 async def test_thread_and_list_are_ordered_for_reading(db_session: AsyncSession) -> None:

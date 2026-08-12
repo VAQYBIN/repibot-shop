@@ -714,7 +714,7 @@ async def close_ticket(
         return
 
     try:
-        await SupportService(session).close(ticket_id, by_staff=True)
+        await SupportService(session).close(ticket_id, by_staff=True, notify=True)
     except ServiceError as error:
         raise api_error_from_service(error) from error
 

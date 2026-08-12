@@ -168,7 +168,7 @@ async def close_ticket(
     """
     ticket = await _own_ticket(session, ticket_id, context.principal.user_id)
     try:
-        await SupportService(session).close(ticket_id, by_staff=False)
+        await SupportService(session).close(ticket_id, by_staff=False, notify=False)
     except ServiceError as error:
         raise api_error_from_service(error) from error
     await session.commit()
