@@ -99,6 +99,9 @@ _KINDS: dict[str, NotificationKind] = {
         NotificationKind(
             "ticket_reply", NotificationCategory.service, "ticket.reply", "/account/support"
         ),
+        NotificationKind(
+            "ticket_closed", NotificationCategory.service, "ticket.closed", "/account/support"
+        ),
         NotificationKind("winback_1", NotificationCategory.marketing, "winback.step1", "/plans"),
         NotificationKind("winback_2", NotificationCategory.marketing, "winback.step2", "/plans"),
         NotificationKind("winback_3", NotificationCategory.marketing, "winback.step3", "/plans"),

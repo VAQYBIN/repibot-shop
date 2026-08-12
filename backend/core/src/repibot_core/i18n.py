@@ -64,6 +64,11 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "ticket.reply.subject": "Поддержка ответила",
         "ticket.reply.body": "Поддержка ответила:\n\n{body}",
         "ticket.reply.bot": "Поддержка ответила:\n\n{body}",
+        "ticket.closed.subject": "Обращение закрыто",
+        "ticket.closed.body": (
+            "Обращение №{id} закрыто. Если вопрос остался — откройте новое, переписка сохранится."
+        ),
+        "ticket.closed.bot": "Обращение №{id} закрыто. Если вопрос остался — откройте новое.",
         "winback.step1.subject": "Подписка закончилась вчера",
         "winback.step1.body": (
             "Подписка закончилась вчера. Вернуть доступ можно в один шаг — тариф и оплата на месте."
@@ -132,6 +137,10 @@ _MESSAGES: dict[str, dict[str, str]] = {
             "тогда сообщение дойдёт до поддержки."
         ),
         "bot.support.closed": "Обращение №{id} закрыто.",
+        "bot.support.muted": "Доступ к поддержке ограничен.",
+        # Причина блокировки не называется намеренно: спор о ней ведут не с
+        # ботом, а в переписке, которая у заблокированного уже закрыта.
+        "bot.blocked": "Аккаунт заблокирован.",
     },
     "en": {
         "email.verify.subject": "Confirm your email for Re:Pibot",
@@ -194,6 +203,11 @@ _MESSAGES: dict[str, dict[str, str]] = {
         "ticket.reply.subject": "Support replied",
         "ticket.reply.body": "Support replied:\n\n{body}",
         "ticket.reply.bot": "Support replied:\n\n{body}",
+        "ticket.closed.subject": "Ticket closed",
+        "ticket.closed.body": (
+            "Ticket #{id} is closed. If the question stands, open a new one — the thread is kept."
+        ),
+        "ticket.closed.bot": "Ticket #{id} is closed. If the question stands, open a new one.",
         "winback.step1.subject": "Your subscription ended yesterday",
         "winback.step1.body": (
             "Your subscription ended yesterday. Getting access back takes one step — "
@@ -260,6 +274,8 @@ _MESSAGES: dict[str, dict[str, str]] = {
             "that way it reaches support."
         ),
         "bot.support.closed": "Ticket #{id} is closed.",
+        "bot.support.muted": "Support access is restricted.",
+        "bot.blocked": "The account is blocked.",
     },
 }
 

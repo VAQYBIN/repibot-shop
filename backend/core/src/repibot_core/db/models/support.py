@@ -68,6 +68,12 @@ class Ticket(Base):
     # Появляется после того, как топик создан в супергруппе. До этого момента
     # тикет уже существует: терять обращение из-за недоступного Telegram нельзя.
     telegram_topic_id: Mapped[int | None] = mapped_column(Integer)
+    # Метка состояния, которая сейчас стоит в названии темы. Пустая говорит
+    # сразу о двух вещах: тема ещё не помечена и карточка собеседника в неё не
+    # уходила — второго признака не нужно, они появляются вместе.
+    topic_status_mark: Mapped[TicketStatus | None] = mapped_column(
+        Enum(TicketStatus, name="ticket_status")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_user_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

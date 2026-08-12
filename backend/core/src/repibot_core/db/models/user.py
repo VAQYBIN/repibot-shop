@@ -51,6 +51,11 @@ class User(TimestampMixin, Base):
     # отказался, — до рассылки или после неё.
     marketing_opt_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Заглушение поддержки — момент по той же причине, что и отказ от рассылок:
+    # при разборе спора важно, когда человеку закрыли разговор. Подписки,
+    # кабинета и оплаты это не касается: закрыт только разговор.
+    support_muted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     referral_code: Mapped[str] = mapped_column(String(16), unique=True)
     referred_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
