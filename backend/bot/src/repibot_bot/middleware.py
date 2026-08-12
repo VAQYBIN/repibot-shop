@@ -14,6 +14,10 @@ from aiogram.types import CallbackQuery, Message, PreCheckoutQuery, TelegramObje
 from redis.asyncio import Redis
 
 from repibot_core.db.engine import create_engine, create_session_factory
+from repibot_core.db.models import UserStatus
+from repibot_core.i18n import translate
+from repibot_core.integrations.remnawave.client import create_remnawave_client
+from repibot_core.integrations.remnawave.devices import PanelDevices
 from repibot_core.integrations.telegram.bot_api import BotApi
 from repibot_core.services.payments import PaymentService
 from repibot_core.services.telegram_link import TelegramLinkService
@@ -34,6 +38,10 @@ class UserMiddleware(BaseMiddleware):
         # BotApi держит внутри httpx-клиент, поэтому он тоже один на процесс:
         # новый на каждое сообщение открывал бы пул соединений и не закрывал его.
         self._bot_api = BotApi(settings, self._redis)
+        # Устройства собираются по той же причине: карточка собеседника в
+        # команде `/info` спрашивает их у панели, и клиент на каждый вызов
+        # означал бы новый пул соединений на каждую команду.
+        self._panel_devices = PanelDevices(create_remnawave_client())
 
     async def __call__(
         self,
@@ -65,6 +73,16 @@ class UserMiddleware(BaseMiddleware):
                 first_name=sender.first_name,
                 language_code=sender.language_code,
             )
+            if user.status is not UserStatus.active:
+                # Заблокированный обрывается здесь, а не в каждом хендлере:
+                # иначе бан виден только на входе в кабинет, а через бота
+                # человек продолжает покупать подписку и писать в поддержку.
+                # Словами отвечает только сообщение: неотвеченный предчек
+                # Telegram и так покажет отказом, а молчание на сообщение
+                # выглядело бы поломкой бота, а не запретом.
+                if isinstance(event, Message):
+                    await event.answer(translate(user.language, "bot.blocked"))
+                return None
             data["user"] = user
             data["language"] = user.language
             # Сессия кладётся явно: хендлерам, которые собирают сервис сами,
@@ -77,4 +95,5 @@ class UserMiddleware(BaseMiddleware):
                 session, self._settings, self._redis, self._bot_api
             )
             data["payment_service"] = PaymentService(session, self._settings)
+            data["panel_devices"] = self._panel_devices
             return await handler(event, data)

@@ -136,7 +136,6 @@ _MESSAGES: dict[str, dict[str, str]] = {
             "Открытых обращений нет. Опишите проблему командой /support — "
             "тогда сообщение дойдёт до поддержки."
         ),
-        "bot.support.closed": "Обращение №{id} закрыто.",
         "bot.support.muted": "Доступ к поддержке ограничен.",
         # Причина блокировки не называется намеренно: спор о ней ведут не с
         # ботом, а в переписке, которая у заблокированного уже закрыта.
@@ -273,7 +272,6 @@ _MESSAGES: dict[str, dict[str, str]] = {
             "You have no open tickets. Describe the problem with the /support command — "
             "that way it reaches support."
         ),
-        "bot.support.closed": "Ticket #{id} is closed.",
         "bot.support.muted": "Support access is restricted.",
         "bot.blocked": "The account is blocked.",
     },
