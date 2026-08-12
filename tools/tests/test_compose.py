@@ -106,7 +106,18 @@ def test_frontend_service_receives_only_its_named_server_side_secret(
     web = compose["services"]["web"]
 
     assert "env_file" not in web
-    assert web["environment"] == {"ADMIN_ASSERTION_SECRET": "${ADMIN_ASSERTION_SECRET}"}
+    # Секрет ровно один. Несекретные переменные (внутренний адрес API для
+    # серверных страниц) сторожу безразличны — он про утечку ключей, а не про
+    # длину списка, и запрет на любую новую строку заставлял бы обходить его
+    # ради каждой безобидной настройки.
+    assert web["environment"]["ADMIN_ASSERTION_SECRET"] == "${ADMIN_ASSERTION_SECRET}"
+
+    secrets = {
+        name
+        for name in web["environment"]
+        if any(marker in name for marker in ("SECRET", "TOKEN", "KEY", "PASSWORD"))
+    }
+    assert secrets == {"ADMIN_ASSERTION_SECRET"}
 
 
 def test_no_literal_secrets_in_compose() -> None:
