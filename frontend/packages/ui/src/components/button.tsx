@@ -17,9 +17,9 @@ const button = cva(
         ghost: 'text-text-accent hover:bg-jade-mist',
       },
       size: {
-        sm: 'h-8 px-3 text-sm rounded-sm',
-        md: 'h-10 px-4 text-base rounded-md',
-        lg: 'h-12 px-6 text-lg rounded-md',
+        sm: 'h-8 px-3 text-small rounded-sm',
+        md: 'h-10 px-4 text-body rounded-md',
+        lg: 'h-12 px-6 text-h3 rounded-md',
       },
     },
     // Мелкая кнопка с заливкой получает тёмный текст: белый на Jade проходит

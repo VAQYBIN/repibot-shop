@@ -122,3 +122,58 @@ describe('токены бренда', () => {
     expect(css).toContain('--color-accent: var(--rp-accent)')
   })
 })
+
+/**
+ * Раздел 5 бренд-бука. Начертание в таблицу намеренно не входит: оно
+ * ставится классом на месте, иначе `font-weight` из токена спорит с
+ * `font-medium` на кнопке, и исход решает порядок правил в собранном файле.
+ */
+const TYPE_SCALE: Record<string, readonly [string, string, string]> = {
+  display: ['48px', '1.1', '-0.02em'],
+  h1: ['32px', '1.2', '-0.02em'],
+  h2: ['24px', '1.3', '-0.01em'],
+  h3: ['19px', '1.4', '0'],
+  body: ['16px', '1.6', '0'],
+  small: ['14px', '1.5', '0'],
+  caption: ['12px', '1.4', '0.01em'],
+}
+
+describe('шкала кеглей', () => {
+  it.each(Object.entries(TYPE_SCALE))('%s объявлен целиком', (name, [size, height, tracking]) => {
+    expect(css).toContain(`--text-${name}: ${size};`)
+    expect(css).toContain(`--text-${name}--line-height: ${height};`)
+    expect(css).toContain(`--text-${name}--letter-spacing: ${tracking};`)
+  })
+
+  it('встроенная шкала погашена, и погашена раньше своей', () => {
+    const kill = css.indexOf('--text-*: initial')
+    expect(kill, 'встроенные размеры не погашены').toBeGreaterThanOrEqual(0)
+    // Порядок значим: `initial` после своих имён снесло бы и их тоже.
+    expect(kill).toBeLessThan(css.indexOf('--text-display:'))
+  })
+
+  it('начертание в шкалу не входит', () => {
+    expect(css).not.toMatch(/--text-[a-z0-9]+--font-weight/)
+  })
+})
+
+describe('движение', () => {
+  it('объявлено тремя переменными', () => {
+    expect(css).toContain('--rp-motion-fast: 150ms')
+    expect(css).toContain('--rp-motion: 200ms')
+    expect(css).toContain('--rp-ease: cubic-bezier(0.2, 0, 0, 1)')
+  })
+
+  it('переходы Tailwind по умолчанию берут наши значения', () => {
+    // Без этих двух строк каждый компонент писал бы длительность руками,
+    // и первый же забытый `duration-` вышел бы из системы незаметно.
+    expect(css).toContain('--default-transition-duration: var(--rp-motion-fast)')
+    expect(css).toContain('--default-transition-timing-function: var(--rp-ease)')
+  })
+
+  it('настройка системы гасит длительности одним правилом', () => {
+    const reduced = blockAfter('@media (prefers-reduced-motion: reduce)', ':root')
+    expect(reduced).toContain('--rp-motion-fast: 0ms')
+    expect(reduced).toContain('--rp-motion: 0ms')
+  })
+})

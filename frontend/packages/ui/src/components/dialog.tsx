@@ -93,11 +93,11 @@ export function Dialog({ open, onClose, title, description, children, className 
           className,
         )}
       >
-        <h2 id={titleId} className="text-lg font-semibold text-text">
+        <h2 id={titleId} className="text-h3 font-semibold text-text">
           {title}
         </h2>
         {description === undefined ? null : (
-          <p id={descriptionId} className="mt-2 text-sm text-text-secondary">
+          <p id={descriptionId} className="mt-2 text-small text-text-secondary">
             {description}
           </p>
         )}

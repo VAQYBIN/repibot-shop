@@ -55,7 +55,7 @@ export function Switch({ checked, onCheckedChange, label, id, disabled, classNam
           )}
         />
       </span>
-      <label htmlFor={inputId} className="text-sm text-text">
+      <label htmlFor={inputId} className="text-small text-text">
         {label}
       </label>
     </div>

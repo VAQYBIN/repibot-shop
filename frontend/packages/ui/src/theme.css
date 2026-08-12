@@ -46,6 +46,12 @@
   --rp-shadow: 0 4px 12px rgb(26 26 24 / 0.08);
   --rp-shadow-lg: 0 12px 32px rgb(26 26 24 / 0.12);
 
+  /* Служебное движение: подсветка при наведении и появление слоёв. Кривая
+     без разгона на выходе — плотный интерфейс не должен пружинить. */
+  --rp-motion-fast: 150ms;
+  --rp-motion: 200ms;
+  --rp-ease: cubic-bezier(0.2, 0, 0, 1);
+
   /* Подложка модального окна берёт тот же Ink, что и тени: отдельного серого
      в палитре нет, а собственный цвет здесь был бы значением «на глаз». */
   --rp-overlay: rgb(26 26 24 / 0.55);
@@ -124,6 +130,15 @@
   }
 }
 
+/* Одно правило на весь интерфейс. Оговорка в каждом компоненте по отдельности
+   держалась бы ровно до первого забытого компонента. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --rp-motion-fast: 0ms;
+    --rp-motion: 0ms;
+  }
+}
+
 /* inline обязателен: без него значения подставятся на этапе сборки
    и перестанут реагировать на смену темы. */
 @theme inline {
@@ -158,6 +173,46 @@
      «Inter» следом на случай, если гарнитура установлена в системе. */
   --font-sans: "Inter Variable", "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Встроенные размеры Tailwind гасятся целиком. Пока `text-sm` продолжает
+     работать, о кеглях существуют два источника правды, и побеждает тот,
+     который короче пишется. Строка обязана стоять до объявления своих имён:
+     `initial` действует на всё пространство имён разом. */
+  --text-*: initial;
+
+  /* Раздел 5 бренд-бука. Начертание сюда не входит — оно ставится классом
+     на месте: `font-weight` из токена спорит с `font-medium`, и спор решает
+     порядок правил в собранном файле, а не порядок классов в разметке. */
+  --text-display: 48px;
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.02em;
+
+  --text-h1: 32px;
+  --text-h1--line-height: 1.2;
+  --text-h1--letter-spacing: -0.02em;
+
+  --text-h2: 24px;
+  --text-h2--line-height: 1.3;
+  --text-h2--letter-spacing: -0.01em;
+
+  --text-h3: 19px;
+  --text-h3--line-height: 1.4;
+  --text-h3--letter-spacing: 0;
+
+  --text-body: 16px;
+  --text-body--line-height: 1.6;
+  --text-body--letter-spacing: 0;
+
+  --text-small: 14px;
+  --text-small--line-height: 1.5;
+  --text-small--letter-spacing: 0;
+
+  --text-caption: 12px;
+  --text-caption--line-height: 1.4;
+  --text-caption--letter-spacing: 0.01em;
+
+  --default-transition-duration: var(--rp-motion-fast);
+  --default-transition-timing-function: var(--rp-ease);
 }
 
 body {
@@ -170,4 +225,27 @@ body {
 :focus-visible {
   outline: 2px solid var(--rp-accent);
   outline-offset: 2px;
+}
+
+/* Прелоадер бренд-бука, раздел 6: вращается спираль, ядро стоит.
+   `view-box` обязателен — при `fill-box` начало координат уехало бы в угол
+   рамки самой дуги, и знак завертелся бы вокруг случайной точки. */
+@keyframes rp-mark-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.rp-mark-spin {
+  animation: rp-mark-spin 1.4s linear infinite;
+  transform-origin: var(--rp-mark-origin);
+  transform-box: view-box;
+}
+
+/* Замедляется втрое, а не останавливается: неподвижный прелоадер перестаёт
+   сообщать, что работа идёт, и человек решает, что всё зависло. */
+@media (prefers-reduced-motion: reduce) {
+  .rp-mark-spin {
+    animation-duration: 4.2s;
+  }
 }

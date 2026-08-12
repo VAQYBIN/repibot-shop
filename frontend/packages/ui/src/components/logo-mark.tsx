@@ -1,4 +1,4 @@
-import type { SVGProps } from 'react'
+import type { CSSProperties, SVGProps } from 'react'
 
 /**
  * Знак Re:Pibot.
@@ -36,9 +36,20 @@ export interface LogoMarkProps extends Omit<SVGProps<SVGSVGElement>, 'viewBox'> 
    * вызывающий передаёт aria-hidden, и название просто не читается.
    */
   title?: string
+  /**
+   * Вращение спирали при неподвижном ядре — фирменный прелоадер из раздела 6
+   * бренд-бука. Режим живёт здесь, а не в `Spinner`, потому что центр
+   * вращения — часть геометрии знака, а геометрия заперта в этом файле.
+   */
+  spinning?: boolean | undefined
 }
 
-export function LogoMark({ variant = 'full', title = 'Re:Pibot', ...props }: LogoMarkProps) {
+export function LogoMark({
+  variant = 'full',
+  title = 'Re:Pibot',
+  spinning,
+  ...props
+}: LogoMarkProps) {
   const mark = MARKS[variant]
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox={mark.viewBox} fill="none" {...props}>
@@ -48,6 +59,12 @@ export function LogoMark({ variant = 'full', title = 'Re:Pibot', ...props }: Log
         stroke="currentColor"
         strokeWidth={mark.strokeWidth}
         strokeLinecap="round"
+        className={spinning ? 'rp-mark-spin' : undefined}
+        style={
+          spinning
+            ? ({ '--rp-mark-origin': `${mark.core.cx}px ${mark.core.cy}px` } as CSSProperties)
+            : undefined
+        }
       />
       <circle cx={mark.core.cx} cy={mark.core.cy} r={mark.core.r} fill="var(--rp-accent)" />
     </svg>

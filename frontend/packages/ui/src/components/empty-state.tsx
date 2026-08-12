@@ -21,7 +21,7 @@ export function EmptyState({ title, description, action, className }: EmptyState
     >
       <p className="font-medium text-text">{title}</p>
       {description === undefined ? null : (
-        <p className="text-sm text-text-secondary">{description}</p>
+        <p className="text-small text-text-secondary">{description}</p>
       )}
       {action === undefined ? null : <div className="mt-2">{action}</div>}
     </div>

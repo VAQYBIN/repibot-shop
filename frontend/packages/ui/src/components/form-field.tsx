@@ -44,17 +44,17 @@ export function FormField({ label, htmlFor, hint, error, children, className }: 
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
-      <label htmlFor={htmlFor} className="text-sm font-medium text-text">
+      <label htmlFor={htmlFor} className="text-small font-medium text-text">
         {label}
       </label>
       {withAria(children, aria)}
       {hint ? (
-        <p id={hintId} className="text-sm text-text-muted">
+        <p id={hintId} className="text-small text-text-muted">
           {hint}
         </p>
       ) : null}
       {error ? (
-        <p id={errorId} role="alert" className="text-sm text-danger">
+        <p id={errorId} role="alert" className="text-small text-danger">
           {error}
         </p>
       ) : null}
