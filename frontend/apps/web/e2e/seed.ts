@@ -153,6 +153,27 @@ export function grantE2eAdmin(email: string): void {
   runComposeCommand(['exec', '--no-TTY', 'valkey', 'valkey-cli', 'DEL', `principal:${userId}`])
 }
 
+/**
+ * Заводит человека с готовым номером Телеграма — для сквозного обхода MiniApp.
+ *
+ * Подписанный initData называет номер, которого до этого вызова в базе нет:
+ * без строки в `users` вход в MiniApp автосоздал бы пустого пользователя без
+ * email, и это никак не хуже с точки зрения самого входа, но так — предсказуемо
+ * тем же приёмом, каким `grantE2eAdmin` выше меняет роль уже существующей строке.
+ */
+export function seedTelegramUser(telegramId: number, username: string): void {
+  assertToken(username, 'telegram username')
+  if (!Number.isSafeInteger(telegramId) || telegramId <= 0) {
+    throw new Error('telegramId для посева MiniApp должен быть положительным целым числом')
+  }
+  runSql(
+    `INSERT INTO users (telegram_id, telegram_username, email_verified_at, referral_code, language)
+     VALUES (:'telegram_id', :'username', now(), substring(md5(:'username') FROM 1 FOR 16), 'ru')
+     ON CONFLICT (telegram_id) DO UPDATE SET telegram_username = EXCLUDED.telegram_username`,
+    { telegram_id: String(telegramId), username },
+  )
+}
+
 /** Кладёт истёкший промокод в ту же схему Postgres, что и оформление. */
 export function seedExpiredPromo(code: string): void {
   assertToken(code, 'promo code')

@@ -107,6 +107,11 @@ class FakePanel:
             return httpx.Response(
                 200, json={"response": {"total": len(self.squads), "internalSquads": self.squads}}
             )
+        if path == "/api/nodes":
+            # Заглушка не заводит узлов: сквозной стек проверяет админку без
+            # настоящей панели, и пустой список — честный ответ «узлов нет»,
+            # а не притворство, что маршрут не существует.
+            return httpx.Response(200, json={"response": []})
         if path == "/api/users" and request.method == "POST":
             return self._create(json.loads(request.content))
         if path == "/api/users" and request.method == "PATCH":

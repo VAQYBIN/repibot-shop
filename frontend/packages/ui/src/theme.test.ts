@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -175,5 +175,72 @@ describe('движение', () => {
     const reduced = blockAfter('@media (prefers-reduced-motion: reduce)', ':root')
     expect(reduced).toContain('--rp-motion-fast: 0ms')
     expect(reduced).toContain('--rp-motion: 0ms')
+  })
+})
+
+/** Имена, погашенные строкой `--text-*: initial` в theme.css. */
+const RETIRED = [
+  'xs',
+  'sm',
+  'base',
+  'lg',
+  'xl',
+  '2xl',
+  '3xl',
+  '4xl',
+  '5xl',
+  '6xl',
+  '7xl',
+  '8xl',
+  '9xl',
+]
+
+const ROOTS = [
+  resolve(process.cwd(), 'src'),
+  resolve(process.cwd(), '../../apps/web/src'),
+  resolve(process.cwd(), '../../apps/miniapp/src'),
+]
+
+function sources(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const full = resolve(directory, entry.name)
+    if (entry.isDirectory()) return sources(full)
+    return /\.(tsx?|css)$/.test(entry.name) ? [full] : []
+  })
+}
+
+/**
+ * Гасит комментарии перед поиском класса, а не наоборот: в theme.css есть
+ * поясняющий комментарий, где `text-sm` упомянут как пример в прозе, а не
+ * как класс. Искать «класс только рядом с className/cn(/.selector» здесь не
+ * получится честно — в button.tsx кегль лежит в объекте варианта cva()
+ * без этих меток на той же строке, и такое правило било бы мимо настоящих
+ * находок. Замена символов на пробелы (а не удаление) сохраняет номера строк,
+ * чтобы список из сторожа указывал на реальное место.
+ */
+function withoutComments(text: string): string {
+  const noBlock = text.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
+  // Не режем `//` внутри `://`, чтобы не задеть ссылки в строках.
+  return noBlock.replace(/(?<!:)\/\/.*$/gm, '')
+}
+
+describe('шкала кеглей заперта', () => {
+  /* Погашенный класс не ломает сборку: Tailwind молча ничего для него не
+     выпускает, и текст остаётся унаследованного размера. Заметить это на
+     глаз можно не всегда — поэтому сторож. */
+  it('во всех исходниках не осталось встроенных имён кегля', () => {
+    const pattern = new RegExp(`\\btext-(${RETIRED.join('|')})\\b`)
+    const guilty: string[] = []
+
+    for (const root of ROOTS) {
+      for (const file of sources(root)) {
+        const line = withoutComments(readFileSync(file, 'utf8'))
+          .split('\n')
+          .findIndex((text) => pattern.test(text))
+        if (line >= 0) guilty.push(`${file}:${line + 1}`)
+      }
+    }
+
+    expect(guilty).toEqual([])
   })
 })
