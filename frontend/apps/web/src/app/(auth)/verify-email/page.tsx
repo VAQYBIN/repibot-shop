@@ -1,7 +1,7 @@
 'use client'
 
 import { emailSchema, useAuthClient } from '@repibot/core'
-import { Button, FormField, Input } from '@repibot/ui'
+import { Alert, Button, FormField, Input, Spinner } from '@repibot/ui'
 import { useMutation } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import type { FormEvent } from 'react'
@@ -62,18 +62,16 @@ export default function VerifyEmailPage() {
   if (failure === null) {
     return (
       <div className="flex w-full flex-col gap-4">
-        <h1 className="text-2xl font-semibold text-text">{t('auth.verify.title')}</h1>
-        <p className="text-text-secondary">{t('auth.verify.checking')}</p>
+        <h1 className="text-h1 font-semibold text-text">{t('auth.verify.title')}</h1>
+        <Spinner label={t('auth.verify.checking')} />
       </div>
     )
   }
 
   return (
     <form onSubmit={submitResend} noValidate className="flex w-full flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('auth.verify.title')}</h1>
-      <p role="alert" className="text-sm text-danger">
-        {failure}
-      </p>
+      <h1 className="text-h1 font-semibold text-text">{t('auth.verify.title')}</h1>
+      <Alert tone="error">{failure}</Alert>
 
       <FormField label={t('auth.field.email')} htmlFor="email" error={emailError}>
         <Input
@@ -89,7 +87,7 @@ export default function VerifyEmailPage() {
         {resend.isSuccess ? t('auth.verify.resent') : t('auth.verify.resend')}
       </Button>
 
-      <a href="/login" className="text-sm text-text-accent hover:underline">
+      <a href="/login" className="text-small text-text-accent hover:underline">
         {t('auth.forgot.back_link')}
       </a>
     </form>

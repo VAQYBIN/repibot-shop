@@ -1,5 +1,5 @@
 import { formatBytes, type Language, translate } from '@repibot/core'
-import { Card } from '@repibot/ui'
+import { Badge, Card } from '@repibot/ui'
 
 export interface Plan {
   id: number
@@ -74,30 +74,30 @@ export function PlanCard({ plan, language }: PlanCardProps) {
     >
       <div>
         <div className="flex flex-wrap items-center gap-3">
-          <h2 id={`plan-${plan.id}`} className="text-xl font-semibold tracking-[-0.01em] text-text">
+          <h2 id={`plan-${plan.id}`} className="text-h2 font-semibold text-text">
             {name}
           </h2>
           {plan.is_trial ? (
-            <span className="rounded-full bg-jade-mist px-2.5 py-1 text-xs font-medium text-text-accent">
-              {translate(language, 'plans.trial_badge')}
-            </span>
+            <Badge tone="info">{translate(language, 'plans.trial_badge')}</Badge>
           ) : null}
         </div>
 
         {description === null || description === '' ? null : (
-          <p className="mt-2 max-w-[65ch] text-sm leading-6 text-text-secondary">{description}</p>
+          <p className="mt-2 max-w-[65ch] text-small text-text-secondary">{description}</p>
         )}
 
-        <p className="mt-3 text-sm text-text-secondary">
+        <p className="mt-3 text-small text-text-secondary">
           {durationText(plan.duration_days, language)}
         </p>
 
         {plan.is_trial ? null : (
           <div className="mt-6 flex flex-wrap items-baseline gap-x-4 gap-y-1 tabular-nums">
-            <p className="text-3xl font-semibold tracking-[-0.02em] text-text">
+            <p className="text-h1 font-semibold text-text">
               {rublePrice(plan.price_rub, language)} {translate(language, 'plans.price_rub')}
             </p>
-            <p className="text-sm text-text-secondary">{starsPrice(plan.price_stars, language)}</p>
+            <p className="text-small text-text-secondary">
+              {starsPrice(plan.price_stars, language)}
+            </p>
           </div>
         )}
       </div>
@@ -108,14 +108,18 @@ export function PlanCard({ plan, language }: PlanCardProps) {
         }
       >
         <div>
-          <dt className="text-xs text-text-secondary">{translate(language, 'plans.traffic')}</dt>
-          <dd className="mt-1 text-lg font-medium tabular-nums text-text">
+          <dt className="text-caption text-text-secondary">
+            {translate(language, 'plans.traffic')}
+          </dt>
+          <dd className="mt-1 text-h3 font-medium tabular-nums text-text">
             {formatBytes(plan.traffic_limit_bytes, language, { zeroIsUnlimited: true })}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-text-secondary">{translate(language, 'plans.devices')}</dt>
-          <dd className="mt-1 text-lg font-medium tabular-nums text-text">
+          <dt className="text-caption text-text-secondary">
+            {translate(language, 'plans.devices')}
+          </dt>
+          <dd className="mt-1 text-h3 font-medium tabular-nums text-text">
             {plan.hwid_device_limit}
           </dd>
         </div>

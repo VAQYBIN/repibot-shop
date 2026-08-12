@@ -1,6 +1,6 @@
 'use client'
 
-import { Card } from '@repibot/ui'
+import { Alert, Card } from '@repibot/ui'
 import { useEffect, useRef, useState } from 'react'
 
 import { Lockup } from '@/components/lockup'
@@ -73,24 +73,20 @@ export default function UnsubscribePage() {
       <Lockup size={40} />
       <Card>
         <div className="flex w-full flex-col gap-4">
-          <h1 className="text-2xl font-semibold text-text">{texts.title}</h1>
+          <h1 className="text-h1 font-semibold text-text">{texts.title}</h1>
 
           {state === 'working' ? <p className="text-text-secondary">{texts.working}</p> : null}
 
           {state === 'done' ? (
             <>
               <p className="text-text-secondary">{texts.done}</p>
-              <p className="text-sm text-text-secondary">{texts.kept}</p>
+              <p className="text-small text-text-secondary">{texts.kept}</p>
             </>
           ) : null}
 
-          {state === 'failed' ? (
-            <p role="alert" className="text-sm text-danger">
-              {texts.failed}
-            </p>
-          ) : null}
+          {state === 'failed' ? <Alert tone="error">{texts.failed}</Alert> : null}
 
-          <a href="/account" className="text-sm text-text-accent hover:underline">
+          <a href="/account" className="text-small text-text-accent hover:underline">
             {texts.account}
           </a>
         </div>

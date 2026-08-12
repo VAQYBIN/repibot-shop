@@ -1,7 +1,7 @@
 'use client'
 
 import { emailSchema, useAuthClient } from '@repibot/core'
-import { Button, FormField, Input } from '@repibot/ui'
+import { Alert, Button, FormField, Input } from '@repibot/ui'
 import { useMutation } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
@@ -38,9 +38,9 @@ export default function ForgotPasswordPage() {
   if (request.isSuccess) {
     return (
       <div className="flex w-full flex-col gap-4">
-        <h1 className="text-2xl font-semibold text-text">{t('auth.forgot.title')}</h1>
+        <h1 className="text-h1 font-semibold text-text">{t('auth.forgot.title')}</h1>
         <p className="text-text-secondary">{t('auth.forgot.sent')}</p>
-        <a href="/login" className="text-sm text-text-accent hover:underline">
+        <a href="/login" className="text-small text-text-accent hover:underline">
           {t('auth.forgot.back_link')}
         </a>
       </div>
@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <form onSubmit={submit} noValidate className="flex w-full flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('auth.forgot.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{t('auth.forgot.title')}</h1>
       <p className="text-text-secondary">{t('auth.forgot.hint')}</p>
 
       <FormField label={t('auth.field.email')} htmlFor="email" error={emailError}>
@@ -63,16 +63,14 @@ export default function ForgotPasswordPage() {
       </FormField>
 
       {request.error === null ? null : (
-        <p role="alert" className="text-sm text-danger">
-          {errorText(request.error, language)}
-        </p>
+        <Alert tone="error">{errorText(request.error, language)}</Alert>
       )}
 
       <Button type="submit" disabled={request.isPending}>
         {t('auth.forgot.submit')}
       </Button>
 
-      <a href="/login" className="text-sm text-text-accent hover:underline">
+      <a href="/login" className="text-small text-text-accent hover:underline">
         {t('auth.forgot.back_link')}
       </a>
     </form>

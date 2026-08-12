@@ -1,6 +1,7 @@
 'use client'
 
 import { translate, useAuthClient } from '@repibot/core'
+import { Alert, Spinner } from '@repibot/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -53,10 +54,10 @@ function Claim() {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{translate(language, 'winback.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{translate(language, 'winback.title')}</h1>
 
       {claim.state === 'claiming' ? (
-        <p className="text-text-secondary">{translate(language, 'winback.claiming')}</p>
+        <Spinner label={translate(language, 'common.loading')} />
       ) : null}
 
       {claim.state === 'claimed' ? (
@@ -66,12 +67,12 @@ function Claim() {
       ) : null}
 
       {claim.state === 'invalid' || claim.state === 'no_token' ? (
-        <p role="alert" className="text-sm text-danger">
+        <Alert tone="error">
           {translate(language, claim.state === 'no_token' ? 'winback.no_token' : 'winback.invalid')}
-        </p>
+        </Alert>
       ) : null}
 
-      <a href="/account/subscription" className="text-sm text-text-accent hover:underline">
+      <a href="/account/subscription" className="text-small text-text-accent hover:underline">
         {translate(language, 'winback.to_subscription')}
       </a>
     </div>

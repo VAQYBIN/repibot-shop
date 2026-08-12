@@ -1,3 +1,4 @@
+import { TooltipProvider } from '@repibot/ui'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
@@ -28,7 +29,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* Browser preferences определяют язык и тему после гидратации;
             API-клиент и его токен остаются одним экземпляром. */}
         <BrowserPreferencesProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {/* Подсказкам Radix нужен один общий провайдер на приложение:
+                он держит задержку появления и следит, чтобы две подсказки
+                не всплыли разом. */}
+            <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+          </AuthProvider>
         </BrowserPreferencesProvider>
       </body>
     </html>

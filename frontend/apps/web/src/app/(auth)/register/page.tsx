@@ -1,7 +1,7 @@
 'use client'
 
 import { registerSchema, useAuthClient, useRegister } from '@repibot/core'
-import { Button, FormField, Input, PasswordInput } from '@repibot/ui'
+import { Alert, Button, FormField, Input, PasswordInput } from '@repibot/ui'
 import { useMutation } from '@tanstack/react-query'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
@@ -56,7 +56,7 @@ export default function RegisterPage() {
   if (done) {
     return (
       <div className="flex w-full flex-col gap-4">
-        <h1 className="text-2xl font-semibold text-text">{t('auth.verify.title')}</h1>
+        <h1 className="text-h1 font-semibold text-text">{t('auth.verify.title')}</h1>
         <p className="text-text-secondary">{t('auth.verify.pending')}</p>
         <Button
           type="button"
@@ -67,9 +67,7 @@ export default function RegisterPage() {
           {resend.isSuccess ? t('auth.verify.resent') : t('auth.verify.resend')}
         </Button>
         {resend.error === null ? null : (
-          <p role="alert" className="text-sm text-danger">
-            {errorText(resend.error, language)}
-          </p>
+          <Alert tone="error">{errorText(resend.error, language)}</Alert>
         )}
       </div>
     )
@@ -77,7 +75,7 @@ export default function RegisterPage() {
 
   return (
     <form onSubmit={submit} noValidate className="flex w-full flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('auth.register.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{t('auth.register.title')}</h1>
 
       <FormField label={t('auth.field.email')} htmlFor="email" error={emailError}>
         <Input
@@ -105,17 +103,13 @@ export default function RegisterPage() {
         />
       </FormField>
 
-      {formError === null ? null : (
-        <p role="alert" className="text-sm text-danger">
-          {formError}
-        </p>
-      )}
+      {formError === null ? null : <Alert tone="error">{formError}</Alert>}
 
       <Button type="submit" disabled={register.isPending}>
         {register.isPending ? t('auth.register.pending') : t('auth.register.submit')}
       </Button>
 
-      <a href="/login" className="text-sm text-text-accent hover:underline">
+      <a href="/login" className="text-small text-text-accent hover:underline">
         {t('auth.register.login_link')}
       </a>
     </form>

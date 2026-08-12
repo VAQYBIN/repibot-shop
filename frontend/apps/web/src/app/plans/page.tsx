@@ -1,7 +1,7 @@
 'use client'
 
 import { usePlans } from '@repibot/core'
-import { Button, Card, EmptyState } from '@repibot/ui'
+import { Alert, Button, Card, EmptyState, Spinner } from '@repibot/ui'
 
 import { PlanCard } from '@/components/plan-card'
 import { useBrowserLanguage, useTranslate } from '@/lib/i18n'
@@ -13,17 +13,13 @@ export default function PlansPage() {
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-5xl px-6 py-12 sm:py-16">
-      <h1 className="text-3xl font-semibold tracking-[-0.02em] text-text">{t('plans.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{t('plans.title')}</h1>
 
       {plans.isPending ? (
-        <p role="status" className="mt-10 text-sm text-text-secondary">
-          {t('common.loading')}
-        </p>
+        <Spinner label={t('common.loading')} className="mt-10 block" />
       ) : plans.isError ? (
         <Card className="mt-10">
-          <p role="alert" className="text-text">
-            {t('common.error')}
-          </p>
+          <Alert tone="error">{t('common.error')}</Alert>
           <div className="mt-4">
             <Button type="button" onClick={() => plans.refetch()}>
               {t('common.retry')}

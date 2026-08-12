@@ -1,7 +1,7 @@
 'use client'
 
 import { errorMessageKey, loginSchema, useLogin } from '@repibot/core'
-import { Button, FormField, Input, PasswordInput } from '@repibot/ui'
+import { Alert, Button, FormField, Input, PasswordInput } from '@repibot/ui'
 import { useRouter } from 'next/navigation'
 import type { FormEvent } from 'react'
 import { useState } from 'react'
@@ -66,12 +66,10 @@ export default function LoginPage() {
   // не доходит. Единственный источник правды о форме — zod.
   return (
     <form onSubmit={submit} noValidate className="flex w-full flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('auth.login.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{t('auth.login.title')}</h1>
 
       {returnedError === null || returnedError === undefined ? null : (
-        <p role="alert" className="text-sm text-danger">
-          {t(errorMessageKey(returnedError))}
-        </p>
+        <Alert tone="error">{t(errorMessageKey(returnedError))}</Alert>
       )}
 
       <FormField label={t('auth.field.email')} htmlFor="email">
@@ -95,17 +93,13 @@ export default function LoginPage() {
         />
       </FormField>
 
-      {formError === null ? null : (
-        <p role="alert" className="text-sm text-danger">
-          {formError}
-        </p>
-      )}
+      {formError === null ? null : <Alert tone="error">{formError}</Alert>}
 
       <Button type="submit" disabled={login.isPending}>
         {login.isPending ? t('auth.login.pending') : t('auth.login.submit')}
       </Button>
 
-      <div className="flex justify-between text-sm">
+      <div className="flex justify-between text-small">
         <a href="/register" className="text-text-accent hover:underline">
           {t('auth.login.register_link')}
         </a>
@@ -114,23 +108,33 @@ export default function LoginPage() {
         </a>
       </div>
 
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={signInWithPasskey}
-        disabled={passkeyLogin.isPending}
-      >
-        {t('auth.login.passkey')}
-      </Button>
+      {/* Разделитель отделяет вход по паролю от остальных способов: без него
+          четыре кнопки подряд читаются как четыре шага одного пути. */}
+      <div className="flex items-center gap-3" aria-hidden="true">
+        <span className="h-px flex-1 bg-border-subtle" />
+        <span className="text-caption text-text-muted">{language === 'ru' ? 'или' : 'or'}</span>
+        <span className="h-px flex-1 bg-border-subtle" />
+      </div>
 
-      {/* Ссылка, а не кнопка с fetch: за ней идёт цепочка редиректов на чужой
-          домен, и пройти она должна в адресной строке. Кнопки нет вовсе, пока
-          развёртывание не настроено, — она привела бы на страницу с ошибкой. */}
-      {methods.data?.telegram === true ? (
-        <Button asChild variant="secondary">
-          <a href="/api/auth/telegram/start">{t('auth.login.telegram')}</a>
+      <div className="flex flex-col gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={signInWithPasskey}
+          disabled={passkeyLogin.isPending}
+        >
+          {t('auth.login.passkey')}
         </Button>
-      ) : null}
+
+        {/* Ссылка, а не кнопка с fetch: за ней идёт цепочка редиректов на чужой
+            домен, и пройти она должна в адресной строке. Кнопки нет вовсе, пока
+            развёртывание не настроено, — она привела бы на страницу с ошибкой. */}
+        {methods.data?.telegram === true ? (
+          <Button asChild variant="secondary">
+            <a href="/api/auth/telegram/start">{t('auth.login.telegram')}</a>
+          </Button>
+        ) : null}
+      </div>
     </form>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { resetSchema, useAuthClient } from '@repibot/core'
-import { Button, FormField, PasswordInput } from '@repibot/ui'
+import { Alert, Button, FormField, PasswordInput } from '@repibot/ui'
 import { useMutation } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import type { FormEvent } from 'react'
@@ -45,7 +45,7 @@ export default function ResetPasswordPage() {
 
   return (
     <form onSubmit={submit} noValidate className="flex w-full flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('auth.reset.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{t('auth.reset.title')}</h1>
 
       <FormField
         label={t('auth.field.new_password')}
@@ -63,11 +63,7 @@ export default function ResetPasswordPage() {
         />
       </FormField>
 
-      {reset.error === null ? null : (
-        <p role="alert" className="text-sm text-danger">
-          {errorText(reset.error, language)}
-        </p>
-      )}
+      {reset.error === null ? null : <Alert tone="error">{errorText(reset.error, language)}</Alert>}
 
       <Button type="submit" disabled={reset.isPending || token === undefined}>
         {t('auth.reset.submit')}

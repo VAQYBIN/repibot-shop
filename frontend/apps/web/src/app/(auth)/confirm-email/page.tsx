@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuthClient } from '@repibot/core'
+import { Alert, Spinner } from '@repibot/ui'
 import { useEffect, useRef, useState } from 'react'
 
 import { errorText, useBrowserLanguage, useTranslate } from '@/lib/i18n'
@@ -50,18 +51,16 @@ export default function ConfirmEmailPage() {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-text">{t('account.confirm_email.title')}</h1>
+      <h1 className="text-h1 font-semibold text-text">{t('account.confirm_email.title')}</h1>
 
-      {state === 'checking' ? (
-        <p className="text-text-secondary">{t('auth.verify.checking')}</p>
-      ) : null}
+      {state === 'checking' ? <Spinner label={t('auth.verify.checking')} /> : null}
 
       {state === 'done' ? (
         <>
           <p className="text-text-secondary">{t('account.confirm_email.done')}</p>
           {/* Две ссылки, потому что неизвестно, есть ли в этом браузере сессия:
               вошедший вернётся в кабинет, остальные войдут новым адресом. */}
-          <div className="flex justify-between gap-4 text-sm">
+          <div className="flex justify-between gap-4 text-small">
             <a href="/login" className="text-text-accent hover:underline">
               {t('account.confirm_email.login_link')}
             </a>
@@ -72,11 +71,7 @@ export default function ConfirmEmailPage() {
         </>
       ) : null}
 
-      {state === 'failed' ? (
-        <p role="alert" className="text-sm text-danger">
-          {failure}
-        </p>
-      ) : null}
+      {state === 'failed' ? <Alert tone="error">{failure}</Alert> : null}
     </div>
   )
 }
