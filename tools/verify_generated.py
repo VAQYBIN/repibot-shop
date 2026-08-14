@@ -25,7 +25,7 @@ class Generated:
     """Файлы под контролем генерации и команда, которая их создаёт.
 
     Одна команда может выдавать несколько файлов: сборка бренда пишет
-    тринадцать за раз, и запускать её тринадцать раз было бы расточительно.
+    пятнадцать за раз, и запускать её пятнадцать раз было бы расточительно.
     """
 
     paths: tuple[Path, ...]
@@ -67,6 +67,8 @@ GENERATED: list[Generated] = [
             Path("docs/design/logo/favicon.svg"),
             Path("docs/design/logo/avatar.svg"),
             Path("docs/design/logo/og-image.svg"),
+            Path("docs/design/logo/banner.svg"),
+            Path("docs/design/logo/banner-light.svg"),
             Path("frontend/apps/web/public/favicon.svg"),
             Path("frontend/apps/miniapp/public/favicon.svg"),
         ),

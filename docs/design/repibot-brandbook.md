@@ -278,6 +278,11 @@
 | `badge.svg`, `badge-inverse.svg` | плашки для аватарок и иконок |
 | `favicon.svg` | упрощённый знак на плашке |
 | `avatar.svg`, `og-image.svg` | исходники растров |
+| `banner.svg`, `banner-light.svg` | шапка README, тёмная и светлая |
+
+Баннер существует в двух версиях не для красоты: GitHub показывает README в
+теме читателя, и одна версия из двух непременно оказалась бы заплатой чужого
+цвета. Выбор делает `<picture>` в README, а не человек.
 
 Растры в `docs/design/logo/raster`: `favicon-16.png`, `favicon-32.png`, `icon-192.png`, `icon-512.png`, `avatar-512.png`, `og-image.png` (1200×630).
 

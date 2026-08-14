@@ -1,6 +1,6 @@
 """Сборка всех файлов бренд-набора.
 
-Одиннадцать SVG выводятся из одного описания геометрии и одних контуров
+Тринадцать SVG выводятся из одного описания геометрии и одних контуров
 вордмарка. Растеризация живёт отдельно: она требует браузера и в проверку
 не входит.
 """
@@ -18,6 +18,7 @@ from tools.brand.geometry import (
     JADE_BRIGHT,
     JADE_MIST,
     LIGHT,
+    PAPER,
     SMALL,
     WHITE,
     Mark,
@@ -53,18 +54,28 @@ def wordmark_svg(letters: str = INK, colon: str = JADE, size: float = 100.0) -> 
     return f"{opening}{_wordmark_group(scale, 0, size * 0.78, letters, colon)}</svg>"
 
 
-def lockup_h_svg(mark: Mark = FULL, letters: str = INK, colon: str = JADE) -> str:
-    """Знак слева, вордмарк справа. Просвет — высота строчной x, раздел 5."""
+def _lockup_h_body(
+    mark: Mark, spiral: str, core: str, letters: str, colon: str
+) -> tuple[str, float, float]:
+    """Разметка горизонтального лок-апа и его габарит.
+
+    Габарит возвращается наружу по той же причине, что и у вертикального:
+    баннер вписывает лок-ап в свой холст, и считать его размер второй раз
+    означало бы завести вторую версию правды.
+    """
     size = mark.height * FONT_RATIO
     scale = size / UNITS_PER_EM
     x = mark.width + X_HEIGHT * scale
     # Оптический центр надписи — середина полосы строчных, а не базовая линия.
     baseline = mark.height / 2 + X_HEIGHT * scale / 2
-    opening = open_svg(x + ADVANCE * scale, mark.height, "Re:Pibot")
-    return (
-        f"{opening}{mark_markup(mark, INK, JADE)}"
-        f"{_wordmark_group(scale, x, baseline, letters, colon)}</svg>"
-    )
+    body = f"{mark_markup(mark, spiral, core)}{_wordmark_group(scale, x, baseline, letters, colon)}"
+    return body, x + ADVANCE * scale, mark.height
+
+
+def lockup_h_svg(mark: Mark = FULL, letters: str = INK, colon: str = JADE) -> str:
+    """Знак слева, вордмарк справа. Просвет — высота строчной x, раздел 5."""
+    body, width, height = _lockup_h_body(mark, INK, JADE, letters, colon)
+    return f"{open_svg(width, height, 'Re:Pibot')}{body}</svg>"
 
 
 def _lockup_v_body(
@@ -115,6 +126,31 @@ def og_image_svg() -> str:
     )
 
 
+BANNER_WIDTH = 1280
+BANNER_HEIGHT = 320
+# Доля ширины холста под лок-ап. Масштаб задаётся по ширине: полоса вытянутая,
+# высота получается сама. При 0.34 поле сверху и снизу выходит 89 px против
+# минимальных 71 px раздела 5 — больше, и охранное поле схлопнется.
+BANNER_RATIO = 0.34
+
+
+def banner_svg(background: str, spiral: str, core: str, letters: str, colon: str) -> str:
+    """Полотно для шапки README: лок-ап по центру, остальное — воздух.
+
+    Две версии вместо одной: GitHub показывает README в теме читателя, и
+    полотно на Ink в светлой теме выглядит чёрной заплатой посреди страницы.
+    """
+    body, width, height = _lockup_h_body(FULL, spiral, core, letters, colon)
+    scale = BANNER_WIDTH * BANNER_RATIO / width
+    x = (BANNER_WIDTH - width * scale) / 2
+    y = (BANNER_HEIGHT - height * scale) / 2
+    opening = open_svg(BANNER_WIDTH, BANNER_HEIGHT, "Re:Pibot Shop — магазин VPN-подписок")
+    return (
+        f'{opening}<rect width="{BANNER_WIDTH}" height="{BANNER_HEIGHT}" fill="{background}"/>'
+        f'<g transform="translate({x:.2f} {y:.2f}) scale({scale:.4f})">{body}</g></svg>'
+    )
+
+
 FILES: dict[str, str] = {
     "logo-mark.svg": mark_svg(FULL, INK, JADE),
     "logo-mark-mono.svg": mark_svg(FULL, CURRENT, CURRENT, "Re:Pibot, одноцветная версия"),
@@ -130,6 +166,9 @@ FILES: dict[str, str] = {
     # Аватар: знак крупнее плашки и обрезается ею, раздел 8.
     "avatar.svg": badge_svg(FULL, 512, JADE, JADE_MIST, WHITE, scale=1.15, bleed=True),
     "og-image.svg": og_image_svg(),
+    # Шапка README. На Ink обычный Jade мутнеет — ядро Jade Bright, раздел 2.
+    "banner.svg": banner_svg(INK, LIGHT, JADE_BRIGHT, LIGHT, JADE_BRIGHT),
+    "banner-light.svg": banner_svg(PAPER, INK, JADE, INK, JADE),
 }
 
 COPIES: tuple[tuple[str, Path], ...] = (

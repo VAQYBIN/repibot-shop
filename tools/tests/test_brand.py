@@ -15,8 +15,10 @@ from tools.brand.build import FILES, LOGO_DIR
 from tools.brand.geometry import (
     CURRENT,
     FULL,
+    INK,
     JADE,
     PALETTE,
+    PAPER,
     SMALL,
     Mark,
     badge_svg,
@@ -205,3 +207,40 @@ def test_manifest_points_at_existing_icons() -> None:
     assert manifest["theme_color"] == JADE
     for icon in manifest["icons"]:
         assert (ROOT / "frontend/apps/web/public" / icon["src"].lstrip("/")).is_file()
+
+
+BANNER_FILES = ("banner.svg", "banner-light.svg")
+
+
+@pytest.mark.parametrize("name", BANNER_FILES)
+def test_banner_canvas_is_wide_and_short(name: str) -> None:
+    """Шапка README — широкая полоса: квадрат вытолкнул бы текст за первый экран."""
+    content = (LOGO_DIR / name).read_text(encoding="utf-8")
+
+    assert 'viewBox="0 0 1280 320"' in content
+
+
+@pytest.mark.parametrize("name", BANNER_FILES)
+def test_banner_draws_the_same_spiral_as_the_rest(name: str) -> None:
+    """Расхождение геометрии между файлами — то, о чём предупреждает раздел 8."""
+    assert FULL.path in (LOGO_DIR / name).read_text(encoding="utf-8")
+
+
+def test_banner_keeps_the_clear_space_of_the_brandbook() -> None:
+    """Раздел 5: вокруг лок-апа остаётся не меньше половины высоты знака."""
+    content = (LOGO_DIR / "banner.svg").read_text(encoding="utf-8")
+    match = re.search(r"translate\([\d.]+ ([\d.]+)\) scale\(([\d.]+)\)", content)
+
+    assert match is not None
+    top, scale = float(match.group(1)), float(match.group(2))
+
+    assert top >= FULL.height * scale / 2
+
+
+def test_banner_pair_differs_by_theme_only() -> None:
+    """Ink-полотно в светлой теме GitHub — чёрный прямоугольник посреди страницы."""
+    dark = (LOGO_DIR / "banner.svg").read_text(encoding="utf-8")
+    light = (LOGO_DIR / "banner-light.svg").read_text(encoding="utf-8")
+
+    assert f'<rect width="1280" height="320" fill="{INK}"/>' in dark
+    assert f'<rect width="1280" height="320" fill="{PAPER}"/>' in light
