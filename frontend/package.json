@@ -15,5 +15,10 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.7",
     "typescript": "^6.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "js-yaml@4.3.0": "4.3.1"
+    }
   }
 }
