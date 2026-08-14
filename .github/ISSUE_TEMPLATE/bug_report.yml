@@ -1,0 +1,76 @@
+name: Отчёт об ошибке
+description: Что-то работает не так, как описано в документации
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Перед тем как прикладывать журналы, вычистите из них секреты.
+        `.env` проекта содержит токен бота, ключ панели и `JWT_SECRET` —
+        первый же приложенный лог отдаёт их всем читателям.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Где проявилось
+      options:
+        - Сайт и кабинет
+        - MiniApp
+        - Бот
+        - API
+        - Воркер и расписание
+        - Развёртывание
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: Что произошло
+      description: Что вы увидели вместо ожидаемого.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      description: По шагам, от чистого стека, если это возможно.
+      placeholder: |
+        1. docker compose up -d
+        2. Открыть http://localhost/
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Чего вы ожидали
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Версия или коммит
+      description: Вывод `git rev-parse --short HEAD`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Журналы
+      description: Вывод `docker compose logs --tail=100`, без секретов.
+      render: shell
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Перед отправкой
+      options:
+        - label: Я поискал среди открытых issue — такой ещё нет
+          required: true
+        - label: В приложенном выводе нет токенов, паролей и ключей
+          required: true

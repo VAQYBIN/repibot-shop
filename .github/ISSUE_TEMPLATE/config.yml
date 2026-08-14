@@ -1,0 +1,10 @@
+# Пустой issue без версии и шагов воспроизведения дороже обходится обеим
+# сторонам: сначала неделя переписки, потом выясняется, что дело в настройках.
+blank_issues_enabled: false
+contact_links:
+  - name: Вопрос по развёртыванию
+    url: https://github.com/VAQYBIN/repibot-shop/blob/main/docs/deployment.md
+    about: Настройка BotFather, платежей, поддержки и своей главной страницы описана здесь.
+  - name: Уязвимость
+    url: https://github.com/VAQYBIN/repibot-shop/security/advisories/new
+    about: Не открывайте issue. Сообщите приватно — так уязвимость не окажется публичной до исправления.

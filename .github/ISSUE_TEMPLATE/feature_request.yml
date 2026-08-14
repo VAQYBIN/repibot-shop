@@ -1,0 +1,37 @@
+name: Запрос возможности
+description: Чего проекту не хватает
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую задачу это решает
+      description: Опишите ситуацию, а не готовое решение — решений может быть несколько.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Как вы обходитесь сейчас
+      description: Если никак — так и напишите.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Что предлагаете
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Готовы прислать pull request?
+      options:
+        - Да
+        - Нужна помощь с началом
+        - Нет
+    validations:
+      required: true
