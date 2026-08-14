@@ -142,17 +142,20 @@ flowchart LR
     browser["Браузер"] --> nginx
     telegram["Telegram"] --> nginx
 
-    nginx["nginx"] -->|"/"| web["web · Next.js 16<br>сайт, кабинет, админка"]
-    nginx -->|"/app/"| miniapp["MiniApp · React 19"]
+    nginx["nginx"] -->|"/ — если своей главной нет"| web["web · Next.js 16<br>сайт, кабинет, админка"]
+    nginx -->|"/app/"| miniapp["MiniApp · React 19<br>статика в образе nginx"]
     nginx -->|"/api, вебхуки"| api["api · FastAPI"]
     nginx -->|"/webhook/telegram"| bot["bot · aiogram"]
 
     web --> api
     miniapp --> api
     bot --> postgres
+    bot --> valkey
+    bot --> outside
     api --> postgres[("Postgres")]
     api --> valkey[("Valkey")]
     api --> remnawave["Панель Remnawave"]
+    api --> outside
 
     worker["worker и scheduler · TaskIQ"] --> postgres
     worker --> valkey

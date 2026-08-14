@@ -35,11 +35,22 @@ def test_community_files_exist(name: str) -> None:
 
 
 def test_readme_shows_the_banner() -> None:
-    """Шапка — единственное, что видно до прокрутки."""
+    """Шапка — единственное, что видно до прокрутки.
+
+    Перепутанные условия media в <picture> — самая вероятная ошибка при
+    правке README, а присутствия одних только имён файлов для её поимки
+    недостаточно: тёмная и светлая версии должны стоять под своим условием.
+    """
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert "docs/design/logo/banner.svg" in readme
-    assert "docs/design/logo/banner-light.svg" in readme
+    assert (
+        '<source media="(prefers-color-scheme: dark)" srcset="docs/design/logo/banner.svg">'
+        in readme
+    )
+    assert (
+        '<source media="(prefers-color-scheme: light)" '
+        'srcset="docs/design/logo/banner-light.svg">' in readme
+    )
 
 
 def test_readme_covers_local_start() -> None:

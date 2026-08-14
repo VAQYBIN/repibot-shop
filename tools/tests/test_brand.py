@@ -11,12 +11,21 @@ from pathlib import Path
 
 import pytest
 
-from tools.brand.build import FILES, LOGO_DIR
+from tools.brand.build import (
+    BANNER_HEIGHT,
+    BANNER_RATIO,
+    BANNER_WIDTH,
+    FILES,
+    LOGO_DIR,
+    _lockup_h_body,
+)
 from tools.brand.geometry import (
     CURRENT,
     FULL,
     INK,
     JADE,
+    JADE_BRIGHT,
+    LIGHT,
     PALETTE,
     PAPER,
     SMALL,
@@ -227,20 +236,28 @@ def test_banner_draws_the_same_spiral_as_the_rest(name: str) -> None:
 
 
 def test_banner_keeps_the_clear_space_of_the_brandbook() -> None:
-    """Раздел 5: вокруг лок-апа остаётся не меньше половины высоты знака."""
-    content = (LOGO_DIR / "banner.svg").read_text(encoding="utf-8")
-    match = re.search(r"translate\([\d.]+ ([\d.]+)\) scale\(([\d.]+)\)", content)
+    """Раздел 4: охранное поле вокруг знака — не меньше 1.5x, где x — диаметр ядра."""
+    _, width, height = _lockup_h_body(FULL, INK, JADE, INK, JADE)
+    scale = BANNER_WIDTH * BANNER_RATIO / width
+    guard = 1.5 * FULL.unit * scale
 
-    assert match is not None
-    top, scale = float(match.group(1)), float(match.group(2))
-
-    assert top >= FULL.height * scale / 2
+    assert (BANNER_HEIGHT - height * scale) / 2 >= guard
+    assert (BANNER_WIDTH - width * scale) / 2 >= guard
 
 
-def test_banner_pair_differs_by_theme_only() -> None:
-    """Ink-полотно в светлой теме GitHub — чёрный прямоугольник посреди страницы."""
+def test_banner_pair_paints_each_theme_by_the_brandbook() -> None:
+    """Раздел 2: на Ink обычный Jade мутнеет, поэтому в тёмной версии Jade Bright.
+
+    Без проверки самих красок баннер, собранный целиком в один цвет, остался бы
+    зелёным во всех остальных тестах: палитра, геометрия и холст у него верные.
+    """
     dark = (LOGO_DIR / "banner.svg").read_text(encoding="utf-8")
     light = (LOGO_DIR / "banner-light.svg").read_text(encoding="utf-8")
 
     assert f'<rect width="1280" height="320" fill="{INK}"/>' in dark
+    assert f'stroke="{LIGHT}"' in dark
+    assert f'fill="{JADE_BRIGHT}"' in dark
+
     assert f'<rect width="1280" height="320" fill="{PAPER}"/>' in light
+    assert f'stroke="{INK}"' in light
+    assert f'fill="{JADE}"' in light
