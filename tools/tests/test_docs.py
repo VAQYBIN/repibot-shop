@@ -15,6 +15,33 @@ def test_required_documents_exist(name: str) -> None:
     assert (ROOT / name).is_file()
 
 
+COMMUNITY_FILES = (
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/ISSUE_TEMPLATE/bug_report.yml",
+    ".github/ISSUE_TEMPLATE/feature_request.yml",
+    ".github/ISSUE_TEMPLATE/config.yml",
+)
+
+
+@pytest.mark.parametrize("name", COMMUNITY_FILES)
+def test_community_files_exist(name: str) -> None:
+    """README на них ссылается, а GitHub показывает их в интерфейсе.
+
+    Пропавший файл превращает и то и другое в ссылку на 404.
+    """
+    assert (ROOT / name).is_file()
+
+
+def test_readme_shows_the_banner() -> None:
+    """Шапка — единственное, что видно до прокрутки."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "docs/design/logo/banner.svg" in readme
+    assert "docs/design/logo/banner-light.svg" in readme
+
+
 def test_readme_covers_local_start() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
