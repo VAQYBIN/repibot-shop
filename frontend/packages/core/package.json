@@ -29,6 +29,6 @@
     "openapi-typescript": "^7.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.11"
   }
 }
